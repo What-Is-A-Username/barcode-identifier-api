@@ -17,7 +17,7 @@ class NuccoreSequence(models.Model):
 
     created = models.DateTimeField(auto_now_add=True)
     accession_number = models.CharField(max_length=255)
-    uid = models.CharField(max_length=2048, blank='', default='')
+    uid = models.CharField(max_length=2048, blank=True, default='')
     definition = models.CharField(max_length=255, blank=True, default='')
     organism = models.CharField(max_length=255, blank=True, default='')
     organelle = models.CharField(max_length=255, blank=True, default='')

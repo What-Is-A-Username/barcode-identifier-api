@@ -31,10 +31,11 @@ class NuccoreSequenceList(mixins.ListModelMixin, mixins.CreateModelMixin, generi
         currentData = {}
 
         accession_number = request.data['accession_number']
+        owner_db = request.data['owner_database']
 
         # TODO: Check for duplicates in the SAME db 
         try:
-            duplicate = NuccoreSequence.objects.get(accession_number = accession_number)
+            duplicate = NuccoreSequence.objects.get(accession_number = accession_number, owner_database_id = int(owner_db))
         except NuccoreSequence.DoesNotExist:
             pass
         else:
@@ -191,18 +192,18 @@ class BlastRunList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.Gene
         job_name = request.data['job_name'] if 'job_name' in request.data else ''
 
         # Bad request if no database is given
-        if not 'database' in request.data:
+        if not 'db_used' in request.data:
             return Response({
                 'message': "No blast database specified."
             }, status = status.HTTP_400_BAD_REQUEST)
 
         # Bad request if database could not be found
         try:
-            odb = BlastDb.objects.get(id = request.data['database'])
+            odb = BlastDb.objects.get(id = request.data['db_used'])
         except BlastDb.DoesNotExist:
             return Response({
                 'message': "The database specified does not exist.",
-                'database': request.data['database']
+                'database': request.data['db_used']
             }, status = status.HTTP_400_BAD_REQUEST)
 
         # Bad request if the database does not have the minimum number of sequences
@@ -210,7 +211,7 @@ class BlastRunList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.Gene
         sequences = NuccoreSequence.objects.filter(owner_database = odb.id)
         if len(sequences) < MINIMUM_NUMBER_OF_SEQUENCES:
             return Response({
-                'message': "Cannot begin a blastn query on a database of less than " + MINIMUM_NUMBER_OF_SEQUENCES + " sequences.",
+                'message': f"Cannot begin a blastn query on a database of less than {MINIMUM_NUMBER_OF_SEQUENCES} sequences.",
                 'current_size': len(sequences),
                 'min_size': MINIMUM_NUMBER_OF_SEQUENCES
             }, status = status.HTTP_400_BAD_REQUEST)
@@ -245,7 +246,7 @@ class BlastRunList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.Gene
                     print(x.organism)
                     identifier = '_'.join(x.organism.split(' '))
                     dna_sequence = x.dna_sequence
-                    my_file.write('>' + identifier + '\n' + dna_sequence)
+                    my_file.write('>' + identifier + '\n' + dna_sequence + '\n')
             my_file.close()
 
             print('Creating db now ...')
@@ -283,7 +284,7 @@ class BlastRunList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.Gene
         blast_version = outlines[0].replace('# ', '')
         errors = err 
 
-        run_details = BlastRun(blastdb = odb, job_name = job_name, blast_version = blast_version, errors = errors)
+        run_details = BlastRun(db_used = odb, job_name = job_name, blast_version = blast_version, errors = errors)
 
         run_details.save()
 

@@ -1,3 +1,5 @@
 {
-    "python.pythonPath": "env_barcode/bin/python"
+    "python.pythonPath": "env_barcode/bin/python",
+    "python.defaultInterpreterPath": "env_barcode/bin/python",
+    "python.analysis.typeCheckingMode": "basic"
 }

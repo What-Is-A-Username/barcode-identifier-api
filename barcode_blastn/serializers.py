@@ -17,7 +17,7 @@ class BlastDbSerializer(serializers.ModelSerializer):
 
 class BlastRunSerializer(serializers.ModelSerializer):
 
-    db_used = serializers.PrimaryKeyRelatedField(many=False, read_only=True)
+    db_used = serializers.PrimaryKeyRelatedField(many=False, queryset=BlastRun.objects.all())
     
     class Meta:
         model = BlastRun
