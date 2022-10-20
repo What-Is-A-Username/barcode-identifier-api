@@ -5,6 +5,7 @@ from barcode_blastn import views
 urlpatterns = [
     path('blastdbs/', views.BlastDbList.as_view()),
     path('blastdbs/<int:pk>/', views.BlastDbDetail.as_view()),
+    path('blastdbs/<int:pk>/add/', views.NuccoreSequenceAdd.as_view()),
     path('nuccores/', views.NuccoreSequenceList.as_view()),
     path('nuccores/<int:pk>/', views.NuccoreSequenceDetail.as_view()),
     path('runs/', views.BlastRunList.as_view()),

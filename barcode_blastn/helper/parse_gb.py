@@ -1,3 +1,4 @@
+from typing import Dict
 from urllib.error import HTTPError
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -36,7 +37,7 @@ class InvalidAccessionNumberError(Exception):
     """Raised when accession number cannot be found in the retrieved GenBank XML"""
     pass
 
-def parse_gbx_xml(xml_string: str, accession_number: str) -> str:
+def parse_gbx_xml(xml_string: str, accession_number: str) -> Dict:
     qualifiers_to_extract = ['organism', 'organelle', 'mol_type', 'isolate', 'country', 'specimen_voucher']
     
     gbset = ET.fromstring(xml_string)

@@ -48,3 +48,19 @@ class BlastRun(BlastDb):
 
     # Error
     errors = models.TextField(max_length=10000, blank=True, default='')
+
+class Hit(models.Model):
+    owner_run = models.ForeignKey(BlastRun, related_name='hits', on_delete=models.CASCADE)
+
+    query_accession_version = models.CharField(max_length=128)
+    subject_accession_version = models.CharField(max_length=128)
+    percent_identity = models.DecimalField(max_digits=6, decimal_places=3)
+    alignment_length = models.IntegerField()
+    mismatches = models.IntegerField()
+    gap_opens = models.IntegerField()
+    query_start = models.IntegerField()
+    query_end = models.IntegerField()
+    sequence_start = models.IntegerField()
+    sequence_end = models.IntegerField()
+    evalue = models.DecimalField(max_digits=110, decimal_places=100)
+    bit_score = models.DecimalField(max_digits=110, decimal_places=100)

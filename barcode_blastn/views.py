@@ -1,3 +1,5 @@
+from rest_framework.serializers import Serializer
+from barcode_blastn.helper.parse_results import parse_results
 import os
 import re
 import json
@@ -6,15 +8,15 @@ import subprocess
 from django.http.response import FileResponse, HttpResponse
 from barcode_blastn.helper.parse_gb import InvalidAccessionNumberError, parse_gbx_xml, retrieve_gb
 from rest_framework.response import Response
-from barcode_blastn.models import BlastRun, NuccoreSequence, BlastDb
-from barcode_blastn.serializers import BlastRunSerializer, NuccoreSequenceSerializer, BlastDbSerializer
+from barcode_blastn.models import BlastRun, Hit, NuccoreSequence, BlastDb
+from barcode_blastn.serializers import BlastRunSerializer, HitSerializer, NuccoreSequenceAddSerializer, NuccoreSequenceSerializer, BlastDbSerializer
 from rest_framework import status, generics, mixins
 from urllib.error import HTTPError
 from rest_framework.parsers import MultiPartParser
 from django.template import loader
+from rest_framework.renderers import JSONRenderer
 
-# TODO: Move GET and POST to /blastdbs/<pk>/add
-class NuccoreSequenceList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.GenericAPIView):
+class NuccoreSequenceList(mixins.ListModelMixin, generics.GenericAPIView):
     queryset = NuccoreSequence.objects.all()
     serializer_class = NuccoreSequenceSerializer
 
@@ -23,36 +25,40 @@ class NuccoreSequenceList(mixins.ListModelMixin, mixins.CreateModelMixin, generi
     '''
     def get(self, request, *args, **kwargs):
         return self.list(request, *args, **kwargs)
-
+        
+class NuccoreSequenceAdd(generics.CreateAPIView):
+    serializer_class = NuccoreSequenceAddSerializer
     '''
     Create a new accession number and add it to an existing database
     '''
     def post(self, request, *args, **kwargs):
-        currentData = {}
-
         accession_number = request.data['accession_number']
-        owner_db = request.data['owner_database']
 
-        # TODO: Check for duplicates in the SAME db 
+        pk = kwargs['pk']
+        # Query for the Blast database
         try:
-            duplicate = NuccoreSequence.objects.get(accession_number = accession_number, owner_database_id = int(owner_db))
+            db = BlastDb.objects.get(id=pk)
+        except BlastDb.DoesNotExist:
+            return Response({'message': 'Database does not exist', 'requested': pk}, status.HTTP_404_NOT_FOUND)
+        
+        # Check if the database already has this accession number
+        try:
+            duplicate = NuccoreSequence.objects.get(accession_number = accession_number, owner_database_id = pk)
         except NuccoreSequence.DoesNotExist:
             pass
         else:
             return Response({'message': "Entry already exists for the accession number specified.", 'accession_number': accession_number}, status.HTTP_400_BAD_REQUEST)
-        
+
+        currentData = {}
         try:
             xml_string = retrieve_gb(accession_number = accession_number)
+            currentData = parse_gbx_xml(xml_string = xml_string, accession_number = accession_number)
         except HTTPError:
             return Response({'message': f"The GenBank database does not contain an entry for this accession number.", 'accession_number': accession_number}, status=status.HTTP_400_BAD_REQUEST)
         except BaseException:
             return Response({'message': f"Failed to parse retrieved GenBank database entry.", 'accession_number': accession_number}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-        try:
-            currentData = parse_gbx_xml(xml_string = xml_string, accession_number = accession_number)
-        except BaseException:
-            return Response({'message': f"The GenBank entry for accession number could not be parsed properly.", 'accession_number': accession_number}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+        
+        currentData['owner_database'] = pk
         all_data = request.POST.copy()
         all_data.update(currentData)
 
@@ -62,7 +68,7 @@ class NuccoreSequenceList(mixins.ListModelMixin, mixins.CreateModelMixin, generi
             return Response(serializer.data, status = status.HTTP_201_CREATED)
 
         return Response(serializer.errors, status = status.HTTP_400_BAD_REQUEST)
-            
+
 class NuccoreSequenceDetail(mixins.DestroyModelMixin, generics.RetrieveAPIView):
     queryset = NuccoreSequence.objects.all()
     serializer_class = NuccoreSequenceSerializer
@@ -88,6 +94,7 @@ class NuccoreSequenceListUpload(mixins.CreateModelMixin, generics.GenericAPIView
             'error_type': type(e)}, status=status.HTTP_400_BAD_REQUEST)
 
         lines = re.split('\r\n|\n|\r', content)
+        lines = [l.strip() for l in lines if len(l.strip()) > 0]
 
         return Response({'accession_numbers': json.dumps(lines)}, 
         status=status.HTTP_201_CREATED)
@@ -258,12 +265,16 @@ class BlastRunList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.Gene
 
         # Perform blast search
         print('Generating query fasta file ...')
-        with open(fishdb_path + '/query.fasta', 'w') as tmp:
+        query_file = fishdb_path + '/query.fasta'
+        with open(query_file, 'w') as tmp:
             tmp.write(query_sequence)
         tmp.close()
 
         print('Running BLAST search ...')
-        blast_command = '{} -db {} -outfmt 7 -query {}'.format(blast_root + '/blastn', fishdb_path + '/' + db_name, fishdb_path + '/query.fasta')
+        command_app = blast_root + '/blastn'
+        db_path = fishdb_path + '/' + db_name
+        outfmt = 7
+        blast_command = f'{command_app} -db {db_path} -outfmt {outfmt} -query {query_file}'
 
         process = subprocess.Popen(blast_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
 
@@ -284,17 +295,53 @@ class BlastRunList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.Gene
         blast_version = outlines[0].replace('# ', '')
         errors = err 
 
-        run_details = BlastRun(db_used = odb, job_name = job_name, blast_version = blast_version, errors = errors)
+        run_details = BlastRun(db_used = odb, job_name = job_name, blast_version = blast_version, errors = errors, query_sequence = query_sequence)
 
         run_details.save()
 
-        return Response("Successfully ran blast query.", status=status.HTTP_201_CREATED)
+        # bulk create hits
+        parsed_data = parse_results(out)
+        all_hits = [Hit(**hit, owner_run = run_details) for hit in parsed_data]
+        Hit.objects.bulk_create(all_hits)
 
-class BlastRunDetail(generics.RetrieveAPIView):
+        # create response 
+        # details = BlastRun.objects.get(pk=run_details.pk)
+        serializer = BlastRunSerializer(run_details)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class BlastRunDetail(mixins.DestroyModelMixin, generics.GenericAPIView):
 
     queryset = BlastRun.objects.all()
     serializer_class = BlastRunSerializer
-
+    
     # TODO: Return blast results as JSON, HTML text, and .txt
     def get(self, request, *args, **kwargs):
-        return self.get(request, *args, **kwargs)
+        # self.get(request, *args, **kwargs)
+        db_primary_key = kwargs['pk']
+
+        try:
+            run = BlastRun.objects.get(id = db_primary_key)
+        except BlastRun.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        
+        serializer = BlastRunSerializer(run)
+
+        return(Response(serializer.data, status=status.HTTP_200_OK))
+
+    '''
+    Delete an accession number from the database
+    '''
+    def delete(self, request, *args, **kwargs):
+        return self.destroy(request, *args, **kwargs)
+
+class HitDetail(mixins.ListModelMixin, generics.GenericAPIView):
+    queryset = Hit.objects.all()
+    serializer_class = HitSerializer
+
+    '''
+    List all accession numbers saved to all databases
+    '''
+    def get(self, request, *args, **kwargs):
+        pk = kwargs['pk']
+        return self.list(request, *args, **kwargs)
