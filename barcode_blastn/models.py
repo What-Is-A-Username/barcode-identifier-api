@@ -1,4 +1,5 @@
 from django.db import models
+import uuid
 
 class BlastDb(models.Model):
     # The creation datetime of this database
@@ -31,7 +32,9 @@ class NuccoreSequence(models.Model):
     class Meta:
         ordering = ['accession_number']
 
-class BlastRun(BlastDb):
+class BlastRun(models.Model):
+    uuid = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
     # Reference to the database used
     db_used = models.ForeignKey(BlastDb, related_name='usages', on_delete=models.CASCADE)
     # When was the blastn run?
