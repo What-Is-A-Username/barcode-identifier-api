@@ -172,7 +172,17 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
     Delete the blastdb
     '''
     def delete(self, request, *args, **kwargs):
-        # TODO: If a local blastdb file has been made, delete it
+        # TODO: Test this method
+        try:
+            database_id = str(kwargs['pk'])
+            db = BlastDb.objects.get(id = database_id)
+        except BlastDb.DoesNotExist:
+            return Response("Resource does not exist", status = status.HTTP_404_NOT_FOUND)
+
+        local_db_folder = os.path.abspath(f'./fishdb/{database_id}/')
+        if len(database_id) > 0 and os.path.exists(local_db_folder):
+            shutil.rmtree(local_db_folder, ignore_errors=True)
+
         return self.destroy(request, *args, **kwargs)
 
 class BlastRunList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.GenericAPIView):
@@ -309,7 +319,7 @@ class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
         blast_version = outlines[0].replace('# ', '')
         errors = err 
 
-        run_details = BlastRun(db_used = odb, job_name = job_name, blast_version = blast_version, errors = errors, query_sequence = query_sequence)
+        run_details = BlastRun(id = results_uuid, db_used = odb, job_name = job_name, blast_version = blast_version, errors = errors, query_sequence = query_sequence)
 
         run_details.save()
 
@@ -347,6 +357,12 @@ class BlastRunDetail(mixins.DestroyModelMixin, generics.GenericAPIView):
     Delete an accession number from the database
     '''
     def delete(self, request, *args, **kwargs):
+        run_id = str(kwargs['pk'])
+        print(run_id)
+        local_run_folder = os.path.abspath(f'./runs/{run_id}/')
+        if len(run_id) > 0 and os.path.exists(local_run_folder):
+            shutil.rmtree(local_run_folder, ignore_errors=True)
+
         return self.destroy(request, *args, **kwargs)
 
 class HitDetail(mixins.ListModelMixin, generics.GenericAPIView):

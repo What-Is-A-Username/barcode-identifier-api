@@ -2,7 +2,9 @@
 # Query: 
 # Database: /home/linux_user1/django_projects/djangorest/barcode_identifier_api/barcode_identifier_api/fishdb/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/database
 # Fields: query acc.ver, subject acc.ver, % identity, alignment length, mismatches, gap opens, q. start, q. end, s. start, s. end, evalue, bit score
-# 1 hits found
-Query_1	Electrophorus_varii	100.000	94	0	0	1	94	20	113	2.57e-47	174
+# 3 hits found
+Query_1	Gymnotus_anguillaris	100.000	353	0	0	1	353	104	456	0.0	652
+Query_1	Gymnotus_cataniapo	92.264	349	27	0	1	349	104	452	2.02e-143	496
+Query_1	Gymnotus_coatesi	83.853	353	57	0	1	353	104	456	1.29e-95	337
 # BLAST processed 1 queries
 
