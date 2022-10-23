@@ -11,12 +11,12 @@ class NuccoreSequenceSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = NuccoreSequence
-        fields = ['id', 'owner_database', 'accession_number', 'definition', 'organism', 'organelle', 'mol_type', 'isolate', 'country', 'specimen_voucher', 'dna_sequence', 'translation', 'created']
+        fields = ['owner_database', 'accession_number', 'definition', 'organism', 'organelle', 'mol_type', 'isolate', 'country', 'specimen_voucher', 'dna_sequence', 'translation', 'created']
 
 class BlastDbSequenceEntrySerializer(serializers.ModelSerializer):
     class Meta:
         model = NuccoreSequence
-        fields = ['id', 'accession_number', 'definition', 'organism', 'created']
+        fields = ['id', 'accession_number', 'definition', 'organism', 'organelle', 'mol_type', 'isolate', 'country', 'specimen_voucher', 'dna_sequence', 'translation', 'created']
 
 class BlastDbSerializer(serializers.ModelSerializer):
     sequences = BlastDbSequenceEntrySerializer(many=True, read_only=True)
@@ -35,7 +35,10 @@ class HitSerializer(serializers.ModelSerializer):
         model = Hit
         fields = ['owner_run', 'query_accession_version', 'subject_accession_version', 'percent_identity', 'alignment_length', 'mismatches', 'gap_opens', 'query_start', 'query_end', 'sequence_start', 'sequence_end', 'evalue', 'bit_score']
 
-
+class BlastRunRunSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BlastRun
+        fields = ['id', 'job_name', 'query_sequence']
 
 class BlastRunSerializer(serializers.ModelSerializer):
 

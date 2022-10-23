@@ -1,3 +1,4 @@
+import uuid
 from rest_framework.serializers import Serializer
 from barcode_blastn.helper.parse_results import parse_results
 import os
@@ -9,7 +10,7 @@ from django.http.response import FileResponse, HttpResponse
 from barcode_blastn.helper.parse_gb import InvalidAccessionNumberError, parse_gbx_xml, retrieve_gb
 from rest_framework.response import Response
 from barcode_blastn.models import BlastRun, Hit, NuccoreSequence, BlastDb
-from barcode_blastn.serializers import BlastRunSerializer, HitSerializer, NuccoreSequenceAddSerializer, NuccoreSequenceSerializer, BlastDbSerializer
+from barcode_blastn.serializers import BlastRunRunSerializer, BlastRunSerializer, HitSerializer, NuccoreSequenceAddSerializer, NuccoreSequenceSerializer, BlastDbSerializer
 from rest_framework import status, generics, mixins
 from urllib.error import HTTPError
 from rest_framework.parsers import MultiPartParser
@@ -58,13 +59,13 @@ class NuccoreSequenceAdd(generics.CreateAPIView):
         except BaseException:
             return Response({'message': f"Failed to parse retrieved GenBank database entry.", 'accession_number': accession_number}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
-        currentData['owner_database'] = pk
+        currentData['owner_database'] = db.id
         all_data = request.POST.copy()
         all_data.update(currentData)
 
         serializer = NuccoreSequenceSerializer(data = all_data)
         if serializer.is_valid():
-            serializer.save()
+            serializer.save(owner_database = db)
             return Response(serializer.data, status = status.HTTP_201_CREATED)
 
         return Response(serializer.errors, status = status.HTTP_400_BAD_REQUEST)
@@ -185,10 +186,16 @@ class BlastRunList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.Gene
     def get(self, request, *args, **kwargs):
         return self.list(request, *args, **kwargs)
 
+class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
+    serializer_class = BlastRunRunSerializer
+
     '''
     Run blast query
     '''
     def post(self, request, *args, **kwargs):      
+
+        db_used = kwargs['pk']
+
         # Bad request if no query_sequence is given
         if not 'query_sequence' in request.data:
             return Response({
@@ -198,19 +205,13 @@ class BlastRunList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.Gene
 
         job_name = request.data['job_name'] if 'job_name' in request.data else ''
 
-        # Bad request if no database is given
-        if not 'db_used' in request.data:
-            return Response({
-                'message': "No blast database specified."
-            }, status = status.HTTP_400_BAD_REQUEST)
-
         # Bad request if database could not be found
         try:
-            odb = BlastDb.objects.get(id = request.data['db_used'])
+            odb = BlastDb.objects.get(id = db_used)
         except BlastDb.DoesNotExist:
             return Response({
                 'message': "The database specified does not exist.",
-                'database': request.data['db_used']
+                'database': db_used
             }, status = status.HTTP_400_BAD_REQUEST)
 
         # Bad request if the database does not have the minimum number of sequences
@@ -228,12 +229,21 @@ class BlastRunList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.Gene
         # path to ncbi.../bin/
         blast_root = project_root + '/ncbi-blast-2.12.0+/bin'
 
-        fishdb_path = project_root + '/fishdb'
+        # path to output the database
+        fishdb_root = project_root + '/fishdb'
+        fishdb_path = fishdb_root + '/' + str(odb.id)
+        if not os.path.exists(fishdb_path):
+            os.mkdir(fishdb_path)
 
-        # TODO: Generate unique name for each database
-        db_name = 'fish'
+        # path to output the results
+        results_uuid = uuid.uuid4()
+        results_root = project_root + '/runs'
+        results_path = results_root + '/' + str(results_uuid)
+        if not os.path.exists(results_path):
+            os.mkdir(results_path)
 
         if not odb.locked:
+            print('Database was not locked. Creating database locally ...')
             # Make the database
             
             if os.path.exists(fishdb_path):
@@ -247,7 +257,7 @@ class BlastRunList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.Gene
             
             print('Gathering sequences into fasta ...')
             os.mkdir(fishdb_path)
-            fasta_file = fishdb_path + '/{}.fasta'.format(db_name)
+            fasta_file = fishdb_path + f'/database.fasta'
             with open(fasta_file, 'w') as my_file:
                 for x in sequences:
                     print(x.organism)
@@ -257,22 +267,26 @@ class BlastRunList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.Gene
             my_file.close()
 
             print('Creating db now ...')
-            command = '{} -in {} -dbtype nucl -out {} -title {}'.format(blast_root + '/makeblastdb', fasta_file, fishdb_path + '/' + db_name, db_name)
-
-            # TODO: Lock the blastdb once the db has been created
+            command = '{} -in {} -dbtype nucl -out {} -title {}'.format(blast_root + '/makeblastdb', fasta_file, fishdb_path + '/database', 'database')
+        
+            # Lock the database
+            odb.locked = True
+            odb.save()
 
             os.system(command)
+        else:
+            print('Database was locked. Will use existing local database.')
 
         # Perform blast search
         print('Generating query fasta file ...')
-        query_file = fishdb_path + '/query.fasta'
+        query_file = results_path + '/query.fasta'
         with open(query_file, 'w') as tmp:
             tmp.write(query_sequence)
         tmp.close()
 
         print('Running BLAST search ...')
         command_app = blast_root + '/blastn'
-        db_path = fishdb_path + '/' + db_name
+        db_path = fishdb_path + '/database'
         outfmt = 7
         blast_command = f'{command_app} -db {db_path} -outfmt {outfmt} -query {query_file}'
 
@@ -284,7 +298,7 @@ class BlastRunList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.Gene
 
         print('Writing results to file ...')
 
-        with open(fishdb_path + '/results.txt', "w") as results_file:
+        with open(results_path + '/results.txt', "w") as results_file:
             results_file.write(out + '\n')
             if err:
                 results_file.write('Errors occurred when processing the query:\n')

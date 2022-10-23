@@ -4,11 +4,12 @@ from barcode_blastn import views
 
 urlpatterns = [
     path('blastdbs/', views.BlastDbList.as_view()),
-    path('blastdbs/<int:pk>/', views.BlastDbDetail.as_view()),
-    path('blastdbs/<int:pk>/add/', views.NuccoreSequenceAdd.as_view()),
+    path('blastdbs/<uuid:pk>/', views.BlastDbDetail.as_view()),
+    path('blastdbs/<uuid:pk>/add/', views.NuccoreSequenceAdd.as_view()),
+    path('blastdbs/<uuid:pk>/run/', views.BlastRunRun.as_view()),
     path('nuccores/', views.NuccoreSequenceList.as_view()),
-    path('nuccores/<int:pk>/', views.NuccoreSequenceDetail.as_view()),
+    path('nuccores/<uuid:pk>/', views.NuccoreSequenceDetail.as_view()),
     path('runs/', views.BlastRunList.as_view()),
-    path('runs/<int:pk>/', views.BlastRunDetail.as_view()),
+    path('runs/<uuid:pk>/', views.BlastRunDetail.as_view()),
     re_path(r'^upload/(?P<filename>[^/]+)$', views.NuccoreSequenceListUpload.as_view())
 ]

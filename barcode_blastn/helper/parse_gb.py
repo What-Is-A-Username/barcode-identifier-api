@@ -22,14 +22,16 @@ def retrieve_gb(accession_number: str) -> str:
     request_time_str = request_time.strftime("%H:%M:%S.%f")
     print(f'{request_time_str} | Fetching from GenBank at url "{url}"')
 
-    response = urllib.request.urlopen(url)
+    try:
+        response = urllib.request.urlopen(url)
+    except HTTPError as e:
+        # e.msg = f'Failed to fetch entry from GenBank.'
+        raise
     
     response_time = datetime.now()
     response_time_str = response_time.strftime("%H:%M:%S.%f")
     print(f'{response_time_str} | Response received from "{url}"')
 
-    if response.status != status.HTTP_200_OK:
-        raise HTTPError(f'Failed to fetch GenBank entry. Response code: {response.status_code}')
     xml_string = response.read().decode('UTF8')
     return xml_string
 

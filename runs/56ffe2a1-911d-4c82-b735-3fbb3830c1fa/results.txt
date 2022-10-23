@@ -1,0 +1,8 @@
+# BLASTN 2.12.0+
+# Query: 
+# Database: /home/linux_user1/django_projects/djangorest/barcode_identifier_api/barcode_identifier_api/fishdb/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/database
+# Fields: query acc.ver, subject acc.ver, % identity, alignment length, mismatches, gap opens, q. start, q. end, s. start, s. end, evalue, bit score
+# 1 hits found
+Query_1	Electrophorus_varii	100.000	39	0	0	1	39	20	58	3.35e-17	73.1
+# BLAST processed 1 queries
+

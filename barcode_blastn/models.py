@@ -2,6 +2,8 @@ from django.db import models
 import uuid
 
 class BlastDb(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
     # The creation datetime of this database
     created = models.DateTimeField(auto_now_add=True)
     # The user-customized title
@@ -13,6 +15,8 @@ class BlastDb(models.Model):
         ordering = ['custom_name']
 
 class NuccoreSequence(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
     owner_database = models.ForeignKey(BlastDb, related_name='sequences',
         on_delete=models.CASCADE)
 
@@ -33,7 +37,7 @@ class NuccoreSequence(models.Model):
         ordering = ['accession_number']
 
 class BlastRun(models.Model):
-    uuid = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     # Reference to the database used
     db_used = models.ForeignKey(BlastDb, related_name='usages', on_delete=models.CASCADE)
