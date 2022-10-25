@@ -93,6 +93,13 @@ GRANT ALL ON ALL FUNCTIONS IN SCHEMA public to admin;
 ```
 Now the error should be resolved, and commands like `python manage.py runserver` should work.
 
+### I get errors when syncing the local database with the `db.sql` file with `psql -f db.sql`
+One method of resolving it, albeit very blunt and destructive, is to remove all the data in the table and let the database be constructed from scratch using the `db.sql` file.
+```
+python manage.py flush
+python manage.py migrate barcode_blastn zero
+psql -d barcode_identifier_db -f db.sql -U admin -h 127.0.0.1 
+```
 
 
 

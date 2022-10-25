@@ -163,7 +163,7 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
         except BlastDb.DoesNotExist:
             return Response("Resource does not exist", status = status.HTTP_404_NOT_FOUND)
         
-        if db.locked:
+        if db.locked and (not 'locked' in request.data or request.data['locked'] == db.locked):
             return Response("This entry is locked and cannot be patched.", status = status.HTTP_400_BAD_REQUEST)
 
         return self.partial_update(request, *args, **kwargs)

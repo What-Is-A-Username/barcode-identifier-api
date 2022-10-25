@@ -23,7 +23,7 @@ class BlastDbSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = BlastDb
-        fields = ['id', 'custom_name', 'sequences']
+        fields = ['id', 'custom_name', 'locked', 'sequences']
     
 class NuccoreSequenceAddSerializer(serializers.ModelSerializer):
     class Meta:
