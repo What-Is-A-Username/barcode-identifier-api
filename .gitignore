@@ -70,6 +70,3 @@ old_requirements.txt
 
 # results
 fishdb/
-
-# db temp files
-db.sql

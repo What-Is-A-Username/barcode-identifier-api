@@ -72,10 +72,15 @@ pg_dump -U admin -h 127.0.0.1 barcode_identifier_db > db.sql
 
 ## Troubleshooting
 
-#### `psql: error: FATAL:  Peer authentication failed for user "admin"` in the terminal
-In the event that Postgre SQL fails to authenticate you (e.g.: `psql: error: FATAL:  Peer authentication failed for user "admin"` or `psql: error: FATAL:  role "linux_username" does not exist`), one remedy is to change the authentication settings of Postgre SQL (requires root access) so that the `postgres` username is usable. Details on how to do so are [online](https://stackoverflow.com/a/26735105). After, running `psql` in the terminal requires you to specify the username explicitly with `-U postgres`. You can check whether you can log into the database by running `psql -U <username> <database>`.
+### I get the error `psql: error: FATAL:  Peer authentication failed for user "admin"` in the terminal when I try to run `psql`
+If you are accessing `psql` through the terminal, try specifying the port number and the database to connect to. Example:
+```
+psql -d barcode_identifier_db -U admin -h 127.0.0.1
+```
 
-#### ... `django.db.utils.ProgrammingError: permission denied for table django_migrations` when running `python manage.py makemigrations`
+In the event that Postgre SQL still fails to authenticate you (e.g.: `psql: error: FATAL:  Peer authentication failed for user "admin"` or `psql: error: FATAL:  role "linux_username" does not exist`), one remedy is to change the authentication settings of Postgre SQL (requires root access) so that the `postgres` username is usable. Details on how to do so are [online](https://stackoverflow.com/a/26735105). After, running `psql` in the terminal requires you to specify the username explicitly with `-U postgres`. You can check whether you can log into the database by running `psql -U <username> <database>`.
+
+### I get the error `django.db.utils.ProgrammingError: permission denied for table django_migrations` when running `python manage.py makemigrations`
 This arises when the local PostGre SQL database is not owned by the the `admin` user which the API access the database from. We have to regrant permissions to the `admin` user, from some user second_user with higher permissions to the database (this second user is likely `postgres`).
 ```
 # log into the database with a user with greater permissions
