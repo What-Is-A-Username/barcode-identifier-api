@@ -16,7 +16,7 @@ class NuccoreSequenceSerializer(serializers.ModelSerializer):
 class BlastDbSequenceEntrySerializer(serializers.ModelSerializer):
     class Meta:
         model = NuccoreSequence
-        fields = ['id', 'accession_number', 'definition', 'organism', 'organelle', 'mol_type', 'isolate', 'country', 'specimen_voucher', 'dna_sequence', 'translation', 'created']
+        fields = ['id', 'accession_number', 'definition', 'organism', 'isolate', 'country', 'specimen_voucher']
 
 class BlastDbSerializer(serializers.ModelSerializer):
     sequences = BlastDbSequenceEntrySerializer(many=True, read_only=True)

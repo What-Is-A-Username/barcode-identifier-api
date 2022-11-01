@@ -271,26 +271,27 @@ class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
             with open(fasta_file, 'w') as my_file:
                 for x in sequences:
                     print(x.organism)
-                    identifier = '_'.join(x.organism.split(' '))
+                    identifier = x.accession_number
                     dna_sequence = x.dna_sequence
                     my_file.write('>' + identifier + '\n' + dna_sequence + '\n')
             my_file.close()
 
             print('Creating db now ...')
-            command = '{} -in {} -dbtype nucl -out {} -title {}'.format(blast_root + '/makeblastdb', fasta_file, fishdb_path + '/database', 'database')
+            command = '{} -in {} -dbtype nucl -out {} -title {} -parse_seqids'.format(blast_root + '/makeblastdb', fasta_file, fishdb_path + '/database', 'database')
         
             # Lock the database
             odb.locked = True
             odb.save()
 
             os.system(command)
-        else:
+        # else
             print('Database was locked. Will use existing local database.')
 
         # Perform blast search
         print('Generating query fasta file ...')
         query_file = results_path + '/query.fasta'
         with open(query_file, 'w') as tmp:
+            tmp.write('>query_sequence\n')
             tmp.write(query_sequence)
         tmp.close()
 
@@ -298,7 +299,7 @@ class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
         command_app = blast_root + '/blastn'
         db_path = fishdb_path + '/database'
         outfmt = 7
-        blast_command = f'{command_app} -db {db_path} -outfmt {outfmt} -query {query_file}'
+        blast_command = f'{command_app} -db {db_path} -outfmt {outfmt} -query {query_file} -title {odb.custom_name}'
 
         process = subprocess.Popen(blast_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
 
