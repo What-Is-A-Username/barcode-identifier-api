@@ -215,7 +215,10 @@ CREATE TABLE public.barcode_blastn_blastrun (
     query_sequence text NOT NULL,
     blast_version text NOT NULL,
     errors text NOT NULL,
-    db_used_id uuid NOT NULL
+    db_used_id uuid NOT NULL,
+    job_end_time timestamp with time zone,
+    job_start_time timestamp with time zone,
+    job_status character varying(3) NOT NULL
 );
 
 
@@ -453,6 +456,7 @@ COPY public.auth_permission (id, name, content_type_id, codename) FROM stdin;
 --
 
 COPY public.auth_user (id, password, last_login, is_superuser, username, first_name, last_name, email, is_staff, is_active, date_joined) FROM stdin;
+1	pbkdf2_sha256$390000$sW6VlHYNFrisw8ksh9aGeh$Ch3HJxZ/9FBG74C+rAAhlGRzAGiucDKksePWIbcy1QY=	2022-11-06 17:02:35.719002-05	t	admin			william.huang1212@gmail.com	t	t	2022-11-06 17:02:20.502531-05
 \.
 
 
@@ -485,17 +489,21 @@ COPY public.barcode_blastn_blastdb (id, created, custom_name, locked) FROM stdin
 -- Data for Name: barcode_blastn_blastrun; Type: TABLE DATA; Schema: public; Owner: admin
 --
 
-COPY public.barcode_blastn_blastrun (id, runtime, job_name, query_sequence, blast_version, errors, db_used_id) FROM stdin;
-7bf9be4f-eaef-411a-a8bc-8656c3cfcbdc	2022-10-22 19:14:40.955608-04	first job	tgttaattcgtgctgaactaagccagccaggtaccttgatgggggatgaccagatttataatgtagttgtaactgcccatgctttcgtaataat	BLASTN 2.12.0+		4f33c746-e566-4cfb-a79d-1d4bcb8cae6d
-e2935b10-736f-430a-b4c3-527708b37125	2022-10-22 20:18:44.001238-04	sssss	tgttaattcgtgctgaactaagccagccaggtaccttgatgggggatgaccagatttataatgtagttgtaactgcccatgctttcgtaataat	BLASTN 2.12.0+		4f33c746-e566-4cfb-a79d-1d4bcb8cae6d
-82505f13-741f-4882-b09d-6e8eb6f0eebb	2022-10-22 20:53:43.669171-04	second	agtctttttttttttttaaaaaaaaaaaacccccccccgtgtgtg	BLASTN 2.12.0+		4f33c746-e566-4cfb-a79d-1d4bcb8cae6d
-dfeb327e-63bd-45bb-8d1c-2a81b9c5364d	2022-10-22 20:55:20.362108-04	ssss	agctgcct	BLASTN 2.12.0+		4f33c746-e566-4cfb-a79d-1d4bcb8cae6d
-70b2eb8e-636e-4bca-8faa-c18e7231969b	2022-10-22 21:01:59.052082-04	wow	agct	BLASTN 2.12.0+		4f33c746-e566-4cfb-a79d-1d4bcb8cae6d
-087b03db-c8f8-476d-a2b5-b2bb976639d0	2022-10-23 00:32:39.62214-04		agct	BLASTN 2.12.0+		4f33c746-e566-4cfb-a79d-1d4bcb8cae6d
-8e2ab134-c668-4497-aa4a-5771fc28c456	2022-10-23 00:35:04.181493-04	web based submit redirect	agggggccccttttt	BLASTN 2.12.0+		4f33c746-e566-4cfb-a79d-1d4bcb8cae6d
-d9736d5a-6155-4921-bd10-bfc68b9c699a	2022-10-23 00:35:25.889516-04	redirect	agcttttt	BLASTN 2.12.0+		4f33c746-e566-4cfb-a79d-1d4bcb8cae6d
-854281ad-c136-4f16-a629-2af5bd5ae1e6	2022-10-23 00:39:26.990347-04	hits	ataacgtaattgttactgcccacgcctttgtaataatcttctttatagttatacctatcatgattggcggctttggaaactgacttatcccactaataatcggagccccagatatagcattcccccgaataaacaacatgagcttctgacttctcccgccctctttcctgcttctccttgcctcatcaggagttgaggccggggctggaacaggctgaaccgtatacccccctcttgcaggtaaccttgcccacgcaggagcctcagtagacctaactattttctccctacaccttgccggagtttcctcaattctcggggctattaattttatcactacaattattaatata	BLASTN 2.12.0+		4f33c746-e566-4cfb-a79d-1d4bcb8cae6d
-74504b12-544e-4f35-8b51-753c2ea5325b	2022-10-23 00:39:27.037225-04	hits	ataacgtaattgttactgcccacgcctttgtaataatcttctttatagttatacctatcatgattggcggctttggaaactgacttatcccactaataatcggagccccagatatagcattcccccgaataaacaacatgagcttctgacttctcccgccctctttcctgcttctccttgcctcatcaggagttgaggccggggctggaacaggctgaaccgtatacccccctcttgcaggtaaccttgcccacgcaggagcctcagtagacctaactattttctccctacaccttgccggagtttcctcaattctcggggctattaattttatcactacaattattaatata	BLASTN 2.12.0+		4f33c746-e566-4cfb-a79d-1d4bcb8cae6d
+COPY public.barcode_blastn_blastrun (id, runtime, job_name, query_sequence, blast_version, errors, db_used_id, job_end_time, job_start_time, job_status) FROM stdin;
+7bf9be4f-eaef-411a-a8bc-8656c3cfcbdc	2022-10-22 19:14:40.955608-04	first job	tgttaattcgtgctgaactaagccagccaggtaccttgatgggggatgaccagatttataatgtagttgtaactgcccatgctttcgtaataat	BLASTN 2.12.0+		4f33c746-e566-4cfb-a79d-1d4bcb8cae6d	\N	\N	UNK
+e2935b10-736f-430a-b4c3-527708b37125	2022-10-22 20:18:44.001238-04	sssss	tgttaattcgtgctgaactaagccagccaggtaccttgatgggggatgaccagatttataatgtagttgtaactgcccatgctttcgtaataat	BLASTN 2.12.0+		4f33c746-e566-4cfb-a79d-1d4bcb8cae6d	\N	\N	UNK
+82505f13-741f-4882-b09d-6e8eb6f0eebb	2022-10-22 20:53:43.669171-04	second	agtctttttttttttttaaaaaaaaaaaacccccccccgtgtgtg	BLASTN 2.12.0+		4f33c746-e566-4cfb-a79d-1d4bcb8cae6d	\N	\N	UNK
+dfeb327e-63bd-45bb-8d1c-2a81b9c5364d	2022-10-22 20:55:20.362108-04	ssss	agctgcct	BLASTN 2.12.0+		4f33c746-e566-4cfb-a79d-1d4bcb8cae6d	\N	\N	UNK
+70b2eb8e-636e-4bca-8faa-c18e7231969b	2022-10-22 21:01:59.052082-04	wow	agct	BLASTN 2.12.0+		4f33c746-e566-4cfb-a79d-1d4bcb8cae6d	\N	\N	UNK
+087b03db-c8f8-476d-a2b5-b2bb976639d0	2022-10-23 00:32:39.62214-04		agct	BLASTN 2.12.0+		4f33c746-e566-4cfb-a79d-1d4bcb8cae6d	\N	\N	UNK
+8e2ab134-c668-4497-aa4a-5771fc28c456	2022-10-23 00:35:04.181493-04	web based submit redirect	agggggccccttttt	BLASTN 2.12.0+		4f33c746-e566-4cfb-a79d-1d4bcb8cae6d	\N	\N	UNK
+d9736d5a-6155-4921-bd10-bfc68b9c699a	2022-10-23 00:35:25.889516-04	redirect	agcttttt	BLASTN 2.12.0+		4f33c746-e566-4cfb-a79d-1d4bcb8cae6d	\N	\N	UNK
+854281ad-c136-4f16-a629-2af5bd5ae1e6	2022-10-23 00:39:26.990347-04	hits	ataacgtaattgttactgcccacgcctttgtaataatcttctttatagttatacctatcatgattggcggctttggaaactgacttatcccactaataatcggagccccagatatagcattcccccgaataaacaacatgagcttctgacttctcccgccctctttcctgcttctccttgcctcatcaggagttgaggccggggctggaacaggctgaaccgtatacccccctcttgcaggtaaccttgcccacgcaggagcctcagtagacctaactattttctccctacaccttgccggagtttcctcaattctcggggctattaattttatcactacaattattaatata	BLASTN 2.12.0+		4f33c746-e566-4cfb-a79d-1d4bcb8cae6d	\N	\N	UNK
+74504b12-544e-4f35-8b51-753c2ea5325b	2022-10-23 00:39:27.037225-04	hits	ataacgtaattgttactgcccacgcctttgtaataatcttctttatagttatacctatcatgattggcggctttggaaactgacttatcccactaataatcggagccccagatatagcattcccccgaataaacaacatgagcttctgacttctcccgccctctttcctgcttctccttgcctcatcaggagttgaggccggggctggaacaggctgaaccgtatacccccctcttgcaggtaaccttgcccacgcaggagcctcagtagacctaactattttctccctacaccttgccggagtttcctcaattctcggggctattaattttatcactacaattattaatata	BLASTN 2.12.0+		4f33c746-e566-4cfb-a79d-1d4bcb8cae6d	\N	\N	UNK
+9687f57c-9470-4c9a-ae2a-ce06d20eada4	2022-10-31 23:22:43.594895-04	test for seqids in hits	ataacgtaattgttactgcccacgcctttgtaataatcttctttatagttatacctatcatgattggcggctttggaaactgacttatcccactaataatcggagccccagatatagcattcccccgaataaacaacatgagcttctgacttctcccgccctctttcctgcttctccttgcctcatcaggagttgaggccggggctggaacaggctgaaccgtatacccccctcttgcaggtaaccttgcccacgcaggagcctcagtagacctaactattttctccctacaccttgccggagtttcctcaattctcggggctattaattttatcactacaattattaatata	BLASTN 2.12.0+		4f33c746-e566-4cfb-a79d-1d4bcb8cae6d	\N	\N	UNK
+8d901ddb-ecce-413a-813b-d7b91256d1a2	2022-11-06 18:50:42.974952-05	new worker start times	ataacgtaattgttactgcccacgcctttgtaataatcttctttatagttatacctatcatgattggcggctttggaaactgacttatcccactaataatcggagccccagatatagcattcccccgaataaacaacatgagcttctgacttctcccgccctctttcctgcttctccttgcctcatcaggagttgaggccggggctggaacaggctgaaccgtatacccccctcttgcaggtaaccttgcccacgcaggagcctcagtagacctaactattttctccctacaccttgccggagtttcctcaattctcggggctattaattttatcactacaattattaatata	ncbi-blast-2.12.0+		4f33c746-e566-4cfb-a79d-1d4bcb8cae6d	2022-11-06 18:50:43.581686-05	2022-11-06 18:50:43.043639-05	FIN
+e67c2e2a-e201-448a-b881-7abcf2f8da0d	2022-11-06 17:33:28.929783-05	redis with rqworker with no name finished	ataacgtaattgttactgcccacgcctttgtaataatcttctttatagttatacctatcatgattggcggctttggaaactgacttatcccactaataatcggagccccagatatagcattcccccgaataaacaacatgagcttctgacttctcccgccctctttcctgcttctccttgcctcatcaggagttgaggccggggctggaacaggctgaaccgtatacccccctcttgcaggtaaccttgcccacgcaggagcctcagtagacctaactattttctccctacaccttgccggagtttcctcaattctcggggctattaattttatcactacaattattaatata	unknown	unknown	4f33c746-e566-4cfb-a79d-1d4bcb8cae6d	\N	\N	UNK
+6137a7de-f77a-443c-b5c5-ce29957dd0cc	2022-11-06 18:46:38.639658-05	with start times	ataacgtaattgttactgcccacgcctttgtaataatcttctttatagttatacctatcatgattggcggctttggaaactgacttatcccactaataatcggagccccagatatagcattcccccgaataaacaacatgagcttctgacttctcccgccctctttcctgcttctccttgcctcatcaggagttgaggccggggctggaacaggctgaaccgtatacccccctcttgcaggtaaccttgcccacgcaggagcctcagtagacctaactattttctccctacaccttgccggagtttcctcaattctcggggctattaattttatcactacaattattaatata	ncbi-blast-2.12.0+		4f33c746-e566-4cfb-a79d-1d4bcb8cae6d	\N	\N	QUE
 \.
 
 
@@ -512,6 +520,15 @@ COPY public.barcode_blastn_hit (id, query_accession_version, subject_accession_v
 9	Query_1	Gymnotus_anguillaris	100.000	353	0	0	1	353	104	456	0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000	652.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000	74504b12-544e-4f35-8b51-753c2ea5325b
 10	Query_1	Gymnotus_cataniapo	92.264	349	27	0	1	349	104	452	0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000	496.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000	74504b12-544e-4f35-8b51-753c2ea5325b
 11	Query_1	Gymnotus_coatesi	83.853	353	57	0	1	353	104	456	0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000129000	337.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000	74504b12-544e-4f35-8b51-753c2ea5325b
+12	query_sequence	ON303378	100.000	353	0	0	1	353	104	456	0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000	652.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000	9687f57c-9470-4c9a-ae2a-ce06d20eada4
+13	query_sequence	ON303383	92.264	349	27	0	1	349	104	452	0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000	496.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000	9687f57c-9470-4c9a-ae2a-ce06d20eada4
+14	query_sequence	ON303387	83.853	353	57	0	1	353	104	456	0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000129000	337.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000	9687f57c-9470-4c9a-ae2a-ce06d20eada4
+15	query_sequence	ON303378	100.000	353	0	0	1	353	104	456	0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000	652.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000	e67c2e2a-e201-448a-b881-7abcf2f8da0d
+16	query_sequence	ON303383	92.264	349	27	0	1	349	104	452	0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000	496.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000	e67c2e2a-e201-448a-b881-7abcf2f8da0d
+17	query_sequence	ON303387	83.853	353	57	0	1	353	104	456	0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000129000	337.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000	e67c2e2a-e201-448a-b881-7abcf2f8da0d
+18	query_sequence	ON303378	100.000	353	0	0	1	353	104	456	0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000	652.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000	8d901ddb-ecce-413a-813b-d7b91256d1a2
+19	query_sequence	ON303383	92.264	349	27	0	1	349	104	452	0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000	496.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000	8d901ddb-ecce-413a-813b-d7b91256d1a2
+20	query_sequence	ON303387	83.853	353	57	0	1	353	104	456	0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000129000	337.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000	8d901ddb-ecce-413a-813b-d7b91256d1a2
 \.
 
 
@@ -566,6 +583,7 @@ COPY public.django_content_type (id, app_label, model) FROM stdin;
 8	barcode_blastn	nuccoresequence
 9	barcode_blastn	blastrun
 10	barcode_blastn	hit
+11	django_rq	queue
 \.
 
 
@@ -594,6 +612,9 @@ COPY public.django_migrations (id, app, name, applied) FROM stdin;
 18	sessions	0001_initial	2022-10-22 16:46:27.926067-04
 19	barcode_blastn	0001_initial	2022-10-22 16:49:26.345093-04
 20	barcode_blastn	0002_rename_uuid_blastdb_id_rename_uuid_blastrun_id_and_more	2022-10-22 17:36:02.909355-04
+26	django_rq	0001_initial	2022-11-06 16:42:56.452887-05
+27	barcode_blastn	0003_blastrun_finished	2022-11-06 17:43:09.412963-05
+28	barcode_blastn	0004_remove_blastrun_finished_blastrun_job_end_time_and_more	2022-11-06 18:45:07.599342-05
 \.
 
 
@@ -602,6 +623,7 @@ COPY public.django_migrations (id, app, name, applied) FROM stdin;
 --
 
 COPY public.django_session (session_key, session_data, expire_date) FROM stdin;
+13g23mmqg5fnoqyd7852740r003k6zgv	.eJxVjMsOwiAQRf-FtSE8Bigu3fsNhM5MpWogKe3K-O_apAvd3nPOfYmUt7WkrfOSZhJnocXpdxszPrjugO653prEVtdlHuWuyIN2eW3Ez8vh_h2U3Mu3NpE1Ts4G6_wEQIwxRKMpgGKlQTkbCcHTQMqoYEhDZksB2XkDMDjx_gDFRjbn:1ornit:6xxSXAuFo8ba6CM2XVzg_t-nbShE9fa-LgTmPH_V8RE	2022-11-20 17:02:35.804384-05
 \.
 
 
@@ -623,7 +645,7 @@ SELECT pg_catalog.setval('public.auth_group_permissions_id_seq', 1, false);
 -- Name: auth_permission_id_seq; Type: SEQUENCE SET; Schema: public; Owner: admin
 --
 
-SELECT pg_catalog.setval('public.auth_permission_id_seq', 36, true);
+SELECT pg_catalog.setval('public.auth_permission_id_seq', 38, true);
 
 
 --
@@ -637,7 +659,7 @@ SELECT pg_catalog.setval('public.auth_user_groups_id_seq', 1, false);
 -- Name: auth_user_id_seq; Type: SEQUENCE SET; Schema: public; Owner: admin
 --
 
-SELECT pg_catalog.setval('public.auth_user_id_seq', 1, false);
+SELECT pg_catalog.setval('public.auth_user_id_seq', 1, true);
 
 
 --
@@ -651,7 +673,7 @@ SELECT pg_catalog.setval('public.auth_user_user_permissions_id_seq', 1, false);
 -- Name: barcode_blastn_hit_id_seq; Type: SEQUENCE SET; Schema: public; Owner: admin
 --
 
-SELECT pg_catalog.setval('public.barcode_blastn_hit_id_seq', 11, true);
+SELECT pg_catalog.setval('public.barcode_blastn_hit_id_seq', 20, true);
 
 
 --
@@ -665,14 +687,14 @@ SELECT pg_catalog.setval('public.django_admin_log_id_seq', 1, false);
 -- Name: django_content_type_id_seq; Type: SEQUENCE SET; Schema: public; Owner: admin
 --
 
-SELECT pg_catalog.setval('public.django_content_type_id_seq', 9, true);
+SELECT pg_catalog.setval('public.django_content_type_id_seq', 11, true);
 
 
 --
 -- Name: django_migrations_id_seq; Type: SEQUENCE SET; Schema: public; Owner: admin
 --
 
-SELECT pg_catalog.setval('public.django_migrations_id_seq', 25, true);
+SELECT pg_catalog.setval('public.django_migrations_id_seq', 28, true);
 
 
 --

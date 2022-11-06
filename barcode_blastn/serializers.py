@@ -47,5 +47,5 @@ class BlastRunSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = BlastRun
-        fields = ['id', 'job_name', 'query_sequence', 'db_used', 'hits']
+        fields = ['id', 'job_name', 'query_sequence', 'db_used', 'runtime', 'job_status', 'job_start_time', 'job_end_time', 'hits']
 

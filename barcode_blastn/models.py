@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils.translation import gettext_lazy as _
 import uuid
 
 class BlastDb(models.Model):
@@ -47,6 +48,19 @@ class BlastRun(models.Model):
     job_name = models.CharField(max_length=255, blank=True, default='')
     # Query sequence
     query_sequence = models.TextField(max_length=10000, blank=True, default='')
+
+    class JobStatus(models.TextChoices):
+        UNKNOWN = 'UNK', _('UNKNOWN')
+        DENIED = 'DEN', _('DENIED')
+        QUEUED = 'QUE', _('QUEUED')
+        STARTED = 'STA', _('RUNNING')
+        ERRORED = 'ERR', _('ERRORED')
+        FINISHED = 'FIN', _('FINISHED')
+
+    job_status = models.CharField(max_length=3,choices=JobStatus.choices, default=JobStatus.UNKNOWN)
+
+    job_start_time = models.DateTimeField(blank=True, null=True)
+    job_end_time = models.DateTimeField(blank=True, null=True)
 
     # RESULTS
     # Blast version

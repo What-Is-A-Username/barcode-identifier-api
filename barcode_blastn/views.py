@@ -1,11 +1,9 @@
 import uuid
-from rest_framework.serializers import Serializer
-from barcode_blastn.helper.parse_results import parse_results
 import os
 import re
 import json
 import shutil
-import subprocess
+import django_rq
 from django.http.response import FileResponse, HttpResponse
 from barcode_blastn.helper.parse_gb import InvalidAccessionNumberError, parse_gbx_xml, retrieve_gb
 from rest_framework.response import Response
@@ -15,7 +13,8 @@ from rest_framework import status, generics, mixins
 from urllib.error import HTTPError
 from rest_framework.parsers import MultiPartParser
 from django.template import loader
-from rest_framework.renderers import JSONRenderer
+
+from barcode_blastn.helper.run_blast import run_blast_command
 
 class NuccoreSequenceList(mixins.ListModelMixin, generics.GenericAPIView):
     queryset = NuccoreSequence.objects.all()
@@ -237,7 +236,8 @@ class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
         # path to parent folder of blast tools and django app
         project_root = os.path.abspath(os.path.dirname('./'))
         # path to ncbi.../bin/
-        blast_root = project_root + '/ncbi-blast-2.12.0+/bin'
+        ncbi_blast_version = 'ncbi-blast-2.12.0+'
+        blast_root =  f'{project_root}/{ncbi_blast_version}/bin'
 
         # path to output the database
         fishdb_root = project_root + '/fishdb'
@@ -296,38 +296,11 @@ class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
         tmp.close()
 
         print('Running BLAST search ...')
-        command_app = blast_root + '/blastn'
-        db_path = fishdb_path + '/database'
-        outfmt = 7
-        blast_command = f'{command_app} -db {db_path} -outfmt {outfmt} -query {query_file} -title {odb.custom_name}'
 
-        process = subprocess.Popen(blast_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-
-        print('BLAST search completed.')
-
-        out, err = process.stdout.read().decode(), process.stderr.read().decode()
-
-        print('Writing results to file ...')
-
-        with open(results_path + '/results.txt', "w") as results_file:
-            results_file.write(out + '\n')
-            if err:
-                results_file.write('Errors occurred when processing the query:\n')
-                results_file.write(err)
-        results_file.close()
-
-        outlines = out.split('\n')
-        blast_version = outlines[0].replace('# ', '')
-        errors = err 
-
-        run_details = BlastRun(id = results_uuid, db_used = odb, job_name = job_name, blast_version = blast_version, errors = errors, query_sequence = query_sequence)
-
+        run_details = BlastRun(id = results_uuid, db_used = odb, job_name = job_name, blast_version = ncbi_blast_version, errors = '', query_sequence = query_sequence, job_status=BlastRun.JobStatus.QUEUED, job_start_time = None, job_end_time = None)
         run_details.save()
 
-        # bulk create hits
-        parsed_data = parse_results(out)
-        all_hits = [Hit(**hit, owner_run = run_details) for hit in parsed_data]
-        Hit.objects.bulk_create(all_hits)
+        django_rq.enqueue(run_blast_command, blast_root=blast_root, fishdb_path=fishdb_path, query_file=query_file, run_details=run_details, results_path=results_path)
 
         # create response 
         # details = BlastRun.objects.get(pk=run_details.pk)

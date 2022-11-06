@@ -64,6 +64,30 @@ Optionally, if you want the database to be populated with data from a local `db.
 psql -d barcode_identifier_db -f db.sql -U admin
 ```
 
+Set-up the redis-server, and the default rqworker queue.
+Ubuntu:
+```
+sudo apt-get install redis-server
+sudo service redis-server start
+
+
+# (Optional) connect to the server:
+redis-cli
+ping 
+exit
+```
+
+### Running the API
+Open a terminal and run the worker queue used to perform the BLAST searches:
+```
+python manage.py rqworker default
+```
+
+Open another terminal and run the API server
+```
+python manage.py runserver
+```
+
 ## Downloading database data
 In the event that the database should be dumped/downloaded to a file, run the following in the terminal to create a `db.sql` file which can be transferred.
 ```
