@@ -1,26 +1,27 @@
 import uuid
 import os
-import re
-import json
 import shutil
 import django_rq
 from django.http.response import FileResponse, HttpResponse
 from barcode_blastn.helper.parse_gb import InvalidAccessionNumberError, parse_gbx_xml, retrieve_gb
 from rest_framework.response import Response
 from barcode_blastn.models import BlastRun, Hit, NuccoreSequence, BlastDb
-from barcode_blastn.serializers import BlastRunRunSerializer, BlastRunSerializer, HitSerializer, NuccoreSequenceAddSerializer, NuccoreSequenceSerializer, BlastDbSerializer
+from barcode_blastn.permissions import IsAdminOrReadOnly
+from barcode_blastn.serializers import BlastRunRunSerializer, BlastRunSerializer, HitSerializer, NuccoreSequenceAddSerializer, NuccoreSequenceSerializer, BlastDbSerializer, BlastDbListSerializer, BlastRunStatusSerializer
 from rest_framework import status, generics, mixins
 from urllib.error import HTTPError
-from rest_framework.parsers import MultiPartParser
 from django.template import loader
-from rest_framework import permissions
+from rest_framework.permissions import IsAdminUser, AllowAny
 
 from barcode_blastn.helper.run_blast import run_blast_command
 
+'''
+List all the sequences in the server, irrespective of database
+'''
 class NuccoreSequenceList(mixins.ListModelMixin, generics.GenericAPIView):
     queryset = NuccoreSequence.objects.all()
     serializer_class = NuccoreSequenceSerializer
-    
+    permission_classes = [AllowAny]
 
     '''
     List all accession numbers saved to all databases
@@ -28,8 +29,12 @@ class NuccoreSequenceList(mixins.ListModelMixin, generics.GenericAPIView):
     def get(self, request, *args, **kwargs):
         return self.list(request, *args, **kwargs)
         
+'''
+Add a sequence to a specified database
+'''
 class NuccoreSequenceAdd(generics.CreateAPIView):
     serializer_class = NuccoreSequenceAddSerializer
+    permission_classes = [IsAdminUser]
     
     '''
     Create a new accession number and add it to an existing database
@@ -72,9 +77,13 @@ class NuccoreSequenceAdd(generics.CreateAPIView):
 
         return Response(serializer.errors, status = status.HTTP_400_BAD_REQUEST)
 
+'''
+Get or delete a sequence specified by ID
+'''
 class NuccoreSequenceDetail(mixins.DestroyModelMixin, generics.RetrieveAPIView):
     queryset = NuccoreSequence.objects.all()
     serializer_class = NuccoreSequenceSerializer
+    permission_classes = [IsAdminOrReadOnly]
 
     '''
     Delete an accession number from the database
@@ -82,9 +91,13 @@ class NuccoreSequenceDetail(mixins.DestroyModelMixin, generics.RetrieveAPIView):
     def delete(self, request, *args, **kwargs):
         return self.destroy(request, *args, **kwargs)
 
+'''
+Return a list of all blast databases
+'''
 class BlastDbList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.GenericAPIView):
     queryset = BlastDb.objects.all()
-    serializer_class = BlastDbSerializer
+    serializer_class = BlastDbListSerializer
+    permission_classes = [IsAdminOrReadOnly]
 
     '''
     List all blast databases
@@ -98,9 +111,13 @@ class BlastDbList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.Gener
     def post(self, request, *args, **kwargs):
         return self.create(request, *args, **kwargs)
 
+'''
+Retrieve the details of a given blast database
+'''
 class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.DestroyModelMixin, generics.GenericAPIView):
     queryset = BlastDb.objects.all()
     serializer_class = BlastDbSerializer
+    permission_classes = [IsAdminOrReadOnly]
 
     '''
     Retrieve data in the blastdb.
@@ -154,12 +171,11 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
     Delete the blastdb
     '''
     def delete(self, request, *args, **kwargs):
-        # TODO: Test this method
         try:
             database_id = str(kwargs['pk'])
             db = BlastDb.objects.get(id = database_id)
         except BlastDb.DoesNotExist:
-            return Response("Resource does not exist", status = status.HTTP_404_NOT_FOUND)
+            return Response(f"Resource does not exist", status = status.HTTP_404_NOT_FOUND)
 
         local_db_folder = os.path.abspath(f'./fishdb/{database_id}/')
         if len(database_id) > 0 and os.path.exists(local_db_folder):
@@ -167,10 +183,14 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
 
         return self.destroy(request, *args, **kwargs)
 
+'''
+List all blast runs
+'''
 class BlastRunList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.GenericAPIView):
 
     queryset = BlastRun.objects.all()
     serializer_class = BlastRunSerializer
+    permission_classes = [IsAdminUser]
 
     '''
     List all blast databases
@@ -178,8 +198,12 @@ class BlastRunList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.Gene
     def get(self, request, *args, **kwargs):
         return self.list(request, *args, **kwargs)
 
+'''
+Run a blast query
+'''
 class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
     serializer_class = BlastRunRunSerializer
+    permission_classes = [AllowAny]
 
     '''
     Run blast query
@@ -267,7 +291,7 @@ class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
             odb.save()
 
             os.system(command)
-        # else
+        else:
             print('Database was locked. Will use existing local database.')
 
         # Perform blast search
@@ -290,11 +314,35 @@ class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
         serializer = BlastRunSerializer(run_details)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
+'''
+Poll the status of a run
+'''
+class BlastRunStatus(generics.GenericAPIView):
+    queryset = BlastRun.objects.all()
+    serializer_class = BlastRunStatusSerializer
+    permission_classes = [AllowAny]
 
+    def get(self, request, *args, **kwargs):
+        # self.get(request, *args, **kwargs)
+        db_primary_key = kwargs['pk']
+
+        try:
+            run = BlastRun.objects.get(id = db_primary_key)
+        except BlastRun.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        
+        serializer = BlastRunStatusSerializer(run)
+
+        return(Response(serializer.data, status=status.HTTP_200_OK))
+
+'''
+View the results of any given run
+'''
 class BlastRunDetail(mixins.DestroyModelMixin, generics.GenericAPIView):
 
     queryset = BlastRun.objects.all()
     serializer_class = BlastRunSerializer
+    permission_classes = [IsAdminOrReadOnly]
     
     # TODO: Return blast results as JSON, HTML text, and .txt
     def get(self, request, *args, **kwargs):
@@ -322,9 +370,13 @@ class BlastRunDetail(mixins.DestroyModelMixin, generics.GenericAPIView):
 
         return self.destroy(request, *args, **kwargs)
 
+'''
+Access a particular hit
+'''
 class HitDetail(mixins.ListModelMixin, generics.GenericAPIView):
     queryset = Hit.objects.all()
     serializer_class = HitSerializer
+    permission_classes = [IsAdminOrReadOnly]
 
     '''
     List all accession numbers saved to all databases
