@@ -1,6 +1,7 @@
-from django.urls import path
+from django.urls import path, include
 from django.urls.conf import re_path
 from barcode_blastn import views
+
 
 urlpatterns = [
     path('blastdbs/', views.BlastDbList.as_view()),
@@ -10,6 +11,7 @@ urlpatterns = [
     path('nuccores/', views.NuccoreSequenceList.as_view()),
     path('nuccores/<uuid:pk>/', views.NuccoreSequenceDetail.as_view()),
     path('runs/', views.BlastRunList.as_view()),
+    path('runs/<uuid:pk>/status', views.BlastRunStatus.as_view()),
     path('runs/<uuid:pk>/', views.BlastRunDetail.as_view()),
-    re_path(r'^upload/(?P<filename>[^/]+)$', views.NuccoreSequenceListUpload.as_view())
+    path('django-rq/', include('django_rq.urls'))
 ]

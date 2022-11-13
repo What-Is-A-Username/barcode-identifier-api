@@ -64,6 +64,30 @@ Optionally, if you want the database to be populated with data from a local `db.
 psql -d barcode_identifier_db -f db.sql -U admin
 ```
 
+Set-up the redis-server, and the default rqworker queue.
+Ubuntu:
+```
+sudo apt-get install redis-server
+sudo service redis-server start
+
+
+# (Optional) connect to the server:
+redis-cli
+ping 
+exit
+```
+
+### Running the API
+Open a terminal and run the worker queue used to perform the BLAST searches:
+```
+python manage.py rqworker default
+```
+
+Open another terminal and run the API server
+```
+python manage.py runserver
+```
+
 ## Downloading database data
 In the event that the database should be dumped/downloaded to a file, run the following in the terminal to create a `db.sql` file which can be transferred.
 ```
@@ -93,6 +117,26 @@ GRANT ALL ON ALL FUNCTIONS IN SCHEMA public to admin;
 ```
 Now the error should be resolved, and commands like `python manage.py runserver` should work.
 
+### I get errors when syncing the local database with the `db.sql` file with `psql -f db.sql`
+One method of resolving it, albeit very blunt and destructive, is to remove all the data in the table and let the database be constructed from scratch using the `db.sql` file.
+```
+python manage.py flush
+python manage.py migrate barcode_blastn zero
+psql -d barcode_identifier_db -f db.sql -U admin -h 127.0.0.1 
+```
+
+Alternatively, you can drop the database and recreate it:
+```
+sudo su postgres
+psql
+drop database your_database_name;
+create database your_database_name with owner user_you_use_in_django;
+\q
+exit
+python manage.py makemigrations
+python manage.py migrate
+psql -h 127.0.0.1 -d barcode_identifier_db -U admin -f db.sql
+```
 
 
 
