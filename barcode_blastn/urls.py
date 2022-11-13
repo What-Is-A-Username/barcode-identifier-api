@@ -12,6 +12,5 @@ urlpatterns = [
     path('nuccores/<uuid:pk>/', views.NuccoreSequenceDetail.as_view()),
     path('runs/', views.BlastRunList.as_view()),
     path('runs/<uuid:pk>/', views.BlastRunDetail.as_view()),
-    re_path(r'^upload/(?P<filename>[^/]+)$', views.NuccoreSequenceListUpload.as_view()),
     path('django-rq/', include('django_rq.urls'))
 ]

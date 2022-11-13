@@ -125,6 +125,19 @@ python manage.py migrate barcode_blastn zero
 psql -d barcode_identifier_db -f db.sql -U admin -h 127.0.0.1 
 ```
 
+Alternatively, you can drop the database and recreate it:
+```
+sudo su postgres
+psql
+drop database your_database_name;
+create database your_database_name with owner user_you_use_in_django;
+\q
+exit
+python manage.py makemigrations
+python manage.py migrate
+psql -h 127.0.0.1 -d barcode_identifier_db -U admin -f db.sql
+```
+
 
 
 

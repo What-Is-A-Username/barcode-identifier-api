@@ -13,12 +13,14 @@ from rest_framework import status, generics, mixins
 from urllib.error import HTTPError
 from rest_framework.parsers import MultiPartParser
 from django.template import loader
+from rest_framework import permissions
 
 from barcode_blastn.helper.run_blast import run_blast_command
 
 class NuccoreSequenceList(mixins.ListModelMixin, generics.GenericAPIView):
     queryset = NuccoreSequence.objects.all()
     serializer_class = NuccoreSequenceSerializer
+    
 
     '''
     List all accession numbers saved to all databases
@@ -28,6 +30,7 @@ class NuccoreSequenceList(mixins.ListModelMixin, generics.GenericAPIView):
         
 class NuccoreSequenceAdd(generics.CreateAPIView):
     serializer_class = NuccoreSequenceAddSerializer
+    
     '''
     Create a new accession number and add it to an existing database
     '''
@@ -78,26 +81,6 @@ class NuccoreSequenceDetail(mixins.DestroyModelMixin, generics.RetrieveAPIView):
     '''
     def delete(self, request, *args, **kwargs):
         return self.destroy(request, *args, **kwargs)
-
-# TODO: Remove uploading feature; one POST should not be able to create this many resources at once. Front end should handle upload of multiple accession numbers
-class NuccoreSequenceListUpload(mixins.CreateModelMixin, generics.GenericAPIView):
-    parser_classes = [MultiPartParser]
-
-    def post(self, request, filename, format = None):
-
-        uploaded_file = request.FILES['file'].file
-
-        try:
-            content = uploaded_file.read().decode('UTF-8')
-        except BaseException as e:
-            return Response({'message': 'Unexpected error reading the uploaded file.', 
-            'error_type': type(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-        lines = re.split('\r\n|\n|\r', content)
-        lines = [l.strip() for l in lines if len(l.strip()) > 0]
-
-        return Response({'accession_numbers': json.dumps(lines)}, 
-        status=status.HTTP_201_CREATED)
 
 class BlastDbList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.GenericAPIView):
     queryset = BlastDb.objects.all()
