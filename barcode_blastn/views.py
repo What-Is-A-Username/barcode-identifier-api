@@ -95,6 +95,7 @@ class NuccoreSequenceDetail(mixins.DestroyModelMixin, generics.RetrieveAPIView):
 Get a sequence by accession number
 '''
 class NuccoreSequenceDetailByAccession(mixins.RetrieveModelMixin, generics.GenericAPIView):
+    queryset = NuccoreSequence.objects.all()
     serializer_class = NuccoreSequenceSerializer
     permission_classes = [IsAdminOrReadOnly]
 

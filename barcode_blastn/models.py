@@ -72,6 +72,7 @@ class BlastRun(models.Model):
 
 class Hit(models.Model):
     owner_run = models.ForeignKey(BlastRun, related_name='hits', on_delete=models.CASCADE)
+    db_entry = models.ForeignKey(NuccoreSequence, on_delete=models.CASCADE)
 
     query_accession_version = models.CharField(max_length=128)
     subject_accession_version = models.CharField(max_length=128)

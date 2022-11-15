@@ -2,6 +2,8 @@ import json
 from decimal import Decimal
 import re
 
+from barcode_blastn.models import NuccoreSequence
+
 def parse_results(results_string: str):
     lines = re.split('\r\n|\n|\r', results_string)
     lines = [l.strip() for l in lines if len(l.strip()) > 0]
@@ -20,6 +22,9 @@ def parse_results(results_string: str):
         return data
 
     parsed_hits = [extract_hit(h) for h in hits]
+
+    # establish relation between hit and sequence
+    
        
     # For outfmt = 15
     # Convert all hits to Hit entries and save them

@@ -3,7 +3,7 @@ import subprocess
 from time import sleep
 from barcode_blastn.helper.parse_results import parse_results
 
-from barcode_blastn.models import BlastRun, Hit 
+from barcode_blastn.models import BlastRun, Hit, NuccoreSequence 
 
 def run_blast_command(blast_root, fishdb_path, query_file, run_details, results_path):
     sleep(10)
@@ -42,9 +42,12 @@ def run_blast_command(blast_root, fishdb_path, query_file, run_details, results_
             results_file.write(err)
     results_file.close()
 
+
     # bulk create hits
     parsed_data = parse_results(out)
-    all_hits = [Hit(**hit, owner_run = run_details) for hit in parsed_data]
+    accessions = [hit['subject_accession_version'] for hit in parsed_data]
+    accession_entries = NuccoreSequence.objects.filter(accession_number__in=accessions)
+    all_hits = [Hit(**hit, owner_run = run_details, db_entry = accession_entries.get(accession_number=hit['subject_accession_version'])) for hit in parsed_data]
     Hit.objects.bulk_create(all_hits)
 
     run_details.errors = err
