@@ -40,7 +40,7 @@ Show a summary of a sequence, to be shown when only its blastdb is shown.
 class BlastDbSequenceEntrySerializer(serializers.ModelSerializer):
     class Meta:
         model = NuccoreSequence
-        fields = ['id', 'accession_number', 'definition', 'organism', 'isolate', 'country', 'specimen_voucher']
+        fields = ['id', 'accession_number', 'definition', 'organism', 'isolate', 'country', 'specimen_voucher', 'dna_sequence']
 
 '''
 Show detailed information about a specific blastdb
@@ -69,6 +69,14 @@ class HitSerializer(serializers.ModelSerializer):
         fields = ['owner_run', 'query_accession_version', 'subject_accession_version', 'percent_identity', 'alignment_length', 'mismatches', 'gap_opens', 'query_start', 'query_end', 'sequence_start', 'sequence_end', 'evalue', 'bit_score']
 
 '''
+Serialize a hit to be returned with a list of all hits
+'''
+class HitEntrySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Hit
+        fields = ['query_accession_version', 'subject_accession_version', 'percent_identity', 'alignment_length', 'mismatches', 'gap_opens', 'query_start', 'query_end', 'sequence_start', 'sequence_end', 'evalue', 'bit_score']
+
+'''
 Required fields for submitting a blast run
 '''
 class BlastRunRunSerializer(serializers.ModelSerializer):
@@ -82,7 +90,7 @@ Show results of a blast run
 class BlastRunSerializer(serializers.ModelSerializer):
 
     db_used = BlastDbShortSerializer(many=False, read_only=True)
-    hits = HitSerializer(many=True, read_only=True)
+    hits = HitEntrySerializer(many=True, read_only=True)
     
     class Meta:
         model = BlastRun    

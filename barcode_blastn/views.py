@@ -2,16 +2,16 @@ import uuid
 import os
 import shutil
 import django_rq
-from django.http.response import FileResponse, HttpResponse
 from barcode_blastn.helper.parse_gb import InvalidAccessionNumberError, parse_gbx_xml, retrieve_gb
 from rest_framework.response import Response
 from barcode_blastn.models import BlastRun, Hit, NuccoreSequence, BlastDb
 from barcode_blastn.permissions import IsAdminOrReadOnly
-from barcode_blastn.serializers import BlastRunRunSerializer, BlastRunSerializer, HitSerializer, NuccoreSequenceAddSerializer, NuccoreSequenceSerializer, BlastDbSerializer, BlastDbListSerializer, BlastRunStatusSerializer
+from barcode_blastn.renderers import BlastRunCSVRenderer, BlastRunTxtRenderer, BlastDbCSVRenderer, BlastDbFastaRenderer
+from barcode_blastn.serializers import BlastRunRunSerializer, BlastRunSerializer, HitSerializer, NuccoreSequenceAddSerializer, NuccoreSequenceSerializer, BlastDbSerializer, BlastDbListSerializer
 from rest_framework import status, generics, mixins
 from urllib.error import HTTPError
-from django.template import loader
 from rest_framework.permissions import IsAdminUser, AllowAny
+from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer, TemplateHTMLRenderer
 
 from barcode_blastn.helper.run_blast import run_blast_command
 
@@ -118,6 +118,7 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
     queryset = BlastDb.objects.all()
     serializer_class = BlastDbSerializer
     permission_classes = [IsAdminOrReadOnly]
+    renderer_classes = [JSONRenderer, BrowsableAPIRenderer, TemplateHTMLRenderer, BlastDbCSVRenderer, BlastDbFastaRenderer]
 
     '''
     Retrieve data in the blastdb.
@@ -132,27 +133,16 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
         except BlastDb.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
-        sequences = NuccoreSequence.objects.filter(owner_database = db_primary_key)
-        accession_numbers = '\n'.join([s.accession_number for s in sequences])
+        response = Response(self.get_serializer_class()(db).data, status=status.HTTP_200_OK, template_name='blastdb.html')
 
-        if 'get_format' in request.query_params:
-            gformat = request.query_params['get_format']
+        file_name_root = db.custom_name
+        if request.accepted_media_type.startswith('text/csv'):
+            response['Content-Disposition'] = f'attachment; filename={file_name_root}.csv";'
+        elif request.accepted_media_type.startswith('text/plain'):
+            response['Content-Disposition'] = f'attachment; filename="{file_name_root}.fasta";'
 
-            # Return downloadable text file
-            if gformat == 'file':
-                response = FileResponse(accession_numbers, content_type='text/plain')
-                response['Content-Disposition'] = 'attachment; filename=db.txt;'
-                return response
-            # Return plain text html
-            elif gformat == 'text':
-                template = loader.get_template('blastdb.html')
-                page = template.render(context = { 'list': accession_numbers})
+        return response
 
-                return HttpResponse(page, content_type='text/html', status=status.HTTP_200_OK)
-        
-        serializer = BlastDbSerializer(db)
-        
-        return Response(serializer.data, status=status.HTTP_200_OK)
     '''
     Partially update this blastdb.
     '''
@@ -310,30 +300,8 @@ class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
         django_rq.enqueue(run_blast_command, blast_root=blast_root, fishdb_path=fishdb_path, query_file=query_file, run_details=run_details, results_path=results_path)
 
         # create response 
-        # details = BlastRun.objects.get(pk=run_details.pk)
         serializer = BlastRunSerializer(run_details)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-'''
-Poll the status of a run
-'''
-class BlastRunStatus(generics.GenericAPIView):
-    queryset = BlastRun.objects.all()
-    serializer_class = BlastRunStatusSerializer
-    permission_classes = [AllowAny]
-
-    def get(self, request, *args, **kwargs):
-        # self.get(request, *args, **kwargs)
-        db_primary_key = kwargs['pk']
-
-        try:
-            run = BlastRun.objects.get(id = db_primary_key)
-        except BlastRun.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
-        
-        serializer = BlastRunStatusSerializer(run)
-
-        return(Response(serializer.data, status=status.HTTP_200_OK))
 
 '''
 View the results of any given run
@@ -343,10 +311,9 @@ class BlastRunDetail(mixins.DestroyModelMixin, generics.GenericAPIView):
     queryset = BlastRun.objects.all()
     serializer_class = BlastRunSerializer
     permission_classes = [IsAdminOrReadOnly]
+    renderer_classes = [JSONRenderer, BrowsableAPIRenderer, BlastRunTxtRenderer]
     
-    # TODO: Return blast results as JSON, HTML text, and .txt
     def get(self, request, *args, **kwargs):
-        # self.get(request, *args, **kwargs)
         db_primary_key = kwargs['pk']
 
         try:
@@ -354,9 +321,10 @@ class BlastRunDetail(mixins.DestroyModelMixin, generics.GenericAPIView):
         except BlastRun.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
         
-        serializer = BlastRunSerializer(run)
+        serializer = BlastRunSerializer(run)      
+        response = Response(serializer.data, status=status.HTTP_200_OK)
 
-        return(Response(serializer.data, status=status.HTTP_200_OK))
+        return response
 
     '''
     Delete an accession number from the database
@@ -369,6 +337,37 @@ class BlastRunDetail(mixins.DestroyModelMixin, generics.GenericAPIView):
             shutil.rmtree(local_run_folder, ignore_errors=True)
 
         return self.destroy(request, *args, **kwargs)
+
+'''
+Download the run results in either .txt or .csv format
+'''
+class BlastRunDetailDownload(generics.GenericAPIView):
+    queryset = BlastRun.objects.all()
+    serializer_class = BlastRunSerializer
+    permission_classes = [IsAdminOrReadOnly]
+    renderer_classes = [BlastRunCSVRenderer, BlastRunTxtRenderer]
+    
+    def get(self, request, *args, **kwargs):
+        db_primary_key = kwargs['pk']
+
+        try:
+            run = BlastRun.objects.get(id = db_primary_key)
+        except BlastRun.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        
+        serializer = BlastRunSerializer(run)
+       
+        response = Response(serializer.data, status=status.HTTP_200_OK)
+        file_name_root = serializer.data['job_name']
+        if file_name_root is None or len(file_name_root) == 0:
+            file_name_root = 'results'       
+        
+        if request.accepted_media_type.startswith('text/csv'):
+            response['Content-Disposition'] = f'attachment; filename="{file_name_root}.csv";'
+        elif request.accepted_media_type.startswith('text/plain'):
+            response['Content-Disposition'] = f'attachment; filename="{file_name_root}.txt";'
+
+        return response
 
 '''
 Access a particular hit
