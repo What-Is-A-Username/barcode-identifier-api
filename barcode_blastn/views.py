@@ -92,6 +92,28 @@ class NuccoreSequenceDetail(mixins.DestroyModelMixin, generics.RetrieveAPIView):
         return self.destroy(request, *args, **kwargs)
 
 '''
+Get a sequence by accession number
+'''
+class NuccoreSequenceDetailByAccession(mixins.RetrieveModelMixin, generics.GenericAPIView):
+    serializer_class = NuccoreSequenceSerializer
+    permission_classes = [IsAdminOrReadOnly]
+
+    '''
+    Retrieve all sequences with an accession number specified in the list
+    '''
+    def get(self, request, *args, **kwargs):
+        accession_number = kwargs['an'].split(',')
+
+        try:
+            seq = NuccoreSequence.objects.filter(accession_number__in=accession_number)
+        except NuccoreSequence.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        serializer = NuccoreSequenceSerializer(seq, many=True)
+        response = Response(serializer.data, status=status.HTTP_200_OK)
+        return response
+
+'''
 Return a list of all blast databases
 '''
 class BlastDbList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.GenericAPIView):
