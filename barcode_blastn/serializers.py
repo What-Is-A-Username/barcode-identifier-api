@@ -61,9 +61,11 @@ class NuccoreSequenceAddSerializer(serializers.ModelSerializer):
 Serialize a hit to be returned with a list of all hits
 '''
 class HitSerializer(serializers.ModelSerializer):
+    db_entry = BlastDbSequenceEntrySerializer(many=False, read_only=True)
+
     class Meta:
         model = Hit
-        fields = ['owner_run', 'query_accession_version', 'subject_accession_version', 'percent_identity', 'alignment_length', 'mismatches', 'gap_opens', 'query_start', 'query_end', 'sequence_start', 'sequence_end', 'evalue', 'bit_score']
+        fields = ['db_entry', 'owner_run', 'query_accession_version', 'subject_accession_version', 'percent_identity', 'alignment_length', 'mismatches', 'gap_opens', 'query_start', 'query_end', 'sequence_start', 'sequence_end', 'evalue', 'bit_score']
 
 '''
 Serialize a hit to be returned with a list of all hits
