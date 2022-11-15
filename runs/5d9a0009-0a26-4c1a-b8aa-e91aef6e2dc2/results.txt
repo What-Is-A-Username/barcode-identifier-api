@@ -1,0 +1,10 @@
+# BLASTN 2.12.0+
+# Query: query_sequence
+# Database: /home/linux_user1/django_projects/djangorest/barcode_identifier_api/barcode_identifier_api/fishdb/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/database
+# Fields: query acc.ver, subject acc.ver, % identity, alignment length, mismatches, gap opens, q. start, q. end, s. start, s. end, evalue, bit score
+# 3 hits found
+query_sequence	MN195160	100.000	568	0	0	1	568	1	568	0.0	1050
+query_sequence	ON303372	93.662	568	36	0	1	568	13	580	0.0	852
+query_sequence	MN195185	91.197	568	50	0	1	568	1	568	0.0	773
+# BLAST processed 1 queries
+

@@ -126,7 +126,14 @@ class BlastRunCSVRenderer(BaseRenderer):
         
         # get a list of displayed fields to display for each hit
         hit_fields = HitSerializer.Meta.fields[:]
-        hit_fields = [field for field in hit_fields if field != 'owner_run']
+        hit_fields = [field for field in hit_fields if field != 'owner_run' and field != 'db_entry']
+        db_entry_fields = ['accession_number', 'definition', 'organism', 'isolate', 'country', 'specimen_voucher']
+        hit_fields.extend(db_entry_fields)
+
+        # add the fields under db_entry to the parent dictionary for output
+        for hit in data['hits']:
+            db_entry_values = [hit['db_entry'][field] for field in db_entry_fields]
+            hit.update(zip(db_entry_fields, db_entry_values))
 
         # make a DictWriter to write data
         writer = csv.DictWriter(response, fieldnames=hit_fields, extrasaction='ignore', dialect='unix')
