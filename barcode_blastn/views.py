@@ -7,7 +7,7 @@ from rest_framework.response import Response
 from barcode_blastn.models import BlastRun, Hit, NuccoreSequence, BlastDb
 from barcode_blastn.permissions import IsAdminOrReadOnly
 from barcode_blastn.renderers import BlastRunCSVRenderer, BlastRunTxtRenderer, BlastDbCSVRenderer, BlastDbFastaRenderer
-from barcode_blastn.serializers import BlastRunRunSerializer, BlastRunSerializer, HitSerializer, NuccoreSequenceAddSerializer, NuccoreSequenceSerializer, BlastDbSerializer, BlastDbListSerializer
+from barcode_blastn.serializers import BlastRunRunSerializer, BlastRunSerializer, BlastRunStatusSerializer, HitSerializer, NuccoreSequenceAddSerializer, NuccoreSequenceSerializer, BlastDbSerializer, BlastDbListSerializer
 from rest_framework import status, generics, mixins
 from urllib.error import HTTPError
 from rest_framework.permissions import IsAdminUser, AllowAny
@@ -381,5 +381,15 @@ class HitDetail(mixins.ListModelMixin, generics.GenericAPIView):
     List all accession numbers saved to all databases
     '''
     def get(self, request, *args, **kwargs):
-        pk = kwargs['pk']
         return self.list(request, *args, **kwargs)
+
+'''
+Check the status of a run
+'''
+class BlastRunStatus(generics.RetrieveAPIView):
+    queryset = BlastRun.objects.all()
+    serializer_class = BlastRunStatusSerializer
+    permission_classes = [IsAdminOrReadOnly]
+
+    
+    

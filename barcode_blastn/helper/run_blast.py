@@ -1,10 +1,13 @@
 from datetime import datetime
 import subprocess
+from time import sleep
 from barcode_blastn.helper.parse_results import parse_results
 
 from barcode_blastn.models import BlastRun, Hit 
 
 def run_blast_command(blast_root, fishdb_path, query_file, run_details, results_path):
+    sleep(10)
+    
     print('Beginning queued BLAST search ...')
 
     run_details.job_status = BlastRun.JobStatus.STARTED
@@ -19,6 +22,8 @@ def run_blast_command(blast_root, fishdb_path, query_file, run_details, results_
     # TODO: avoid shell=True or add escaping https://docs.python.org/3/library/shlex.html
 
     process = subprocess.Popen(blast_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+
+    sleep(10)
 
     print('BLAST search completed.')
 

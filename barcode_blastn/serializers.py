@@ -99,12 +99,9 @@ class BlastRunSerializer(serializers.ModelSerializer):
 '''
 Show status of a blast run
 '''
-class BlastRunStatusSerializer(serializers.ModelSerializer):
-
-    db_used = BlastDbShortSerializer(many=False, read_only=True)
-    
+class BlastRunStatusSerializer(serializers.ModelSerializer):    
     class Meta:
         model = BlastRun    
-        fields = ['id', 'job_name', 'db_used', 'runtime', 'job_status', 'job_start_time', 'job_end_time']
+        fields = ['id', 'job_name', 'runtime', 'job_status', 'job_start_time', 'job_end_time']
 
 
