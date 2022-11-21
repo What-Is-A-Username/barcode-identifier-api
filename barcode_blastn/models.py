@@ -1,3 +1,4 @@
+from unittest.util import _MAX_LENGTH
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 import uuid
@@ -11,6 +12,8 @@ class BlastDb(models.Model):
     custom_name = models.CharField(max_length=255)
     # Locked
     locked = models.BooleanField(default=False)
+    # Short description of the database
+    description = models.CharField(max_length=1024, blank=True, default='')
 
     class Meta:
         ordering = ['custom_name']
@@ -33,6 +36,7 @@ class NuccoreSequence(models.Model):
     specimen_voucher = models.CharField(max_length=150, blank=True, default='')
     dna_sequence = models.TextField(max_length=10000, blank=True, default='')
     translation = models.TextField(max_length=10000, blank=True, default='')
+    lat_lon = models.CharField(max_length=64, blank=True, default='')
 
     class Meta:
         ordering = ['accession_number']

@@ -22,7 +22,7 @@ class BlastDbFastaRenderer(BaseRenderer):
         return ''.join(fasta_file).encode(self.charset)
 
 '''
-TODO: Return the blastdb in CSV format
+Return the blastdb in CSV format
 '''
 class BlastDbCSVRenderer(BaseRenderer):
     media_type = 'text/csv'
@@ -39,6 +39,7 @@ class BlastDbCSVRenderer(BaseRenderer):
         comment_writer = csv.writer(response)
         comment_writer.writerow([f'# Barcode Identifier API'])
         comment_writer.writerow([f"# Database: {data['custom_name']}"])
+        comment_writer.writerow([f"# Description: {data['description']}"])
         
         # fields displayed for each sequence
         writer = csv.DictWriter(response, fieldnames=sequence_fields, extrasaction='ignore', dialect='unix')
@@ -68,6 +69,7 @@ class BlastRunTxtRenderer(BaseRenderer):
             if comment == 'db_used':
                 out_lines.append(f'# db_used-id={data[comment]["id"]}\n')
                 out_lines.append(f'# db_used-custom_name={data[comment]["custom_name"]}\n')
+                out_lines.append(f'# db_used-description={data[comment]["description"]}\n')
             else:
                 val : str = data[comment]
                 if val is None:
@@ -88,8 +90,6 @@ class BlastRunTxtRenderer(BaseRenderer):
                 out_lines = [line for line in out_lines if not line.startswith('# Database: ')]
             else:
                 out_lines.append('Error: Could not find results file generated from this run')
-                # TODO: Raise error here and catch it in views.py
-                raise FileNotFoundError
 
         else: 
             out_lines.append('Error: Job has not yet completed so hits cannot be compiled at this time.')
@@ -118,6 +118,7 @@ class BlastRunCSVRenderer(BaseRenderer):
             if comment == 'db_used':
                 comment_writer.writerow([f'# db_used-id={data[comment]["id"]}'])
                 comment_writer.writerow([f'# db_used-custom_name={data[comment]["custom_name"]}'])
+                comment_writer.writerow([f'# db_used-description={data[comment]["description"]}'])
             else:
                 val : str = data[comment]
                 if val is None:

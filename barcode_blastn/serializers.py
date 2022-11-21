@@ -4,14 +4,14 @@ from barcode_blastn.models import BlastRun, Hit, NuccoreSequence, BlastDb
 class BlastDbShortSerializer(serializers.ModelSerializer):
     class Meta:
         model = BlastDb
-        fields = ['id', 'custom_name']
+        fields = ['id', 'custom_name', 'description']
 
 class NuccoreSequenceSerializer(serializers.ModelSerializer):
     owner_database = BlastDbShortSerializer(many=False, read_only=True)
 
     class Meta:
         model = NuccoreSequence
-        fields = ['owner_database', 'accession_number', 'definition', 'organism', 'organelle', 'mol_type', 'isolate', 'country', 'specimen_voucher', 'dna_sequence', 'translation', 'created']
+        fields = ['owner_database', 'accession_number', 'definition', 'organism', 'organelle', 'mol_type', 'isolate', 'country', 'specimen_voucher', 'lat_lon', 'dna_sequence', 'translation', 'created']
 
 '''
 Show a condensed summary of a sequence, in order to display with a list of all blastdbs
@@ -29,7 +29,7 @@ class BlastDbListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = BlastDb
-        fields = ['id', 'custom_name', 'locked', 'sequences']
+        fields = ['id', 'custom_name', 'description', 'locked', 'sequences']
 
 '''
 Show a summary of a sequence, to be shown when only its blastdb or blastrun is shown.
@@ -37,7 +37,7 @@ Show a summary of a sequence, to be shown when only its blastdb or blastrun is s
 class BlastDbSequenceEntrySerializer(serializers.ModelSerializer):
     class Meta:
         model = NuccoreSequence
-        fields = ['id', 'accession_number', 'definition', 'organism', 'isolate', 'country', 'specimen_voucher', 'dna_sequence']
+        fields = ['id', 'accession_number', 'definition', 'organism', 'isolate', 'country', 'specimen_voucher', 'lat_lon', 'dna_sequence']
 
 '''
 Show detailed information about a specific blastdb
@@ -47,7 +47,7 @@ class BlastDbSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = BlastDb
-        fields = ['id', 'custom_name', 'locked', 'sequences']
+        fields = ['id', 'custom_name', 'description', 'locked', 'sequences']
     
 '''
 Required fields for adding a sequence accession to the database

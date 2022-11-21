@@ -145,7 +145,6 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
 
     '''
     Retrieve data in the blastdb.
-    If get_format = 'text', return a .txt file of every accession number, line by line
     '''
     def get(self, request, *args, **kwargs):
 
@@ -158,6 +157,7 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
 
         response = Response(self.get_serializer_class()(db).data, status=status.HTTP_200_OK, template_name='blastdb.html')
 
+        # based on the media type file returned, specify attachment and file name
         file_name_root = db.custom_name
         if request.accepted_media_type.startswith('text/csv'):
             response['Content-Disposition'] = f'attachment; filename={file_name_root}.csv";'
@@ -354,7 +354,6 @@ class BlastRunDetail(mixins.DestroyModelMixin, generics.GenericAPIView):
     '''
     def delete(self, request, *args, **kwargs):
         run_id = str(kwargs['pk'])
-        print(run_id)
         local_run_folder = os.path.abspath(f'./runs/{run_id}/')
         if len(run_id) > 0 and os.path.exists(local_run_folder):
             shutil.rmtree(local_run_folder, ignore_errors=True)

@@ -40,7 +40,7 @@ class InvalidAccessionNumberError(Exception):
     pass
 
 def parse_gbx_xml(xml_string: str, accession_number: str) -> Dict:
-    qualifiers_to_extract = ['organism', 'organelle', 'mol_type', 'isolate', 'country', 'specimen_voucher']
+    qualifiers_to_extract = ['organism', 'organelle', 'mol_type', 'isolate', 'country', 'specimen_voucher', 'lat_lon']
     
     gbset = ET.fromstring(xml_string)
     gbseq = gbset.find(f"./GBSeq[GBSeq_primary-accession='{accession_number}']")
