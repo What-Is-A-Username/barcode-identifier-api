@@ -41,6 +41,8 @@ class NuccoreSequence(models.Model):
     class Meta:
         ordering = ['accession_number']
 
+
+
 class BlastRun(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
@@ -50,7 +52,9 @@ class BlastRun(models.Model):
     runtime = models.DateTimeField(auto_now_add=True)
     # Job name
     job_name = models.CharField(max_length=255, blank=True, default='')
+
     # Query sequence
+    # TODO: remove query_sequence reference
     query_sequence = models.TextField(max_length=10000, blank=True, default='')
 
     class JobStatus(models.TextChoices):
@@ -73,6 +77,11 @@ class BlastRun(models.Model):
 
     # Error
     errors = models.TextField(max_length=10000, blank=True, default='')
+
+class BlastQuerySequence(models.Model):
+    owner_run = models.ForeignKey(BlastRun, related_name='queries', on_delete=models.CASCADE)
+    definition = models.CharField(max_length=255)
+    query_sequence = models.CharField(max_length=10000)
 
 class Hit(models.Model):
     owner_run = models.ForeignKey(BlastRun, related_name='hits', on_delete=models.CASCADE)

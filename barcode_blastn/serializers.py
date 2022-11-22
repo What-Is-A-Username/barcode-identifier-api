@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from barcode_blastn.models import BlastRun, Hit, NuccoreSequence, BlastDb
+from barcode_blastn.models import BlastQuerySequence, BlastRun, Hit, NuccoreSequence, BlastDb
 
 class BlastDbShortSerializer(serializers.ModelSerializer):
     class Meta:
@@ -68,22 +68,41 @@ class HitSerializer(serializers.ModelSerializer):
         fields = ['db_entry', 'owner_run', 'query_accession_version', 'subject_accession_version', 'percent_identity', 'alignment_length', 'mismatches', 'gap_opens', 'query_start', 'query_end', 'sequence_start', 'sequence_end', 'evalue', 'bit_score']
 
 '''
+Show a summary of a sequence, when a query registers a hit on it.
+'''
+class NuccoreSequenceHitSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = NuccoreSequence
+        fields = ['accession_number', 'definition', 'organism', 'isolate', 'country', 'specimen_voucher', 'lat_lon']
+
+
+'''
 Serialize a hit to be returned with a list of all hits
 '''
 class HitEntrySerializer(serializers.ModelSerializer):
-    db_entry = BlastDbSequenceEntrySerializer(many=False, read_only=True)
+    db_entry = NuccoreSequenceHitSerializer(many=False, read_only=True)
 
     class Meta:
         model = Hit
         fields = ['db_entry', 'query_accession_version', 'subject_accession_version', 'percent_identity', 'alignment_length', 'mismatches', 'gap_opens', 'query_start', 'query_end', 'sequence_start', 'sequence_end', 'evalue', 'bit_score']
 
 '''
+Show a sequence submitted in a run
+'''
+class BlastQuerySequenceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BlastQuerySequence
+        fields = ['definition', 'query_sequence']
+
+'''
 Required fields for submitting a blast run
 '''
 class BlastRunRunSerializer(serializers.ModelSerializer):
+    queries = BlastQuerySequenceSerializer(many=True, read_only=True)
+
     class Meta:
         model = BlastRun
-        fields = ['id', 'job_name', 'query_sequence']
+        fields = ['id', 'job_name', 'queries']
 
 '''
 Show results of a blast run
@@ -92,10 +111,11 @@ class BlastRunSerializer(serializers.ModelSerializer):
 
     db_used = BlastDbShortSerializer(many=False, read_only=True)
     hits = HitEntrySerializer(many=True, read_only=True)
+    queries = BlastQuerySequenceSerializer(many=True, read_only=True)
     
     class Meta:
         model = BlastRun    
-        fields = ['id', 'job_name', 'query_sequence', 'db_used', 'runtime', 'job_status', 'job_start_time', 'job_end_time', 'hits']
+        fields = ['id', 'job_name', 'queries', 'db_used', 'runtime', 'job_status', 'job_start_time', 'job_end_time', 'hits']
 
 '''
 Show status of a blast run

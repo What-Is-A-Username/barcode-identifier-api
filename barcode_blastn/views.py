@@ -2,16 +2,19 @@ import uuid
 import os
 import shutil
 import django_rq
+import fastaparser
 from barcode_blastn.helper.parse_gb import InvalidAccessionNumberError, parse_gbx_xml, retrieve_gb
-from rest_framework.response import Response
-from barcode_blastn.models import BlastRun, Hit, NuccoreSequence, BlastDb
+from barcode_blastn.helper.verify_query import verify_query
+from barcode_blastn.models import BlastQuerySequence, BlastRun, Hit, NuccoreSequence, BlastDb
 from barcode_blastn.permissions import IsAdminOrReadOnly
 from barcode_blastn.renderers import BlastRunCSVRenderer, BlastRunTxtRenderer, BlastDbCSVRenderer, BlastDbFastaRenderer
 from barcode_blastn.serializers import BlastRunRunSerializer, BlastRunSerializer, BlastRunStatusSerializer, HitSerializer, NuccoreSequenceAddSerializer, NuccoreSequenceSerializer, BlastDbSerializer, BlastDbListSerializer
 from rest_framework import status, generics, mixins
-from urllib.error import HTTPError
+from rest_framework.parsers import JSONParser, FormParser, MultiPartParser
 from rest_framework.permissions import IsAdminUser, AllowAny
 from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer, TemplateHTMLRenderer
+from rest_framework.response import Response
+from urllib.error import HTTPError
 
 from barcode_blastn.helper.run_blast import run_blast_command
 
@@ -217,6 +220,7 @@ Run a blast query
 class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
     serializer_class = BlastRunRunSerializer
     permission_classes = [AllowAny]
+    parser_classes = [JSONParser, FormParser, MultiPartParser]
 
     '''
     Run blast query
@@ -226,13 +230,10 @@ class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
         db_used = kwargs['pk']
 
         # Bad request if no query_sequence is given
-        if not 'query_sequence' in request.data:
+        if not 'query_sequence' in request.data and not 'query_file' in request.FILES:
             return Response({
-                'message': 'No nucleotide query sequence given to blast with.'
+                'message': 'Request did not have raw sequence text or file upload specified to blast with.'
             }, status = status.HTTP_400_BAD_REQUEST)
-        query_sequence = request.data['query_sequence']
-
-        job_name = request.data['job_name'] if 'job_name' in request.data else ''
 
         # Bad request if database could not be found
         try:
@@ -252,6 +253,64 @@ class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
                 'current_size': len(sequences),
                 'min_size': MINIMUM_NUMBER_OF_SEQUENCES
             }, status = status.HTTP_400_BAD_REQUEST)
+
+        query_sequences = []
+        # obtain the query sequence, either from raw text or from the file upload
+        # take precedence for the raw text
+        if 'query_sequence' in request.data and len(request.data['query_sequence']) > 0: 
+            query_sequences.append({
+                # TODO: allow user to specify >
+                # TODO: remove > caret from saved definition
+                'definition': 'query_sequence', 
+                'query_sequence': request.data['query_sequence']
+            })
+        else:
+            query_file = request.FILES['query_file']
+            # TODO: Check file type uploaded
+            file_name = query_file.name
+            file_ext = file_name.split('.')[-1]
+
+            last_line = ';start'
+            # ignore comments
+            while last_line.startswith(';'):
+                last_line = query_file.file.readline().decode().strip()
+
+            if last_line == '':
+                return Response({'message': 'Found an empty line in the uploaded sequence file before any sequence definitions.'}, status = status.HTTP_400_BAD_REQUEST)
+
+            definition = last_line 
+            query_sequence = query_file.file.readline().decode().strip()
+            
+            # used to account for duplicate definitions
+            definitions_used = [last_line]
+
+            while definition != '':
+                # remove leading >
+                if len(definition) > 0:
+                    definition = definition[1:]
+
+                # verify if definitions and sequences are nonblank
+                if not verify_query(definition, query_sequence):
+                    return Response({'message': 'Definition and sequence found was invalid.', 'definition': definition, 'sequence': query_sequence}, status = status.HTTP_400_BAD_REQUEST)
+
+                # verify that there is not already a sequence with the same definition
+                if definition in definitions_used:
+                    return Response({'message': 'We found more than one sequence with the same definition in the uploaded sequence file.', 'definition': definition, 'sequence': query_sequence}, status = status.HTTP_400_BAD_REQUEST)
+                else:
+                    definitions_used.append(definition)
+
+                query_sequences.append({
+                    'definition': definition, 
+                    'query_sequence': query_sequence
+                })
+
+                # attempt to read the next sequence
+                definition = query_file.file.readline().decode().strip()
+                query_sequence = query_file.file.readline().decode().strip()
+
+        print(query_sequences)
+
+        job_name = request.data['job_name'] if 'job_name' in request.data else ''
 
         # path to parent folder of blast tools and django app
         project_root = os.path.abspath(os.path.dirname('./'))
@@ -311,14 +370,20 @@ class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
         print('Generating query fasta file ...')
         query_file = results_path + '/query.fasta'
         with open(query_file, 'w') as tmp:
-            tmp.write('>query_sequence\n')
-            tmp.write(query_sequence)
+            for query_entry in query_sequences:
+                tmp.write(f'>{query_entry["definition"]}\n')
+                tmp.write(f'{query_entry["query_sequence"]}\n')
         tmp.close()
 
         print('Running BLAST search ...')
 
-        run_details = BlastRun(id = results_uuid, db_used = odb, job_name = job_name, blast_version = ncbi_blast_version, errors = '', query_sequence = query_sequence, job_status=BlastRun.JobStatus.QUEUED, job_start_time = None, job_end_time = None)
+        # TODO: remove query_sequence reference
+        run_details = BlastRun(id = results_uuid, db_used = odb, job_name = job_name, blast_version = ncbi_blast_version, errors = '', query_sequence = '', job_status=BlastRun.JobStatus.QUEUED, job_start_time = None, job_end_time = None)
         run_details.save()
+
+        # make query sequence objects
+        all_query_sequences = [BlastQuerySequence(**query_sequence, owner_run = run_details) for query_sequence in query_sequences]
+        BlastQuerySequence.objects.bulk_create(all_query_sequences)
 
         django_rq.enqueue(run_blast_command, blast_root=blast_root, fishdb_path=fishdb_path, query_file=query_file, run_details=run_details, results_path=results_path)
 
