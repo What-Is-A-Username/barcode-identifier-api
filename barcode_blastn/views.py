@@ -2,7 +2,6 @@ import uuid
 import os
 import shutil
 import django_rq
-import fastaparser
 from barcode_blastn.helper.parse_gb import InvalidAccessionNumberError, parse_gbx_xml, retrieve_gb
 from barcode_blastn.helper.verify_query import verify_query
 from barcode_blastn.models import BlastQuerySequence, BlastRun, Hit, NuccoreSequence, BlastDb
