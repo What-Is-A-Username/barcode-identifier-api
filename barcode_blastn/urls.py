@@ -15,5 +15,4 @@ urlpatterns = [
     path('runs/<uuid:pk>/', views.BlastRunDetail.as_view()),
     path('runs/<uuid:pk>/status/', views.BlastRunStatus.as_view()),
     path('runs/<uuid:pk>/download/', views.BlastRunDetailDownload.as_view()),
-    path('django-rq/', include('django_rq.urls'))
 ]

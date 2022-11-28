@@ -1,7 +1,6 @@
 import uuid
 import os
 import shutil
-import django_rq
 from barcode_blastn.helper.parse_gb import InvalidAccessionNumberError, parse_gbx_xml, retrieve_gb
 from barcode_blastn.helper.verify_query import verify_query
 from barcode_blastn.models import BlastQuerySequence, BlastRun, Hit, NuccoreSequence, BlastDb
@@ -15,7 +14,7 @@ from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer, Templat
 from rest_framework.response import Response
 from urllib.error import HTTPError
 
-from barcode_blastn.helper.run_blast import run_blast_command
+from barcode_blastn.tasks import run_blast_command
 
 '''
 List all the sequences in the server, irrespective of database
@@ -384,7 +383,10 @@ class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
         all_query_sequences = [BlastQuerySequence(**query_sequence, owner_run = run_details) for query_sequence in query_sequences]
         BlastQuerySequence.objects.bulk_create(all_query_sequences)
 
-        django_rq.enqueue(run_blast_command, blast_root=blast_root, fishdb_path=fishdb_path, query_file=query_file, run_details=run_details, results_path=results_path)
+        run_details_id = run_details.id
+        run_blast_command.delay(blast_root=blast_root, fishdb_path=fishdb_path, query_file=query_file, run_details_id=run_details_id, results_path=results_path)        
+
+        # django_rq.enqueue(run_blast_command, blast_root=blast_root, fishdb_path=fishdb_path, query_file=query_file, run_details=run_details, results_path=results_path)
 
         # create response 
         serializer = BlastRunSerializer(run_details)

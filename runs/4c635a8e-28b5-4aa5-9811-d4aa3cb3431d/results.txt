@@ -1,0 +1,6 @@
+# BLASTN 2.12.0+
+# Query: query_sequence
+# Database: /home/linux_user1/django_projects/djangorest/barcode_identifier_api/barcode_identifier_api/fishdb/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/database
+# 0 hits found
+# BLAST processed 1 queries
+

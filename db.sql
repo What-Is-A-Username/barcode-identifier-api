@@ -475,15 +475,14 @@ COPY public.auth_permission (id, name, content_type_id, codename) FROM stdin;
 34	Can change blast run	9	change_blastrun
 35	Can delete blast run	9	delete_blastrun
 36	Can view blast run	9	view_blastrun
-37	Can add hit	10	add_hit
-38	Can change hit	10	change_hit
-39	Can delete hit	10	delete_hit
-40	Can view hit	10	view_hit
-41	Access admin page	11	view
-42	Can add blast query sequence	12	add_blastquerysequence
-43	Can change blast query sequence	12	change_blastquerysequence
-44	Can delete blast query sequence	12	delete_blastquerysequence
-45	Can view blast query sequence	12	view_blastquerysequence
+37	Can add blast query sequence	10	add_blastquerysequence
+38	Can change blast query sequence	10	change_blastquerysequence
+39	Can delete blast query sequence	10	delete_blastquerysequence
+40	Can view blast query sequence	10	view_blastquerysequence
+41	Can add hit	11	add_hit
+42	Can change hit	11	change_hit
+43	Can delete hit	11	delete_hit
+44	Can view hit	11	view_hit
 \.
 
 
@@ -526,6 +525,11 @@ COPY public.barcode_blastn_blastdb (id, created, custom_name, locked, descriptio
 --
 
 COPY public.barcode_blastn_blastquerysequence (id, definition, query_sequence, owner_run_id) FROM stdin;
+13	query_sequence	AGCTTTTTTTT	6209ae80-2bf8-491c-bac5-e2a1fc6cdadc
+14	query_sequence	gtacgtgacgtgag	71cfccba-ba9a-4555-900b-d971ae1da909
+15	query_sequence	gtacgtgacgtgag	990824df-3fa1-4800-811c-9ee9c8547ce3
+16	query_sequence	gtacgtgacgtgag	cad1d225-343c-4932-94b5-070043a76791
+17	query_sequence	agctagctagctacgct	4c635a8e-28b5-4aa5-9811-d4aa3cb3431d
 \.
 
 
@@ -534,6 +538,11 @@ COPY public.barcode_blastn_blastquerysequence (id, definition, query_sequence, o
 --
 
 COPY public.barcode_blastn_blastrun (id, runtime, job_name, query_sequence, blast_version, errors, db_used_id, job_end_time, job_start_time, job_status) FROM stdin;
+6209ae80-2bf8-491c-bac5-e2a1fc6cdadc	2022-11-27 18:55:21.928391-05	first with proc queue		ncbi-blast-2.12.0+		4f33c746-e566-4cfb-a79d-1d4bcb8cae6d	2022-11-27 18:55:42.185361-05	2022-11-27 18:55:32.087201-05	FIN
+71cfccba-ba9a-4555-900b-d971ae1da909	2022-11-27 18:56:48.927895-05	please delay		ncbi-blast-2.12.0+		4f33c746-e566-4cfb-a79d-1d4bcb8cae6d	\N	\N	QUE
+990824df-3fa1-4800-811c-9ee9c8547ce3	2022-11-27 18:59:07.709203-05	please delay		ncbi-blast-2.12.0+		4f33c746-e566-4cfb-a79d-1d4bcb8cae6d	\N	\N	QUE
+cad1d225-343c-4932-94b5-070043a76791	2022-11-27 19:01:37.819661-05	please delay		ncbi-blast-2.12.0+		4f33c746-e566-4cfb-a79d-1d4bcb8cae6d	\N	\N	QUE
+4c635a8e-28b5-4aa5-9811-d4aa3cb3431d	2022-11-27 19:02:59.766844-05	celery delay		ncbi-blast-2.12.0+		4f33c746-e566-4cfb-a79d-1d4bcb8cae6d	2022-11-27 19:03:09.97936-05	2022-11-27 19:02:59.911467-05	FIN
 \.
 
 
@@ -596,9 +605,8 @@ COPY public.django_content_type (id, app_label, model) FROM stdin;
 7	barcode_blastn	blastdb
 8	barcode_blastn	nuccoresequence
 9	barcode_blastn	blastrun
-10	barcode_blastn	hit
-11	django_rq	queue
-12	barcode_blastn	blastquerysequence
+10	barcode_blastn	blastquerysequence
+11	barcode_blastn	hit
 \.
 
 
@@ -607,34 +615,24 @@ COPY public.django_content_type (id, app_label, model) FROM stdin;
 --
 
 COPY public.django_migrations (id, app, name, applied) FROM stdin;
-1	contenttypes	0001_initial	2022-10-22 16:46:23.725374-04
-2	auth	0001_initial	2022-10-22 16:46:26.016799-04
-3	admin	0001_initial	2022-10-22 16:46:26.566363-04
-4	admin	0002_logentry_remove_auto_add	2022-10-22 16:46:26.615424-04
-5	admin	0003_logentry_add_action_flag_choices	2022-10-22 16:46:26.663938-04
-6	contenttypes	0002_remove_content_type_name	2022-10-22 16:46:26.728197-04
-7	auth	0002_alter_permission_name_max_length	2022-10-22 16:46:26.806246-04
-8	auth	0003_alter_user_email_max_length	2022-10-22 16:46:26.865773-04
-9	auth	0004_alter_user_username_opts	2022-10-22 16:46:26.914092-04
-10	auth	0005_alter_user_last_login_null	2022-10-22 16:46:26.965374-04
-11	auth	0006_require_contenttypes_0002	2022-10-22 16:46:27.008461-04
-12	auth	0007_alter_validators_add_error_messages	2022-10-22 16:46:27.057616-04
-13	auth	0008_alter_user_username_max_length	2022-10-22 16:46:27.200092-04
-14	auth	0009_alter_user_last_name_max_length	2022-10-22 16:46:27.249255-04
-15	auth	0010_alter_group_name_max_length	2022-10-22 16:46:27.298471-04
-16	auth	0011_update_proxy_permissions	2022-10-22 16:46:27.352532-04
-17	auth	0012_alter_user_first_name_max_length	2022-10-22 16:46:27.40616-04
-18	sessions	0001_initial	2022-10-22 16:46:27.926067-04
-19	barcode_blastn	0001_initial	2022-10-22 16:49:26.345093-04
-20	barcode_blastn	0002_rename_uuid_blastdb_id_rename_uuid_blastrun_id_and_more	2022-10-22 17:36:02.909355-04
-26	django_rq	0001_initial	2022-11-06 16:42:56.452887-05
-27	barcode_blastn	0003_blastrun_finished	2022-11-06 17:43:09.412963-05
-28	barcode_blastn	0004_remove_blastrun_finished_blastrun_job_end_time_and_more	2022-11-06 18:45:07.599342-05
-29	barcode_blastn	0005_hit_db_entry	2022-11-15 08:57:41.834876-05
-30	barcode_blastn	0006_alter_hit_db_entry	2022-11-15 09:04:27.35317-05
-31	barcode_blastn	0007_blastdb_description_nuccoresequence_lat_lon	2022-11-20 19:03:29.133251-05
-32	barcode_blastn	0008_blastquerysequence	2022-11-20 21:07:45.186126-05
-33	barcode_blastn	0009_rename_owner_query_blastquerysequence_owner_run	2022-11-20 21:07:45.569725-05
+1	contenttypes	0001_initial	2022-11-27 18:50:48.407595-05
+2	auth	0001_initial	2022-11-27 18:50:50.783315-05
+3	admin	0001_initial	2022-11-27 18:50:51.258163-05
+4	admin	0002_logentry_remove_auto_add	2022-11-27 18:50:51.313251-05
+5	admin	0003_logentry_add_action_flag_choices	2022-11-27 18:50:51.364583-05
+6	contenttypes	0002_remove_content_type_name	2022-11-27 18:50:51.430187-05
+7	auth	0002_alter_permission_name_max_length	2022-11-27 18:50:51.504963-05
+8	auth	0003_alter_user_email_max_length	2022-11-27 18:50:51.547847-05
+9	auth	0004_alter_user_username_opts	2022-11-27 18:50:51.597567-05
+10	auth	0005_alter_user_last_login_null	2022-11-27 18:50:51.647315-05
+11	auth	0006_require_contenttypes_0002	2022-11-27 18:50:51.691547-05
+12	auth	0007_alter_validators_add_error_messages	2022-11-27 18:50:51.746391-05
+13	auth	0008_alter_user_username_max_length	2022-11-27 18:50:51.882132-05
+14	auth	0009_alter_user_last_name_max_length	2022-11-27 18:50:51.940964-05
+15	auth	0010_alter_group_name_max_length	2022-11-27 18:50:51.997826-05
+16	auth	0011_update_proxy_permissions	2022-11-27 18:50:52.051084-05
+17	auth	0012_alter_user_first_name_max_length	2022-11-27 18:50:52.104486-05
+18	sessions	0001_initial	2022-11-27 18:50:52.574832-05
 \.
 
 
@@ -700,7 +698,7 @@ SELECT pg_catalog.setval('public.auth_user_user_permissions_id_seq', 1, false);
 -- Name: barcode_blastn_blastquerysequence_id_seq; Type: SEQUENCE SET; Schema: public; Owner: admin
 --
 
-SELECT pg_catalog.setval('public.barcode_blastn_blastquerysequence_id_seq', 12, true);
+SELECT pg_catalog.setval('public.barcode_blastn_blastquerysequence_id_seq', 17, true);
 
 
 --
