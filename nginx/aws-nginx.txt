@@ -6,7 +6,6 @@ pip install uwsgi
 sudo apt-get install nginx
 sudo /etc/init.d/nginx start
 wget https://raw.githubusercontent.com/nginx/nginx/master/conf/uwsgi_params
-cd /etc/nginx/sites-available/
 
 cd ~/barcode_identifier_api 
 mkdir media 
