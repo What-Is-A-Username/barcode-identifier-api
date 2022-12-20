@@ -1,0 +1,11 @@
+# BLASTN 2.12.0+
+# Query: query_sequence
+# Database: /home/ubuntu/barcode_identifier_api/fishdb/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/database
+# Fields: query acc.ver, subject acc.ver, % identity, alignment length, mismatches, gap opens, q. start, q. end, s. start, s. end, evalue, bit score
+# 4 hits found
+query_sequence	ON303378	100.000	560	0	0	1	560	15	574	0.0	1035
+query_sequence	ON303383	91.429	560	48	0	1	560	15	574	0.0	769
+query_sequence	ON303385	85.000	560	84	0	1	560	15	574	1.98e-165	569
+query_sequence	ON303387	83.721	559	91	0	2	560	16	574	3.36e-153	529
+# BLAST processed 1 queries
+

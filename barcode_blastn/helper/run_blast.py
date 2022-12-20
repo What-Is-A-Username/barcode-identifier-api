@@ -6,7 +6,6 @@ from barcode_blastn.helper.parse_results import parse_results
 from barcode_blastn.models import BlastRun, Hit, NuccoreSequence 
 
 def run_blast_command(blast_root, fishdb_path, query_file, run_details, results_path):
-    sleep(10)
     
     print('Beginning queued BLAST search ...')
 
@@ -22,8 +21,6 @@ def run_blast_command(blast_root, fishdb_path, query_file, run_details, results_
     # TODO: avoid shell=True or add escaping https://docs.python.org/3/library/shlex.html
 
     process = subprocess.Popen(blast_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-
-    sleep(10)
 
     print('BLAST search completed.')
 
@@ -56,5 +53,3 @@ def run_blast_command(blast_root, fishdb_path, query_file, run_details, results_
     run_details.save()
 
     print('Queued BLAST search completed.')
-
-    # TODO: Result is currently kept for 500 seconds from the rqworker. See if we can decrease this value to decrease demand on resources

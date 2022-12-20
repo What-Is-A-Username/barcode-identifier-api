@@ -17,6 +17,6 @@ from django.urls import path, include
 from django.contrib import admin
 
 urlpatterns = [
-    path('api/admin/', admin.site.urls),
-    path('api/', include('barcode_blastn.urls'))
+    path('admin/', admin.site.urls),
+    path('', include('barcode_blastn.urls'))
 ]

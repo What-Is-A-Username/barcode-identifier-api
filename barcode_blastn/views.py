@@ -328,6 +328,11 @@ class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
         results_path = results_root + '/' + str(results_uuid)
         if not os.path.exists(results_path):
             os.mkdir(results_path)
+            # ensure that celery worker has access to file to write results.txt later
+            shutil.chown(results_path, user='ubuntu', group='celery') 
+            os.chmod(results_path, 0o774)
+
+        print("Run id: " + str(results_uuid));
 
         if not odb.locked:
             print('Database was not locked. Creating database locally ...')
@@ -351,6 +356,7 @@ class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
                     identifier = x.accession_number
                     dna_sequence = x.dna_sequence
                     my_file.write('>' + identifier + '\n' + dna_sequence + '\n')
+            
             my_file.close()
 
             print('Creating db now ...')
@@ -371,6 +377,7 @@ class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
             for query_entry in query_sequences:
                 tmp.write(f'>{query_entry["definition"]}\n')
                 tmp.write(f'{query_entry["query_sequence"]}\n')
+
         tmp.close()
 
         print('Running BLAST search ...')

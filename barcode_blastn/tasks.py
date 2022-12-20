@@ -7,7 +7,7 @@ from barcode_blastn.models import BlastRun, Hit, NuccoreSequence
 
 from celery import shared_task
 
-@shared_task
+@shared_task(time_limit=30)  # hard time limit of 30 seconds 
 def run_blast_command(blast_root, fishdb_path, query_file, run_details_id, results_path):   
     print('Beginning queued BLAST search ...')
     
@@ -25,8 +25,6 @@ def run_blast_command(blast_root, fishdb_path, query_file, run_details_id, resul
     # TODO: avoid shell=True or add escaping https://docs.python.org/3/library/shlex.html
 
     process = subprocess.Popen(blast_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-
-    sleep(10)
 
     print('BLAST search completed.')
 
@@ -58,6 +56,6 @@ def run_blast_command(blast_root, fishdb_path, query_file, run_details_id, resul
     run_details.job_end_time = datetime.now()
     run_details.save()
 
-    print('Queued BLAST search completed.')
+    # TODO: Add a soft time limit to the function, and update the job status as ERRORED if reached. Docs: https://docs.celeryq.dev/en/stable/userguide/workers.html#time-limits
 
-    # TODO: Result is currently kept for 500 seconds from the rqworker. See if we can decrease this value to decrease demand on resources
+    print('Queued BLAST search completed.')

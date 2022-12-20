@@ -103,8 +103,76 @@ vacuum          = true
 sudo nano /etc/nginx/nginx.conf
 # set user to www-data in that file, worker_processes to 1.
 
-# step 5: restart nginx, and start uwsgi 
+# step 5: remove the default sites-available file 
+sudo rm /etc/nginx/sites-available/default
+
+# step 6: restart nginx, and start uwsgi 
 sudo /etc/init.d/nginx restart  
 uwsgi --ini ~/barcode_identifier_api/barcode_identifier_api_uwsgi.ini
 
 
+# dec 19: setting up emperor and running uwsgi in the background 
+# make sure to deactivate the virtual environment, so you can install uwsgi globally
+sudo pip install uwsgi
+
+# make the vassals directory for the emperor mode 
+sudo mkdir /home/ubuntu/vassals
+# symlink the .ini file of the django project to the vassals dir 
+sudo ln -s /home/ubuntu/barcode_identifier_api/barcode_identifier_api_uwsgi.ini /home/ubuntu/vassals
+# run in emperor mode 
+uwsgi --emperor /home/ubuntu/vassals --uid www-data --gid www-data
+
+# make a systemd service for it 
+sudo nano /etc/systemd/system/emperor.uwsgi.service
+# paste in the following:
+# --- start of emperor.uwsgi.service --- 
+Description=uWSGI Emperor
+After=network.target 
+
+[Service]
+User=ubuntu 
+ExecStart=/home/ubuntu/.local/bin/uwsgi --emperor /home/ubuntu/vassals --uid www-data --gid www-data
+
+[Install]
+WantedBy=multi-user.target
+
+
+# start the service 
+systemctl start emperor.uwsgi.service 
+
+# if prompted for the password for ubuntu and you don't know, you can set it:
+sudo su - 
+passwd ubuntu 
+
+# --- End of emperor.uwsgi.service --- 
+
+# check that the process is running 
+ps aux
+
+
+## Starting celery service 
+# Docs for celery with systemd are here: https://docs.celeryq.dev/en/stable/userguide/daemonizing.html#usage-systemd
+# The file for /etc/systemd/system/celery.service is at barcode_identifier_api/nginx/celery.service 
+sudo cp /home/ubuntu/barcode_identifier_api/nginx/celery.service /etc/systemd/system/celery.service 
+
+# The file meant for /etc/tmpfiles.d/celery.conf is at barcode_identifier_api/nginx/celery.conf
+sudo cp /home/ubuntu/barcode_identifier_api/nginx/celery.conf /etc/tmpfiles.d/celery.conf
+
+# The file meant for /etc/conf.d/celery is at barcode_identifier_api/nginx/celery
+sudo cp /home/ubuntu/barcode_identifier_api/nginx/celery /etc/conf.d/celery
+
+# TODO: Note: both celery.service and emperor.uwsgi.service have "Restart=always" omitted; only put in once I am more knowledgable of these features
+
+# Add a new celery user (also makes the celery group)
+sudo adduser celery
+# Add ec2 user (e.g. ubuntu) to the celery group 
+sudo usermod -a -G celery ubuntu
+
+# Make folders for pid and error logging, and give permissions for celery to both directories 
+sudo mkdir /var/run/celery
+sudo chown celery:celery /var/run/celery
+sudo mkdir /var/log/celery
+
+# refresh services and restart celery
+systemctl start celery.service 
+systemctl start emperor.uwsgi.service

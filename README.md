@@ -142,6 +142,16 @@ psql -d barcode_identifier_db -f db.sql -U admin
 Set-up the connection to Amazon Simple Queue Service (SQS) by adding the credentials to the local environment variables or the `settings.py` file. In the settings.py file, these should correspond to the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` keys, as well as `access_key_id` and `secret_access_key`. 
 
 ### Running the API
+If an AWS EC2 instance was restarted, ensure that the nginx conf file at /etc/nginx/sites-available was updated accordingly and restart nginx.
+```
+# edit as necessary
+sudo nano /etc/nginx/sites-available/barcode_identifier_api_nginx.conf 
+
+# restart nginx
+sudo /etc/init.d/nginx restart
+```
+
+
 Start the SQL database in the terminal.
 ```
 sudo service postgresql start
@@ -153,7 +163,7 @@ uwsgi --ini barcode_identifier_api_uwsgi.ini
 
 Open another terminal and run the worker queue used to perform the BLAST searches. This queue enables the API to queue up jobs it receives and process them asynchronously in order.
 ```
-celery -A barcode_identifier_api worker --loglevel=INFO -Q BarcodeQueue.fifo 
+celery -A barcode_identifier_api worker --loglevel=INFO -Q BarcodeQueue.fifo
 ```
 
 ## Downloading database data
