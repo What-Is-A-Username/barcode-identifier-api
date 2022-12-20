@@ -384,9 +384,22 @@ class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
         BlastQuerySequence.objects.bulk_create(all_query_sequences)
 
         run_details_id = run_details.id
-        run_blast_command.delay(blast_root=blast_root, fishdb_path=fishdb_path, query_file=query_file, run_details_id=run_details_id, results_path=results_path)        
 
-        # django_rq.enqueue(run_blast_command, blast_root=blast_root, fishdb_path=fishdb_path, query_file=query_file, run_details=run_details, results_path=results_path)
+        message_properties = {
+            'MessageGroupId': str(run_details_id),
+            'MessageDeduplicationId': str(run_details_id),
+        }
+        
+        # run async through the celery worker
+        run_blast_command.apply_async(
+            queue='BarcodeQueue.fifo',
+            **message_properties, kwargs={
+            'blast_root': blast_root,
+            'fishdb_path': fishdb_path,
+            'query_file': query_file,
+            'run_details_id': run_details_id,
+            'results_path': results_path,
+        })      
 
         # create response 
         serializer = BlastRunSerializer(run_details)

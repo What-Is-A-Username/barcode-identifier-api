@@ -16,7 +16,7 @@ cd barcode-identifier-api/
 
 Or, if the repo is private, follow the following format:
 ```
-git clone https://username:<token>@github.com/<username>/barcode-identifier-api.git
+git clone https://username@github.com/<username>/barcode-identifier-api.git
 cd barcode-identifier-api/
 ```
 
@@ -61,26 +61,22 @@ exit
 
 Optionally, if you want the database to be populated with data from a local `db.sql` file:
 ```
-psql -d barcode_identifier_db -f db.sql -U admin
+psql -d barcode_identifier_db -f db.sql -U admin -h 127.0.0.1
 ```
 
 Set-up the redis-server, and the default rqworker queue.
 Ubuntu:
 ```
-sudo apt-get install redis-server
-sudo service redis-server start
-
-
-# (Optional) connect to the server:
-redis-cli
-ping 
-exit
+sudo apt-get install rabbitmq-server
+sudo service rabbiqmq-server start
 ```
 
 ### Running the API
+Ensure that you have already activated the virtual environment.
+
 Open a terminal and run the worker queue used to perform the BLAST searches:
 ```
-python manage.py rqworker default
+celery -A barcode_identifier_api worker --loglevel=INFO
 ```
 
 Open another terminal and run the API server

@@ -1,0 +1,64 @@
+# Nov 27th 2022
+
+This document summaries my attempts to setup a nginx web server with uwsgi to deploy Django on my local machine.
+
+# Tutorial: https://uwsgi-docs.readthedocs.io/en/latest/tutorials/Django_and_nginx.html
+
+# Make sure that you are working within the virtualenv (the dependencies at the time of installation are in nginx-requirements.txt)
+pip install uwsgi
+# fails 
+pip install wheel
+sudo apt-get install libxml2-dev libxml2-doc 
+# this works now
+pip install uwsgi
+
+# run our app using uWSGI:
+uwsgi --http :8000 --module barcode_identifier_api.wsgi
+
+
+# install nginx
+sudo apt-get install nginx 
+# failed; suggested we run:
+sudo apt-get update 
+# try again
+sudo apt-get install nginx 
+
+sudo /etc/init.d/nginx start    # start nginx
+# we confirm that its running based upon whether we get input:
+pidof nginx 
+# as a double check, we see that apache2 server is not running 
+pidof apache2
+
+
+# download the uwsgi_params file and put it in the project folder (link: https://github.com/nginx/nginx/blob/master/conf/uwsgi_params)
+# make the barcode_identifier_api_nginx.conf file:
+cd /etc/nginx/sites-available/
+sudo touch barcode_identifier_api_nginx.conf 
+sudo nano barcode_identifier_api_nginx.conf 
+# add empty /media and /static directories within the django project
+# add a symlink, where /etc/nginx/sites-enabled/ points to /etc/nginx/sites-available/...
+sudo ln -s /etc/nginx/sites-available/barcode_identifier_api_nginx.conf /etc/nginx/sites-enabled/
+
+# add the following to settings.py :
+import os
+STATIC_ROOT = os.path.join(BASE_DIR, "static/")
+
+# then run:
+python manage.py collectstatic
+sudo /etc/init.d/nginx restart
+
+# To test it, we add a placeholder image to this project's media/ directory
+# If we go to http://127.0.0.1:8000/media/media.png, then we correctly see the image we put there 
+
+# make the .sock file used for uwsgi: 
+
+# edit the conf file to use a unix web socket, instead of a tcp/ip socket. upstream django should be:
+sudo nano /etc/nginx/sites-available/barcode_identifier_api_nginx.conf
+# and set the upstream django line to be: server unix:///home/linux_user1/django_projects/djangorest/barcode_identifier_api/barcode_identifier_api/u.sock;
+# restart nginx and run uwsgi again
+sudo /etc/init.d/nginx restart
+uwsgi --socket barcode_identifier_api.sock --module barcode_identifier_api.wsgi --chmod-socket=664
+# note: if nginx fails, you can view the log file:
+sudo nano /var/log/nginx/error.log
+# view the site 
+http://127.0.0.1:8000/

@@ -1,0 +1,110 @@
+cd barcode_identifier_api
+source env_barcode/bin/activate
+pip install wheel
+pip install uwsgi
+
+sudo apt-get install nginx
+sudo /etc/init.d/nginx start
+wget https://raw.githubusercontent.com/nginx/nginx/master/conf/uwsgi_params
+cd /etc/nginx/sites-available/
+
+cd ~/barcode_identifier_api 
+mkdir media 
+mkdir static 
+
+cd /etc/nginx/sites-available/
+sudo touch barcode_identifier_api_nginx.conf 
+sudo nano barcode_identifier_api_nginx.conf 
+sudo ln -s /etc/nginx/sites-available/barcode_identifier_api_nginx.conf /etc/nginx/sites-enabled/
+
+cd ~/barcode_identifier_api
+python manage.py collectstatic
+sudo /etc/init.d/nginx restart
+
+# dec 17
+cd barcode_identifier_api
+source env_barcode/bin/activate
+sudo /etc/init.d/nginx restart
+uwsgi --socket barcode_identifier_api.sock --module barcode_identifier_api.wsgi --chmod-socket=664
+
+# install pcre support 
+pip uninstall uwsgi 
+sudo apt-get install libpcre3 libprce3-dev 
+pip install uwsgi 
+pip uninstall uwsgi 
+# do it again with the cache disabled 
+pip install uwsgi --no-cache-dir
+
+# we can check the default directory for the web root 
+sudo nano /etc/nginx/sites-enabled/default 
+# it is at /var/www/html 
+
+
+# dec 17 - fixing permissions 
+# step 1: use the following .conf file in /etc/nginx/sites-available:
+# the upstream component nginx needs to connect to
+upstream django {
+    server unix:///home/ubuntu/barcode_identifier_api/barcode_identifier_api.sock 
+}
+
+server {
+    listen  80;
+    server_name 18.117.128.142; # substitute for your machine's IP address (e.g. public aws IP or FQDN)
+    charset utf-8 
+
+    client_max_body_size 75M;   # adjust to taste  
+    location /media {
+        alias /home/ubuntu/barcode_identifier_api/media; 
+    }
+
+    location /static {
+        alias /home/ubuntu/barcode_identifier_api/static; 
+    }
+
+    location / { 
+        uwsgi django;
+        include /home/ubuntu/barcode_identifier_api/uwsgi_params; 
+    }
+}
+ 
+# step 2: set the correct permissions for the /home/ubuntu folder: 
+# according to this comment, we need global execute privileges on /home/ubuntu: https://stackoverflow.com/questions/73524980/permission-denied-502-bad-gateway-for-nginx-to-access-uwsgi-socket-with-user 
+sudo chmod 755 /home/ubuntu
+# double check the perms to make sure it's "drwxr-xr-x 10 ubuntu ubuntu 4096 Dec 18 00:15 ubuntu": 
+ls -l /home/
+
+# step 3 make the .ini file: 
+--- START OF INI FILE ----
+# barcode_identifier_api_wsgi.ini file
+[uwsgi]
+
+# Django-related settings
+# the base directory (full path)
+chdir           = /home/ubuntu/barcode_identifier_api  
+# Django's wsgi file
+module          = project.wsgi
+# the virtualenv (full path)
+home            = /home/ubuntu/barcode_identifier_api/env_barcode
+
+# process-related settings
+# master
+master          = true
+# maximum number of worker processes
+processes       = 1
+# the socket (use the full path to be safe
+socket          = /home/ubuntu/barcode_identifier_api/barcode_identifier_api.sock
+# ... with appropriate permissions - may be needed
+# chmod-socket    = 666
+# clear environment on exit
+vacuum          = true
+
+--- END OF INI FILE ----
+
+# step 4: double check /etc/nginx/nginx.conf
+sudo nano /etc/nginx/nginx.conf
+# set user to www-data in that file, worker_processes to 1.
+
+# step 5: restart nginx, and start uwsgi 
+sudo /etc/init.d/nginx restart  
+uwsgi --ini ~/barcode_identifier_api/barcode_identifier_api_uwsgi.ini
+

@@ -1,0 +1,42 @@
+# Log of attempts to deploy on EC2 on Nov 27th
+
+
+# ssh into the terminal:
+ssh -i "Django Key Pair Name.pem" ubuntu@ec2-3-17-141-243.us-east-2.compute.amazonaws.com
+
+sudo apt update
+python3 --version
+# Python 3.10.6 found
+
+sudo apt-get install python3-pip
+# use git pat specifically for EC2
+git clone https://What-Is-A-Username@github.com/What-Is-A-Username/barcode-identifier-api.git 
+mv barcode-identifier-api barcode_identifier_api
+
+cd barcode_identifier_api
+git checkout celery
+
+# install pyenv and 3.8.10
+curl https://pyenv.run | bash
+exec $SHELL
+export PATH="$HOME/.pyenv/bin:$PATH"
+pyenv install 3.8.10
+pyenv global 3.8.10
+
+# the above failed
+
+python -m venv env_barcode
+source env_barcode/bin/activate
+
+# this fails because backports.zoneinfo does not seem to work for Python > 3.9.x
+pip3 install -r 'requirements-celery.txt'
+
+# we manually install some of the packages and output to the aws-requirements.txt file:
+pip3 freeze > aws-requirements.txt
+
+# server copy the manage.py and settings.py files:
+scp -i ~/aws-ec2/django_key_pair_name.pem manage.py ubuntu@ec2-3-17-141-243.us-east-2.compute.amazonaws.com:~/barcode_identifier_api
+scp -i ~/aws-ec2/django_key_pair_name.pem barcode_identifier_api/settings.py ubuntu@ec2-3-17-141-243.us-east-2.compute.amazonaws.com:~/barcode_identifier_api/barcode_identifier_api/
+ 
+# we need to resolve the libprce errors:
+
