@@ -1,8 +1,14 @@
+# TODO: Install Python 3.10.6 to match EC2
+
+import io
+from typing import List
+from urllib import request
 import uuid
 import os
 import shutil
-from barcode_blastn.helper.parse_gb import InvalidAccessionNumberError, parse_gbx_xml, retrieve_gb
-from barcode_blastn.helper.verify_query import verify_query
+from Bio import SeqIO
+from barcode_blastn.helper.parse_gb import retrieve_gb
+from barcode_blastn.helper.verify_query import verify_query, verify_dna
 from barcode_blastn.models import BlastQuerySequence, BlastRun, Hit, NuccoreSequence, BlastDb
 from barcode_blastn.permissions import IsAdminOrReadOnly
 from barcode_blastn.renderers import BlastRunCSVRenderer, BlastRunTxtRenderer, BlastDbCSVRenderer, BlastDbFastaRenderer
@@ -60,13 +66,16 @@ class NuccoreSequenceAdd(generics.CreateAPIView):
 
         currentData = {}
         try:
-            xml_string = retrieve_gb(accession_number = accession_number)
-            currentData = parse_gbx_xml(xml_string = xml_string, accession_number = accession_number)
+            genbank_data = retrieve_gb(accession_numbers = [accession_number])
+            assert len(genbank_data) > 0  
+        except AssertionError:
+            return Response({'message': f"The GenBank database did not return an entry for the accession number {accession_number}"}, status=status.HTTP_400_BAD_REQUEST)
         except HTTPError:
-            return Response({'message': f"The GenBank database does not contain an entry for this accession number.", 'accession_number': accession_number}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'message': f"The GenBank database does not contain an entry for the accession number {accession_number}"}, status=status.HTTP_400_BAD_REQUEST)
         except BaseException:
-            return Response({'message': f"Failed to parse retrieved GenBank database entry.", 'accession_number': accession_number}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'message': f"Failed to parse retrieved GenBank database entry for the accession number {accession_number}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
+        currentData = genbank_data[0]
         currentData['owner_database'] = db.id
         all_data = request.POST.copy()
         all_data.update(currentData)
@@ -219,7 +228,7 @@ class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
     serializer_class = BlastRunRunSerializer
     permission_classes = [AllowAny]
     parser_classes = [JSONParser, FormParser, MultiPartParser]
-
+    
     '''
     Run blast query
     '''
@@ -250,16 +259,41 @@ class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
                 'message': f"Cannot begin a blastn query on a database of less than {MINIMUM_NUMBER_OF_SEQUENCES} sequences. This database only contains {num_sequences_found} sequences."
             }, status = status.HTTP_400_BAD_REQUEST)
 
-        query_sequences = []
+        query_sequences : List = []
         # obtain the query sequence, either from raw text or from the file upload
         # take precedence for the raw text
-        if 'query_sequence' in request.data and len(request.data['query_sequence']) > 0: 
-            query_sequences.append({
-                # TODO: allow user to specify >
-                # TODO: remove > caret from saved definition
-                'definition': 'query_sequence', 
-                'query_sequence': request.data['query_sequence']
-            })
+        if 'query_sequence' in request.data and len(request.data['query_sequence']) > 0:
+            full_query : str = request.data['query_sequence']
+            # try parsing with fasta first
+            with io.StringIO(full_query) as query_string_io:
+                query_records = SeqIO.parse(query_string_io, 'fasta')
+                query_record : SeqIO.SeqRecord
+                
+                for query_record in query_records:
+                    seq = str(query_record.seq)
+                    if not verify_dna(seq):
+                        query_string_io.close()
+                        return Response({
+                            'message': f"The sequence provided for '>{query_record.description}' has non-nucleotide characters."
+                        }, status = status.HTTP_400_BAD_REQUEST) 
+                    query_sequences.append({
+                        'definition': query_record.description,
+                        'query_sequence': seq
+                    })
+
+            # if we found no fasta entries, then parse the whole thing as a sequence
+            if len(query_sequences) == 0:
+                # replace all whitespace
+                full_query = full_query.strip().replace('\r', '').replace('\n', '').replace(' ', '')
+                if not verify_dna(full_query):
+                    query_string_io.close()
+                    return Response({
+                        'message': f"Tried to parse input as single entry by removing whitespace, but the sequence provided has non-nucleotide characters."
+                    }, status = status.HTTP_400_BAD_REQUEST) 
+                query_sequences.append({
+                    'definition': 'query_sequence', 
+                    'query_sequence': full_query
+                })
         else:
             query_file = request.FILES['query_file']
             # TODO: Check file type uploaded
@@ -287,12 +321,12 @@ class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
 
                 # verify if definitions and sequences are nonblank
                 if not verify_query(definition, query_sequence):
-                    return Response({'message': f'The following definition and sequence pair was either erroneously parsed or incorrectly formatted. Definition = "{definition}", sequence = "{query_sequence}"',
+                    return Response({'message': f'The following definition and sequence pair was either erroneously parsed or incorrectly formatted. Definition = "{definition}", sequence = "{query_sequence}"'},
                     status = status.HTTP_400_BAD_REQUEST)
 
                 # verify that there is not already a sequence with the same definition
                 if definition in definitions_used:
-                    return Response({'message': f'We found more than one sequence with the same definition in the uploaded sequence file. Definition = "{definition}"', status = status.HTTP_400_BAD_REQUEST)
+                    return Response({'message': f'We found more than one sequence with the same definition in the uploaded sequence file. Definition = "{definition}"'}, status = status.HTTP_400_BAD_REQUEST)
                 else:
                     definitions_used.append(definition)
 
@@ -328,10 +362,10 @@ class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
         if not os.path.exists(results_path):
             os.mkdir(results_path)
             # ensure that celery worker has access to file to write results.txt later
-            shutil.chown(results_path, user='ubuntu', group='celery') 
+            shutil.chown(results_path, group='celery') 
             os.chmod(results_path, 0o774)
 
-        print("Run id: " + str(results_uuid));
+        print("Run id: " + str(results_uuid))
 
         if not odb.locked:
             print('Database was not locked. Creating database locally ...')
@@ -400,12 +434,10 @@ class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
             queue='BarcodeQueue.fifo',
             **message_properties, 
             kwargs={
-                'blast_root': blast_root,
-                'fishdb_path': fishdb_path,
-                'query_file': query_file,
-                'run_details_id': run_details_id,
-                'results_path': results_path,
-        })    
+                'ncbi_blast_version': ncbi_blast_version,
+                'fishdb_id': str(odb.id),
+                'run_id': run_details_id
+        })      # type: ignore
 
         # django_rq.enqueue(run_blast_command, blast_root=blast_root, fishdb_path=fishdb_path, query_file=query_file, run_details=run_details, results_path=results_path)
 
@@ -499,6 +531,3 @@ class BlastRunStatus(generics.RetrieveAPIView):
     queryset = BlastRun.objects.all()
     serializer_class = BlastRunStatusSerializer
     permission_classes = [IsAdminOrReadOnly]
-
-    
-    

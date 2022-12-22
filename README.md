@@ -92,9 +92,10 @@ sudo cp ./nginx/barcode_identifier_api_nginx.conf /etc/nginx/sites-available/
 sudo ln -s /etc/nginx/sites-available/barcode_identifier_api_nginx.conf /etc/nginx/sites-enabled/
 # restart nginx to apply changes
 sudo /etc/init.d/nginx restart
+# note: if it errors, you can view the error log at /var/log/nginx/error.log
 ```
 
-Next we must setup the nginx configuration file. Edit the nginx configuration folder by updating two lines below. An example nginx.conf file is saved at [/nginx/nginx.conf](/nginx/nginx.conf) for reference.
+Next we must setup the nginx configuration file at `/etc/nginx/nginx.conf`. Edit the nginx configuration folder by updating two lines below. An example nginx.conf file is saved at [/nginx/nginx.conf](/nginx/nginx.conf) for reference.
 ```
 sudo nano /etc/nginx/nginx.conf 
 # update value for 'user' to 'www-data' 
@@ -118,6 +119,8 @@ openssl x509 -req -days 365 -in foobar.csr -signkey foobar.key -out foobar.crt
 ```
 According our nginx configuration, the certificates must be moved to /etc/nginx/ssl
 ```
+cd /etc/nginx/ 
+sudo mkdir ssl
 sudo cp ~/cert/** /etc/nginx/ssl/
 ```
 
@@ -152,6 +155,17 @@ Set the following global privileges to the /home/ubuntu folder, which is very pe
 sudo chmod 755 /home/ubuntu
 ```
 
+Install uwsgi globally.
+
+
+Ensure that the [/barcode_identifier_api_wsgi.ini](./barcode_identifier_api_uwsgi.ini) file is updated. All file paths should be updated to reflect the paths on the instance. The `daemonize` directive should not be commented out if you wish to run the app in the background (you will do this for production). Examples of updated paths (assumes that the user is `ubuntu`):
+```
+chdir           = /home/ubuntu/barcode_identifier_api
+home            = /home/ubuntu/barcode_identifier_api/env_barcode
+socket          = /home/ubuntu/barcode_identifier_api/barcode_identifier_api.sock
+# daemonize     = /home/ubuntu/barcode_identifier_api/barcode_identifier_api.log
+```
+
 ### Install celery
 
 The celery worker allows the BLAST searches to be queued up and run separately, in queue order, from the app. This section assumes that you have already configured a Simple Queue System on AWS, named `BarcodeQueue.fifo`. 
@@ -169,12 +183,8 @@ Make folders for celery to write its pid and perform error logging, and give per
 sudo mkdir /var/run/celery
 sudo chown celery:celery /var/run/celery
 sudo mkdir /var/log/celery
-sudo chown celery:celery /var/run/celery
+sudo chown celery:celery /var/log/celery
 ```
-
-# refresh services and restart celery
-systemctl start celery.service 
-systemctl start emperor.uwsgi.service
 
 ### Install blastn
 Download and install ncbi blast tool to the project directory. The API was originally built for ncbi-blast-2.12.0
@@ -197,10 +207,25 @@ ncbi-blast-2.12.0+/bin/makeblastdb -in fishdb/4f33c746-e566-4cfb-a79d-1d4bcb8cae
 We will be using `systemd` in order to run uWSGI and Celery to run in the background. Copy the files for these two services to the correct directory:
 ```
 # copy service for uwsgi
-sudo cp ~/barcode_identifier_api/emperor.uwsgi.service /etc/systemd/system/
+sudo cp ~/barcode_identifier_api/nginx/emperor.uwsgi.service /etc/systemd/system/
 # copy service for celery
-sudo cp ~/barcode_identifier_api/celery.service /etc/systemd/system/
+sudo cp ~/barcode_identifier_api/nginx/celery.service /etc/systemd/system/
 ```
+
+Update `emperor.uwsgi.service` with the correct file paths.
+```
+sudo nano /etc/systemd/system/emperor.uwsgi.service
+# update the path to uwsgi installation (you can use the one installed in the virtualenv or the one installed globally on the machine):
+#   ExecStart=/home/ubuntu/.local/bin/uwsgi --emperor /home/ubuntu/vassals --uid www-data --gid www-data
+```
+
+Update `celery.service` with the correct file path for the `WorkingDirectory`.
+```
+sudo nano /etc/systemd/system/celery.service
+# update the following line according to your instance
+#   WorkingDirectory=/home/ubuntu/barcode_identifier_api
+```
+
 
 ### Set up the SQL database 
 
@@ -240,7 +265,7 @@ sudo service postgresql start
 
 There are two options for how to run the app. 
 
-### Production
+### Option 1: Production
 
 The following procedure starts the app and worker as two services running in the background. Closing the terminal will not stop the services, so the instance will still be active and receiving web requests.
 
@@ -257,7 +282,7 @@ systemctl stop emperor.uwsgi.service
 systemctl stop celery.service 
 ```
 
-### Development 
+### Option 2: Development 
 
 The following procedure starts the app and the worker, each in a different terminal. Once the terminal is closed, both the app and worker close.
 
@@ -269,6 +294,14 @@ uwsgi --ini barcode_identifier_api_uwsgi.ini
 Open another terminal and run the worker queue used to perform the BLAST searches. 
 ```
 celery -A barcode_identifier_api worker --loglevel=INFO -Q BarcodeQueue.fifo
+```
+
+### Option 3: Development on a localhost 
+
+The following allows you to directly run the app and worker, without the need to interact with nginx or any web server configurations. Note that this does not allow for access to media/ and HTTPS.
+
+```
+uwsgi --socket barcode_identifier_api.sock --module barcode_identifier_api.wsgi --chmod-socket=666
 ```
 
 To stop the app or the worker, press `Ctrl-C` in the appropriate terminal.

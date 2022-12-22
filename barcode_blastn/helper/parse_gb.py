@@ -1,67 +1,72 @@
-from typing import Dict
+from typing import Dict, Generator, List
+from Bio import Entrez 
+from Bio import SeqIO
+from Bio.SeqIO import SeqRecord
+from Bio.SeqFeature import SeqFeature
 from urllib.error import HTTPError
-import urllib.request
-import xml.etree.ElementTree as ET
 from ratelimit import limits
 from ratelimit.decorators import sleep_and_retry
-from rest_framework import status
 from datetime import datetime
-
-'''
-Given a url, return the XML response as a string
-'''
+from urllib.error import HTTPError
 
 ONE_SECOND = 1 # NCBI Rate limit without an API key is 3 requests per second
-
-@sleep_and_retry
-@limits(calls = 1, period = ONE_SECOND)
-def retrieve_gb(accession_number: str) -> str: 
-    url = f'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&id={accession_number}&rettype=gb&retmode=xml'
-    
-    request_time = datetime.now()
-    request_time_str = request_time.strftime("%H:%M:%S.%f")
-    print(f'{request_time_str} | Fetching from GenBank at url "{url}"')
-
-    try:
-        response = urllib.request.urlopen(url)
-    except HTTPError as e:
-        # e.msg = f'Failed to fetch entry from GenBank.'
-        raise
-    
-    response_time = datetime.now()
-    response_time_str = response_time.strftime("%H:%M:%S.%f")
-    print(f'{response_time_str} | Response received from "{url}"')
-
-    xml_string = response.read().decode('UTF8')
-    return xml_string
+MAX_ACCESSIONS_PER_REQUEST = 500 # Limit each request to only return 500 
 
 class InvalidAccessionNumberError(Exception):
     """Raised when accession number cannot be found in the retrieved GenBank XML"""
     pass
 
-def parse_gbx_xml(xml_string: str, accession_number: str) -> Dict:
-    qualifiers_to_extract = ['organism', 'organelle', 'mol_type', 'isolate', 'country', 'specimen_voucher', 'lat_lon']
-    
-    gbset = ET.fromstring(xml_string)
-    gbseq = gbset.find(f"./GBSeq[GBSeq_primary-accession='{accession_number}']")
-    if gbseq is None:
-        raise InvalidAccessionNumberError(f'Could not locate the data for accession number {accession_number} in the GenBank file.')
-    gb_source_quals = gbseq.find('./GBSeq_feature-table/GBFeature[GBFeature_key="source"]/GBFeature_quals')
+@sleep_and_retry
+@limits(calls = 1, period = ONE_SECOND)
+def retrieve_gb(accession_numbers: List[str]) -> List[Dict]: 
 
-    current_data = {
-        'accession_number': accession_number,
-        'definition': gbseq.find('./GBSeq_definition').text,
-        'dna_sequence': gbseq.find('./GBSeq_sequence').text
-    }
+    if len(accession_numbers) > MAX_ACCESSIONS_PER_REQUEST:
+        raise ValueError(f'Cannot query the {len(accession_numbers)} found in a single request. Limit per request is {MAX_ACCESSIONS_PER_REQUEST}')
 
-    qualifiers = gb_source_quals.findall('./GBQualifier')
-    for q in qualifiers:
-        qualifier_name = q.find('./GBQualifier_name').text
-        if qualifier_name in qualifiers_to_extract:
-            current_data[qualifier_name] = q.find('./GBQualifier_value').text
-        
-    return current_data
+    accessions = ','.join(accession_numbers)
 
-    
+    Entrez.email = "william.huang1212@gmail.com"
+    Entrez.max_tries = 1
+    Entrez.tool = "barcode_identifier"
 
+    request_time_str = datetime.now().strftime("%H:%M:%S.%f")
+    print(f'{request_time_str} | Fetching from GenBank for accessions {accessions}')
 
+    try: 
+        handle = Entrez.efetch(db="nucleotide", rettype="gb", retmode="text", id=accessions)
+    except HTTPError:
+        raise 
+    else:
+        response_time_str = datetime.now().strftime("%H:%M:%S.%f")
+        print(f'{response_time_str} | Response received from GenBank for accessions {accessions}')
+    seq_records : Generator = SeqIO.parse(handle, "genbank")
+
+    all_data = []
+
+    seq_record : SeqRecord
+    for seq_record in seq_records:
+        current_data : Dict = {
+            'accession_number': seq_record.name,
+            'definition': seq_record.description,
+            'dna_sequence': str(seq_record.seq)
+        }
+        features : List[ SeqFeature ] = seq_record.features
+        qualifiers_to_extract = ['organism', 'organelle', 'mol_type', 'isolate', 'country', 'specimen_voucher', 'lat_lon']
+        try: 
+            source_feature : SeqFeature = [feature for feature in features if feature.type == 'source'][0]
+        except IndexError:
+            for qualifier_name in qualifiers_to_extract:
+                current_data[qualifier_name] = ''
+        else:
+            for qualifier_name in qualifiers_to_extract:
+                if qualifier_name in source_feature.qualifiers:
+                    try:
+                        current_data[qualifier_name] = source_feature.qualifiers[qualifier_name][0]
+                    except IndexError:
+                        current_data[qualifier_name] = ''
+
+        all_data.append(current_data)
+
+    handle.close()
+
+    return all_data
