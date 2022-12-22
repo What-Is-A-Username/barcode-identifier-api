@@ -238,18 +238,16 @@ class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
             odb = BlastDb.objects.get(id = db_used)
         except BlastDb.DoesNotExist:
             return Response({
-                'message': "The database specified does not exist.",
-                'database': db_used
+                'message': f"The database specified (id = {db_used}) does not exist."
             }, status = status.HTTP_400_BAD_REQUEST)
 
         # Bad request if the database does not have the minimum number of sequences
         MINIMUM_NUMBER_OF_SEQUENCES = 1
         sequences = NuccoreSequence.objects.filter(owner_database = odb.id)
-        if len(sequences) < MINIMUM_NUMBER_OF_SEQUENCES:
+        num_sequences_found = len(sequences)
+        if num_sequences_found < MINIMUM_NUMBER_OF_SEQUENCES:
             return Response({
-                'message': f"Cannot begin a blastn query on a database of less than {MINIMUM_NUMBER_OF_SEQUENCES} sequences.",
-                'current_size': len(sequences),
-                'min_size': MINIMUM_NUMBER_OF_SEQUENCES
+                'message': f"Cannot begin a blastn query on a database of less than {MINIMUM_NUMBER_OF_SEQUENCES} sequences. This database only contains {num_sequences_found} sequences."
             }, status = status.HTTP_400_BAD_REQUEST)
 
         query_sequences = []
@@ -274,7 +272,7 @@ class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
                 last_line = query_file.file.readline().decode().strip()
 
             if last_line == '':
-                return Response({'message': 'Found an empty line in the uploaded sequence file before any sequence definitions.'}, status = status.HTTP_400_BAD_REQUEST)
+                return Response({'message': 'Found an empty line in the uploaded sequence file before any sequence definitions. Please omit all empty lines before or between your parts of your data.'}, status = status.HTTP_400_BAD_REQUEST)
 
             definition = last_line 
             query_sequence = query_file.file.readline().decode().strip()
@@ -289,11 +287,12 @@ class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
 
                 # verify if definitions and sequences are nonblank
                 if not verify_query(definition, query_sequence):
-                    return Response({'message': 'Definition and sequence found was invalid.', 'definition': definition, 'sequence': query_sequence}, status = status.HTTP_400_BAD_REQUEST)
+                    return Response({'message': f'The following definition and sequence pair was either erroneously parsed or incorrectly formatted. Definition = "{definition}", sequence = "{query_sequence}"',
+                    status = status.HTTP_400_BAD_REQUEST)
 
                 # verify that there is not already a sequence with the same definition
                 if definition in definitions_used:
-                    return Response({'message': 'We found more than one sequence with the same definition in the uploaded sequence file.', 'definition': definition, 'sequence': query_sequence}, status = status.HTTP_400_BAD_REQUEST)
+                    return Response({'message': f'We found more than one sequence with the same definition in the uploaded sequence file. Definition = "{definition}"', status = status.HTTP_400_BAD_REQUEST)
                 else:
                     definitions_used.append(definition)
 
@@ -399,12 +398,13 @@ class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
 
         run_blast_command.apply_async(
             queue='BarcodeQueue.fifo',
-            **message_properties, kwargs={
-            'blast_root': blast_root,
-            'fishdb_path': fishdb_path,
-            'query_file': query_file,
-            'run_details_id': run_details_id,
-            'results_path': results_path,
+            **message_properties, 
+            kwargs={
+                'blast_root': blast_root,
+                'fishdb_path': fishdb_path,
+                'query_file': query_file,
+                'run_details_id': run_details_id,
+                'results_path': results_path,
         })    
 
         # django_rq.enqueue(run_blast_command, blast_root=blast_root, fishdb_path=fishdb_path, query_file=query_file, run_details=run_details, results_path=results_path)

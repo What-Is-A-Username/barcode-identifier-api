@@ -952,3 +952,688 @@ Generating query fasta file ...
 Running BLAST search ...
 [pid: 24095|app: 0|req: 10/10] 142.112.237.154 () {54 vars in 1072 bytes} [Tue Dec 20 18:41:34 2022] POST /blastdbs/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/run/ => generated 10261 bytes in 179 msecs (HTTP/1.1 201) 9 headers in 402 bytes (1 switches on core 0)
 [pid: 24095|app: 0|req: 11/11] 142.112.237.154 () {44 vars in 829 bytes} [Tue Dec 20 18:41:45 2022] GET /runs/b168c846-818f-47cb-8ca2-9d3269af46ce/ => generated 12890 bytes in 74 msecs (HTTP/1.1 200) 9 headers in 410 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 12/12] 95.214.235.205 () {36 vars in 522 bytes} [Tue Dec 20 19:13:07 2022] GET /.env => generated 179 bytes in 28 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 13/13] 95.214.235.205 () {40 vars in 629 bytes} [Tue Dec 20 19:13:07 2022] POST / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 14/14] 142.112.237.154 () {44 vars in 642 bytes} [Tue Dec 20 19:32:24 2022] GET / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 15/15] 142.112.237.154 () {42 vars in 722 bytes} [Tue Dec 20 19:32:24 2022] GET /nuccores => generated 0 bytes in 0 msecs (HTTP/1.1 301) 7 headers in 233 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 16/16] 142.112.237.154 () {42 vars in 724 bytes} [Tue Dec 20 19:32:29 2022] GET /nuccores/ => generated 40917 bytes in 70 msecs (HTTP/1.1 200) 9 headers in 402 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 17/17] 142.112.237.154 () {44 vars in 771 bytes} [Tue Dec 20 19:32:29 2022] GET /favicon.ico => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 18/18] 183.136.225.32 () {34 vars in 457 bytes} [Tue Dec 20 19:36:03 2022] GET / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 19/19] 162.142.125.222 () {28 vars in 310 bytes} [Tue Dec 20 19:37:02 2022] GET / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 20/20] 162.142.125.222 () {34 vars in 442 bytes} [Tue Dec 20 19:37:03 2022] GET / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 21/21] 205.185.127.238 () {48 vars in 874 bytes} [Tue Dec 20 20:08:31 2022] POST /boaform/admin/formLogin => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 22/22] 1.14.7.100 () {42 vars in 789 bytes} [Tue Dec 20 20:13:28 2022] HEAD /Core/Skin/Login.aspx => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 23/23] 109.237.97.180 () {36 vars in 522 bytes} [Tue Dec 20 21:55:18 2022] GET /.env => generated 179 bytes in 49 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 24/24] 109.237.98.226 () {36 vars in 522 bytes} [Tue Dec 20 22:05:27 2022] GET /.env => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 25/25] 185.254.196.115 () {36 vars in 523 bytes} [Tue Dec 20 22:08:27 2022] GET /.env => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 26/26] 185.254.196.115 () {40 vars in 630 bytes} [Tue Dec 20 22:08:28 2022] POST / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 27/27] 198.235.24.128 () {30 vars in 597 bytes} [Tue Dec 20 23:14:29 2022] GET / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 28/28] 205.210.31.11 () {30 vars in 596 bytes} [Tue Dec 20 23:23:48 2022] GET / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 29/29] 161.35.38.130 () {34 vars in 481 bytes} [Tue Dec 20 23:33:10 2022] GET / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 30/30] 185.254.196.115 () {36 vars in 523 bytes} [Tue Dec 20 23:36:11 2022] GET /.env => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 31/31] 185.254.196.115 () {40 vars in 630 bytes} [Tue Dec 20 23:36:11 2022] POST / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 32/32] 185.180.143.138 () {34 vars in 487 bytes} [Wed Dec 21 00:00:20 2022] GET / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 33/33] 143.244.50.180 () {34 vars in 487 bytes} [Wed Dec 21 00:32:58 2022] GET / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 34/34] 194.55.186.124 () {48 vars in 873 bytes} [Wed Dec 21 00:44:24 2022] POST /boaform/admin/formLogin => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 35/35] 142.112.237.154 () {44 vars in 642 bytes} [Wed Dec 21 00:56:01 2022] GET / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 36/36] 142.112.237.154 () {42 vars in 722 bytes} [Wed Dec 21 00:56:01 2022] GET /nuccores => generated 0 bytes in 0 msecs (HTTP/1.1 301) 7 headers in 233 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 37/37] 142.112.237.154 () {42 vars in 724 bytes} [Wed Dec 21 00:56:06 2022] GET /nuccores/ => generated 40917 bytes in 161 msecs (HTTP/1.1 200) 9 headers in 402 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 38/38] 142.112.237.154 () {44 vars in 771 bytes} [Wed Dec 21 00:56:06 2022] GET /favicon.ico => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 39/39] 142.112.237.154 () {44 vars in 642 bytes} [Wed Dec 21 00:56:29 2022] GET / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 40/40] 142.112.237.154 () {44 vars in 781 bytes} [Wed Dec 21 00:56:29 2022] GET /blastdbs/ => generated 10203 bytes in 34 msecs (HTTP/1.1 200) 9 headers in 408 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 41/41] 135.125.246.110 () {40 vars in 630 bytes} [Wed Dec 21 00:57:51 2022] POST / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 42/42] 135.125.246.110 () {36 vars in 523 bytes} [Wed Dec 21 00:57:52 2022] GET /.env => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 43/43] 185.254.196.115 () {36 vars in 523 bytes} [Wed Dec 21 01:05:34 2022] GET /.env => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 44/44] 185.254.196.115 () {40 vars in 630 bytes} [Wed Dec 21 01:05:35 2022] POST / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 45/45] 135.125.246.110 () {40 vars in 630 bytes} [Wed Dec 21 02:16:02 2022] POST / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 46/46] 135.125.246.110 () {36 vars in 523 bytes} [Wed Dec 21 02:16:02 2022] GET /.env => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 47/47] 95.214.235.205 () {36 vars in 522 bytes} [Wed Dec 21 02:59:33 2022] GET /.env => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 48/48] 95.214.235.205 () {40 vars in 629 bytes} [Wed Dec 21 02:59:34 2022] POST / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 49/49] 94.102.61.10 () {34 vars in 484 bytes} [Wed Dec 21 03:00:25 2022] GET / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 50/50] 135.125.246.110 () {40 vars in 630 bytes} [Wed Dec 21 03:19:19 2022] POST / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 51/51] 135.125.246.110 () {36 vars in 523 bytes} [Wed Dec 21 03:19:19 2022] GET /.env => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 52/52] 185.254.196.115 () {36 vars in 523 bytes} [Wed Dec 21 04:03:18 2022] GET /.env => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 53/53] 185.254.196.115 () {40 vars in 630 bytes} [Wed Dec 21 04:03:19 2022] POST / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 54/54] 192.241.203.6 () {34 vars in 391 bytes} [Wed Dec 21 04:19:53 2022] GET / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 55/55] 205.210.31.147 () {30 vars in 587 bytes} [Wed Dec 21 04:29:48 2022] GET / => generated 179 bytes in 1 msecs (HTTP/1.0 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 56/56] 142.112.237.154 () {44 vars in 642 bytes} [Wed Dec 21 04:43:00 2022] GET / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 57/57] 142.112.237.154 () {44 vars in 779 bytes} [Wed Dec 21 04:43:00 2022] GET /blastdbs => generated 0 bytes in 0 msecs (HTTP/1.1 301) 7 headers in 233 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 58/58] 142.112.237.154 () {44 vars in 781 bytes} [Wed Dec 21 04:43:05 2022] GET /blastdbs/ => generated 10203 bytes in 34 msecs (HTTP/1.1 200) 9 headers in 408 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 59/59] 142.112.237.154 () {44 vars in 771 bytes} [Wed Dec 21 04:43:05 2022] GET /favicon.ico => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 60/60] 216.218.206.66 () {34 vars in 481 bytes} [Wed Dec 21 04:44:27 2022] GET / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 61/61] 198.235.24.137 () {30 vars in 587 bytes} [Wed Dec 21 04:47:30 2022] GET / => generated 179 bytes in 1 msecs (HTTP/1.0 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 62/62] 159.203.44.156 () {34 vars in 482 bytes} [Wed Dec 21 05:01:35 2022] GET / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 63/63] 135.125.246.110 () {40 vars in 630 bytes} [Wed Dec 21 05:14:48 2022] POST / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 64/64] 135.125.246.110 () {36 vars in 523 bytes} [Wed Dec 21 05:14:48 2022] GET /.env => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 65/65] 143.244.147.166 () {38 vars in 504 bytes} [Wed Dec 21 05:53:19 2022] GET / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 66/66] 185.254.196.115 () {36 vars in 523 bytes} [Wed Dec 21 06:11:39 2022] GET /.env => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 67/67] 185.254.196.115 () {40 vars in 630 bytes} [Wed Dec 21 06:11:40 2022] POST / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 68/68] 23.251.102.74 () {34 vars in 497 bytes} [Wed Dec 21 06:30:10 2022] GET /admin/ => generated 0 bytes in 17 msecs (HTTP/1.1 302) 10 headers in 380 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 69/69] 5.175.225.199 () {36 vars in 587 bytes} [Wed Dec 21 07:06:49 2022] GET /.env => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 70/70] 5.175.225.199 () {40 vars in 694 bytes} [Wed Dec 21 07:06:49 2022] POST / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 71/71] 185.254.196.115 () {36 vars in 523 bytes} [Wed Dec 21 07:26:27 2022] GET /.env => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 72/72] 185.254.196.115 () {40 vars in 630 bytes} [Wed Dec 21 07:26:27 2022] POST / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 73/73] 66.249.70.188 () {36 vars in 525 bytes} [Wed Dec 21 07:49:05 2022] GET /robots.txt => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 74/74] 66.249.70.160 () {40 vars in 875 bytes} [Wed Dec 21 07:49:05 2022] GET /%7Bid%7D/%7Baid%7D.html.sweetlyuniquetreats.com/ => generated 179 bytes in 3 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 75/75] 135.125.246.110 () {40 vars in 630 bytes} [Wed Dec 21 07:57:58 2022] POST / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 76/76] 135.125.246.110 () {36 vars in 523 bytes} [Wed Dec 21 07:57:58 2022] GET /.env => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 77/77] 185.254.196.115 () {36 vars in 523 bytes} [Wed Dec 21 08:34:54 2022] GET /.env => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 78/78] 185.254.196.115 () {40 vars in 630 bytes} [Wed Dec 21 08:34:55 2022] POST / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 79/79] 113.104.185.183 () {38 vars in 503 bytes} [Wed Dec 21 08:41:52 2022] POST /GponForm/diag_Form?images/ => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 80/80] 135.125.246.110 () {40 vars in 630 bytes} [Wed Dec 21 09:25:49 2022] POST / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 81/81] 135.125.246.110 () {36 vars in 523 bytes} [Wed Dec 21 09:25:49 2022] GET /.env => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 82/82] 185.180.143.6 () {34 vars in 485 bytes} [Wed Dec 21 10:00:29 2022] GET / => generated 179 bytes in 2 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 83/83] 185.180.143.6 () {34 vars in 507 bytes} [Wed Dec 21 10:00:29 2022] GET /api/jsonws/ => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 84/84] 95.214.235.205 () {36 vars in 522 bytes} [Wed Dec 21 10:05:06 2022] GET /.env => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 85/85] 95.214.235.205 () {40 vars in 629 bytes} [Wed Dec 21 10:05:06 2022] POST / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 86/86] 100.26.164.46 () {42 vars in 647 bytes} [Wed Dec 21 10:10:19 2022] GET /.env => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 87/87] 100.26.164.46 () {46 vars in 754 bytes} [Wed Dec 21 10:10:19 2022] POST / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 88/88] 128.14.134.134 () {34 vars in 486 bytes} [Wed Dec 21 10:24:13 2022] GET / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 89/89] 194.55.186.124 () {48 vars in 873 bytes} [Wed Dec 21 10:46:41 2022] POST /boaform/admin/formLogin => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 90/90] 135.125.246.110 () {40 vars in 630 bytes} [Wed Dec 21 11:00:10 2022] POST / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 91/91] 135.125.246.110 () {36 vars in 523 bytes} [Wed Dec 21 11:00:11 2022] GET /.env => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 92/92] 143.110.190.114 () {34 vars in 483 bytes} [Wed Dec 21 11:08:34 2022] GET / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 93/93] 95.214.235.205 () {36 vars in 522 bytes} [Wed Dec 21 11:40:37 2022] GET /.env => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 94/94] 95.214.235.205 () {40 vars in 629 bytes} [Wed Dec 21 11:40:38 2022] POST / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 95/95] 34.140.248.32 () {42 vars in 561 bytes} [Wed Dec 21 11:43:58 2022] GET / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 96/96] 135.125.246.110 () {40 vars in 630 bytes} [Wed Dec 21 12:10:09 2022] POST / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 97/97] 135.125.246.110 () {36 vars in 523 bytes} [Wed Dec 21 12:10:09 2022] GET /.env => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 98/98] 1.14.7.100 () {42 vars in 789 bytes} [Wed Dec 21 12:28:47 2022] HEAD /Core/Skin/Login.aspx => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 99/99] 86.121.3.20 () {28 vars in 326 bytes} [Wed Dec 21 12:42:55 2022] GET /v1/agent/self => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 100/100] 185.254.196.115 () {36 vars in 523 bytes} [Wed Dec 21 13:39:01 2022] GET /.env => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 101/101] 185.254.196.115 () {40 vars in 630 bytes} [Wed Dec 21 13:39:03 2022] POST / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 102/102] 135.125.246.110 () {40 vars in 630 bytes} [Wed Dec 21 14:41:43 2022] POST / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 103/103] 135.125.246.110 () {36 vars in 523 bytes} [Wed Dec 21 14:41:43 2022] GET /.env => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 104/104] 95.214.235.205 () {36 vars in 522 bytes} [Wed Dec 21 15:21:49 2022] GET /.env => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 105/105] 95.214.235.205 () {40 vars in 629 bytes} [Wed Dec 21 15:21:50 2022] POST / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 106/106] 135.125.246.110 () {40 vars in 630 bytes} [Wed Dec 21 15:28:01 2022] POST / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 107/107] 135.125.246.110 () {36 vars in 523 bytes} [Wed Dec 21 15:28:02 2022] GET /.env => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 108/108] 95.214.235.205 () {36 vars in 522 bytes} [Wed Dec 21 16:39:04 2022] GET /.env => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 109/109] 95.214.235.205 () {40 vars in 629 bytes} [Wed Dec 21 16:39:04 2022] POST / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 110/110] 54.152.38.44 () {36 vars in 517 bytes} [Wed Dec 21 16:48:35 2022] GET / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 111/111] 143.198.88.242 () {34 vars in 482 bytes} [Wed Dec 21 17:07:25 2022] GET / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 112/112] 135.125.246.110 () {40 vars in 630 bytes} [Wed Dec 21 17:08:38 2022] POST / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 113/113] 135.125.246.110 () {36 vars in 523 bytes} [Wed Dec 21 17:08:38 2022] GET /.env => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 114/114] 185.254.196.115 () {36 vars in 523 bytes} [Wed Dec 21 17:50:44 2022] GET /.env => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 115/115] 185.254.196.115 () {40 vars in 630 bytes} [Wed Dec 21 17:50:44 2022] POST / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 116/116] 142.112.237.154 () {44 vars in 642 bytes} [Wed Dec 21 18:20:34 2022] GET / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 117/117] 142.112.237.154 () {42 vars in 722 bytes} [Wed Dec 21 18:20:34 2022] GET /blastdbs => generated 0 bytes in 0 msecs (HTTP/1.1 301) 7 headers in 233 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 118/118] 142.112.237.154 () {42 vars in 724 bytes} [Wed Dec 21 18:20:39 2022] GET /blastdbs/ => generated 10203 bytes in 34 msecs (HTTP/1.1 200) 9 headers in 408 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 119/119] 142.112.237.154 () {44 vars in 771 bytes} [Wed Dec 21 18:20:39 2022] GET /favicon.ico => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 120/120] 142.112.237.154 () {44 vars in 781 bytes} [Wed Dec 21 18:20:51 2022] GET /blastdbs/ => generated 10203 bytes in 34 msecs (HTTP/1.1 200) 9 headers in 408 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 121/121] 117.212.167.29 () {26 vars in 372 bytes} [Wed Dec 21 18:52:58 2022] GET /boaform/admin/formLogin?username=user&psd=user => generated 179 bytes in 1 msecs (HTTP/1.0 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 122/122] 185.254.196.115 () {36 vars in 523 bytes} [Wed Dec 21 19:21:41 2022] GET /.env => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 123/123] 185.254.196.115 () {40 vars in 630 bytes} [Wed Dec 21 19:21:42 2022] POST / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 124/124] 135.125.246.110 () {40 vars in 630 bytes} [Wed Dec 21 19:32:12 2022] POST / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 125/125] 135.125.246.110 () {36 vars in 523 bytes} [Wed Dec 21 19:32:12 2022] GET /.env => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 126/126] 142.112.237.154 () {44 vars in 642 bytes} [Wed Dec 21 19:39:38 2022] GET / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 127/127] 142.112.237.154 () {44 vars in 779 bytes} [Wed Dec 21 19:39:38 2022] GET /nuccores => generated 0 bytes in 0 msecs (HTTP/1.1 301) 7 headers in 233 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 128/128] 142.112.237.154 () {44 vars in 781 bytes} [Wed Dec 21 19:39:43 2022] GET /nuccores/ => generated 40917 bytes in 68 msecs (HTTP/1.1 200) 9 headers in 402 bytes (1 switches on core 0)
+[pid: 24095|app: 0|req: 129/129] 142.112.237.154 () {44 vars in 771 bytes} [Wed Dec 21 19:39:43 2022] GET /favicon.ico => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+...brutally killing workers...
+Wed Dec 21 20:11:23 2022 - received message 0 from emperor
+worker 1 buried after 1 seconds
+binary reloading uWSGI...
+chdir() to /home/ubuntu/vassals
+closing all non-uwsgi socket fds > 2 (max_fd = 1024)...
+found fd 3 mapped to socket 0 (/home/ubuntu/barcode_identifier_api/barcode_identifier_api.sock)
+running /home/ubuntu/.local/bin/uwsgi
+*** has_emperor mode detected (fd: 6) ***
+[uWSGI] getting INI configuration from barcode_identifier_api_uwsgi.ini
+*** Starting uWSGI 2.0.20 (64bit) on [Wed Dec 21 20:11:25 2022] ***
+compiled with version: 11.3.0 on 20 December 2022 04:13:28
+os: Linux-5.15.0-1023-aws #27-Ubuntu SMP Thu Oct 20 16:44:17 UTC 2022
+nodename: ip-172-31-20-221
+machine: x86_64
+clock source: unix
+pcre jit disabled
+detected number of CPU cores: 1
+current working directory: /home/ubuntu/vassals
+detected binary path: /home/ubuntu/.local/bin/uwsgi
+chdir() to /home/ubuntu/barcode_identifier_api
+your processes number limit is 3811
+your memory page size is 4096 bytes
+detected max file descriptor number: 1024
+lock engine: pthread robust mutexes
+thunder lock: disabled (you can enable it with --thunder-lock)
+uwsgi socket 0 inherited UNIX address /home/ubuntu/barcode_identifier_api/barcode_identifier_api.sock fd 3
+Python version: 3.10.6 (main, Nov 14 2022, 16:10:14) [GCC 11.3.0]
+PEP 405 virtualenv detected: /home/ubuntu/barcode_identifier_api/env_barcode
+Set PythonHome to /home/ubuntu/barcode_identifier_api/env_barcode
+Python main interpreter initialized at 0x55b9c17c0970
+python threads support enabled
+your server socket listen backlog is limited to 100 connections
+your mercy for graceful operations on workers is 60 seconds
+mapped 145840 bytes (142 KB) for 1 cores
+*** Operational MODE: single process ***
+WSGI app 0 (mountpoint='') ready in 1 seconds on interpreter 0x55b9c17c0970 pid: 24094 (default app)
+*** uWSGI is running in multiple interpreter mode ***
+gracefully (RE)spawned uWSGI master process (pid: 24094)
+spawned uWSGI worker 1 (pid: 37886, cores: 1)
+epoll_ctl(): File exists [core/event.c line 524]
+emperor-i-am-ready-to-accept/write(): Bad file descriptor [core/uwsgi.c line 3578]
+Wed Dec 21 20:11:26 2022 - lost communication with the Emperor, goodbye...
+Wed Dec 21 20:11:26 2022 - graceful shutdown triggered...
+Gracefully killing worker 1 (pid: 37886)...
+worker 1 killed successfully (pid: 37886)
+Respawned uWSGI worker 1 (new pid: 37887)
+emperor-i-am-ready-to-accept/write(): Bad file descriptor [core/uwsgi.c line 3578]
+Wed Dec 21 20:11:27 2022 - lost communication with the Emperor, goodbye...
+Wed Dec 21 20:11:27 2022 - graceful shutdown triggered...
+Gracefully killing worker 1 (pid: 37887)...
+worker 1 killed successfully (pid: 37887)
+worker respawning too fast !!! i have to sleep a bit (2 seconds)...
+Respawned uWSGI worker 1 (new pid: 37912)
+emperor-i-am-ready-to-accept/write(): Bad file descriptor [core/uwsgi.c line 3578]
+Wed Dec 21 20:11:30 2022 - lost communication with the Emperor, goodbye...
+Wed Dec 21 20:11:30 2022 - graceful shutdown triggered...
+Gracefully killing worker 1 (pid: 37912)...
+worker 1 killed successfully (pid: 37912)
+Respawned uWSGI worker 1 (new pid: 37916)
+emperor-i-am-ready-to-accept/write(): Bad file descriptor [core/uwsgi.c line 3578]
+Wed Dec 21 20:11:31 2022 - lost communication with the Emperor, goodbye...
+Wed Dec 21 20:11:31 2022 - graceful shutdown triggered...
+Gracefully killing worker 1 (pid: 37916)...
+worker 1 killed successfully (pid: 37916)
+worker respawning too fast !!! i have to sleep a bit (2 seconds)...
+Respawned uWSGI worker 1 (new pid: 37917)
+emperor-i-am-ready-to-accept/write(): Bad file descriptor [core/uwsgi.c line 3578]
+Wed Dec 21 20:11:34 2022 - lost communication with the Emperor, goodbye...
+Wed Dec 21 20:11:34 2022 - graceful shutdown triggered...
+Gracefully killing worker 1 (pid: 37917)...
+worker 1 killed successfully (pid: 37917)
+Respawned uWSGI worker 1 (new pid: 37918)
+emperor-i-am-ready-to-accept/write(): Bad file descriptor [core/uwsgi.c line 3578]
+Wed Dec 21 20:11:35 2022 - lost communication with the Emperor, goodbye...
+Wed Dec 21 20:11:35 2022 - graceful shutdown triggered...
+Gracefully killing worker 1 (pid: 37918)...
+worker 1 killed successfully (pid: 37918)
+worker respawning too fast !!! i have to sleep a bit (2 seconds)...
+Respawned uWSGI worker 1 (new pid: 37919)
+emperor-i-am-ready-to-accept/write(): Bad file descriptor [core/uwsgi.c line 3578]
+Wed Dec 21 20:11:38 2022 - lost communication with the Emperor, goodbye...
+Wed Dec 21 20:11:38 2022 - graceful shutdown triggered...
+Gracefully killing worker 1 (pid: 37919)...
+worker 1 killed successfully (pid: 37919)
+Respawned uWSGI worker 1 (new pid: 37920)
+emperor-i-am-ready-to-accept/write(): Bad file descriptor [core/uwsgi.c line 3578]
+Wed Dec 21 20:11:39 2022 - lost communication with the Emperor, goodbye...
+Wed Dec 21 20:11:39 2022 - graceful shutdown triggered...
+Gracefully killing worker 1 (pid: 37920)...
+worker 1 killed successfully (pid: 37920)
+worker respawning too fast !!! i have to sleep a bit (2 seconds)...
+Respawned uWSGI worker 1 (new pid: 37922)
+emperor-i-am-ready-to-accept/write(): Bad file descriptor [core/uwsgi.c line 3578]
+Wed Dec 21 20:11:42 2022 - lost communication with the Emperor, goodbye...
+Wed Dec 21 20:11:42 2022 - graceful shutdown triggered...
+Gracefully killing worker 1 (pid: 37922)...
+worker 1 killed successfully (pid: 37922)
+Respawned uWSGI worker 1 (new pid: 37924)
+emperor-i-am-ready-to-accept/write(): Bad file descriptor [core/uwsgi.c line 3578]
+Wed Dec 21 20:11:43 2022 - lost communication with the Emperor, goodbye...
+Wed Dec 21 20:11:43 2022 - graceful shutdown triggered...
+Gracefully killing worker 1 (pid: 37924)...
+worker 1 killed successfully (pid: 37924)
+worker respawning too fast !!! i have to sleep a bit (2 seconds)...
+Respawned uWSGI worker 1 (new pid: 37925)
+emperor-i-am-ready-to-accept/write(): Bad file descriptor [core/uwsgi.c line 3578]
+Wed Dec 21 20:11:46 2022 - lost communication with the Emperor, goodbye...
+Wed Dec 21 20:11:46 2022 - graceful shutdown triggered...
+Gracefully killing worker 1 (pid: 37925)...
+worker 1 killed successfully (pid: 37925)
+Respawned uWSGI worker 1 (new pid: 37926)
+emperor-i-am-ready-to-accept/write(): Bad file descriptor [core/uwsgi.c line 3578]
+Wed Dec 21 20:11:47 2022 - lost communication with the Emperor, goodbye...
+Wed Dec 21 20:11:47 2022 - graceful shutdown triggered...
+Gracefully killing worker 1 (pid: 37926)...
+worker 1 killed successfully (pid: 37926)
+worker respawning too fast !!! i have to sleep a bit (2 seconds)...
+Respawned uWSGI worker 1 (new pid: 37934)
+emperor-i-am-ready-to-accept/write(): Bad file descriptor [core/uwsgi.c line 3578]
+Wed Dec 21 20:11:50 2022 - lost communication with the Emperor, goodbye...
+Wed Dec 21 20:11:50 2022 - graceful shutdown triggered...
+Gracefully killing worker 1 (pid: 37934)...
+worker 1 killed successfully (pid: 37934)
+Respawned uWSGI worker 1 (new pid: 37935)
+emperor-i-am-ready-to-accept/write(): Bad file descriptor [core/uwsgi.c line 3578]
+Wed Dec 21 20:11:51 2022 - lost communication with the Emperor, goodbye...
+Wed Dec 21 20:11:51 2022 - graceful shutdown triggered...
+Gracefully killing worker 1 (pid: 37935)...
+worker 1 killed successfully (pid: 37935)
+worker respawning too fast !!! i have to sleep a bit (2 seconds)...
+*** Starting uWSGI 2.0.20 (64bit) on [Wed Dec 21 20:13:15 2022] ***
+compiled with version: 11.3.0 on 20 December 2022 04:13:28
+os: Linux-5.15.0-1023-aws #27-Ubuntu SMP Thu Oct 20 16:44:17 UTC 2022
+nodename: ip-172-31-20-221
+machine: x86_64
+clock source: unix
+pcre jit disabled
+detected number of CPU cores: 1
+current working directory: /home/ubuntu/barcode_identifier_api
+detected binary path: /home/ubuntu/.local/bin/uwsgi
+bind(): Permission denied [core/socket.c line 769]
+*** Starting uWSGI 2.0.20 (64bit) on [Wed Dec 21 20:15:20 2022] ***
+compiled with version: 11.3.0 on 20 December 2022 04:13:28
+os: Linux-5.15.0-1023-aws #27-Ubuntu SMP Thu Oct 20 16:44:17 UTC 2022
+nodename: ip-172-31-20-221
+machine: x86_64
+clock source: unix
+pcre jit disabled
+detected number of CPU cores: 1
+current working directory: /home/ubuntu/cert
+detected binary path: /home/ubuntu/.local/bin/uwsgi
+bind(): Permission denied [core/socket.c line 769]
+*** Starting uWSGI 2.0.20 (64bit) on [Wed Dec 21 20:15:31 2022] ***
+compiled with version: 11.3.0 on 20 December 2022 04:13:28
+os: Linux-5.15.0-1023-aws #27-Ubuntu SMP Thu Oct 20 16:44:17 UTC 2022
+nodename: ip-172-31-20-221
+machine: x86_64
+clock source: unix
+pcre jit disabled
+detected number of CPU cores: 1
+current working directory: /home/ubuntu/barcode_identifier_api
+detected binary path: /home/ubuntu/.local/bin/uwsgi
+bind(): Permission denied [core/socket.c line 769]
+*** Starting uWSGI 2.0.20 (64bit) on [Wed Dec 21 20:17:06 2022] ***
+compiled with version: 11.3.0 on 20 December 2022 04:13:28
+os: Linux-5.15.0-1023-aws #27-Ubuntu SMP Thu Oct 20 16:44:17 UTC 2022
+nodename: ip-172-31-20-221
+machine: x86_64
+clock source: unix
+pcre jit disabled
+detected number of CPU cores: 1
+current working directory: /home/ubuntu/barcode_identifier_api
+detected binary path: /home/ubuntu/.local/bin/uwsgi
+chdir() to /home/ubuntu/barcode_identifier_api
+your processes number limit is 3811
+your memory page size is 4096 bytes
+detected max file descriptor number: 1048576
+lock engine: pthread robust mutexes
+thunder lock: disabled (you can enable it with --thunder-lock)
+uwsgi socket 0 bound to UNIX address /home/ubuntu/barcode_identifier_api/barcode_identifier_api.sock fd 3
+Python version: 3.10.6 (main, Nov 14 2022, 16:10:14) [GCC 11.3.0]
+PEP 405 virtualenv detected: /home/ubuntu/barcode_identifier_api/env_barcode
+Set PythonHome to /home/ubuntu/barcode_identifier_api/env_barcode
+Python main interpreter initialized at 0x55a4ce5cc6e0
+python threads support enabled
+your server socket listen backlog is limited to 100 connections
+your mercy for graceful operations on workers is 60 seconds
+mapped 145840 bytes (142 KB) for 1 cores
+*** Operational MODE: single process ***
+WSGI app 0 (mountpoint='') ready in 1 seconds on interpreter 0x55a4ce5cc6e0 pid: 38385 (default app)
+*** uWSGI is running in multiple interpreter mode ***
+spawned uWSGI master process (pid: 38385)
+spawned uWSGI worker 1 (pid: 38388, cores: 1)
+[pid: 38388|app: 0|req: 1/1] 142.112.237.154 () {42 vars in 686 bytes} [Wed Dec 21 20:17:35 2022] GET /nuccores => generated 0 bytes in 271 msecs (HTTP/1.1 301) 7 headers in 233 bytes (1 switches on core 0)
+[pid: 38388|app: 0|req: 2/2] 142.112.237.154 () {42 vars in 688 bytes} [Wed Dec 21 20:17:37 2022] GET /nuccores/ => generated 40917 bytes in 160 msecs (HTTP/1.1 200) 9 headers in 402 bytes (1 switches on core 0)
+[pid: 38388|app: 0|req: 3/3] 142.112.237.154 () {44 vars in 699 bytes} [Wed Dec 21 20:17:38 2022] GET /favicon.ico => generated 179 bytes in 5 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+Wed Dec 21 20:18:50 2022 - uWSGI worker 1 screams: UAAAAAAH my master disconnected: i will kill myself !!!
+*** Starting uWSGI 2.0.20 (64bit) on [Wed Dec 21 20:42:33 2022] ***
+compiled with version: 11.3.0 on 20 December 2022 04:13:28
+os: Linux-5.15.0-1023-aws #27-Ubuntu SMP Thu Oct 20 16:44:17 UTC 2022
+nodename: ip-172-31-20-221
+machine: x86_64
+clock source: unix
+pcre jit disabled
+detected number of CPU cores: 1
+current working directory: /etc/nginx/sites-available
+detected binary path: /home/ubuntu/.local/bin/uwsgi
+chdir() to /home/ubuntu/barcode_identifier_api
+your processes number limit is 3811
+your memory page size is 4096 bytes
+detected max file descriptor number: 1048576
+lock engine: pthread robust mutexes
+thunder lock: disabled (you can enable it with --thunder-lock)
+uwsgi socket 0 bound to UNIX address /home/ubuntu/barcode_identifier_api/barcode_identifier_api.sock fd 3
+Python version: 3.10.6 (main, Nov 14 2022, 16:10:14) [GCC 11.3.0]
+PEP 405 virtualenv detected: /home/ubuntu/barcode_identifier_api/env_barcode
+Set PythonHome to /home/ubuntu/barcode_identifier_api/env_barcode
+Python main interpreter initialized at 0x561edce1c6e0
+python threads support enabled
+your server socket listen backlog is limited to 100 connections
+your mercy for graceful operations on workers is 60 seconds
+mapped 145840 bytes (142 KB) for 1 cores
+*** Operational MODE: single process ***
+WSGI app 0 (mountpoint='') ready in 0 seconds on interpreter 0x561edce1c6e0 pid: 39861 (default app)
+*** uWSGI is running in multiple interpreter mode ***
+spawned uWSGI master process (pid: 39861)
+spawned uWSGI worker 1 (pid: 39862, cores: 1)
+[pid: 39862|app: 0|req: 1/1] 142.112.237.154 () {54 vars in 874 bytes} [Wed Dec 21 20:42:47 2022] GET /nuccores => generated 0 bytes in 113 msecs (HTTP/1.1 301) 7 headers in 233 bytes (1 switches on core 0)
+[pid: 39862|app: 0|req: 2/2] 142.112.237.154 () {54 vars in 876 bytes} [Wed Dec 21 20:42:48 2022] GET /nuccores/ => generated 40917 bytes in 108 msecs (HTTP/1.1 200) 9 headers in 402 bytes (1 switches on core 0)
+[pid: 39862|app: 0|req: 3/3] 1.14.7.100 () {46 vars in 858 bytes} [Wed Dec 21 20:46:40 2022] HEAD /Core/Skin/Login.aspx => generated 179 bytes in 2 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 39862|app: 0|req: 4/4] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 20:51:33 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 8 headers in 263 bytes (1 switches on core 0)
+[pid: 39862|app: 0|req: 5/5] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 20:51:34 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 8 headers in 263 bytes (1 switches on core 0)
+[pid: 39862|app: 0|req: 6/6] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 20:51:36 2022] GET /blastdbs/ => generated 1929 bytes in 27 msecs (HTTP/1.1 200) 8 headers in 263 bytes (1 switches on core 0)
+[pid: 39862|app: 0|req: 7/7] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 20:51:40 2022] GET /blastdbs/ => generated 1929 bytes in 27 msecs (HTTP/1.1 200) 8 headers in 263 bytes (1 switches on core 0)
+[pid: 39862|app: 0|req: 8/8] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 20:51:44 2022] GET /blastdbs/ => generated 1929 bytes in 27 msecs (HTTP/1.1 200) 8 headers in 263 bytes (1 switches on core 0)
+[pid: 39862|app: 0|req: 9/9] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 20:51:45 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 8 headers in 263 bytes (1 switches on core 0)
+[pid: 39862|app: 0|req: 10/10] 142.112.237.154 () {56 vars in 803 bytes} [Wed Dec 21 20:51:48 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 8 headers in 263 bytes (1 switches on core 0)
+[pid: 39862|app: 0|req: 11/11] 142.112.237.154 () {56 vars in 803 bytes} [Wed Dec 21 20:51:52 2022] GET /blastdbs/ => generated 1929 bytes in 27 msecs (HTTP/1.1 200) 8 headers in 263 bytes (1 switches on core 0)
+Wed Dec 21 20:52:10 2022 - uWSGI worker 1 screams: UAAAAAAH my master disconnected: i will kill myself !!!
+*** Starting uWSGI 2.0.20 (64bit) on [Wed Dec 21 20:54:47 2022] ***
+compiled with version: 11.3.0 on 20 December 2022 04:13:28
+os: Linux-5.15.0-1023-aws #27-Ubuntu SMP Thu Oct 20 16:44:17 UTC 2022
+nodename: ip-172-31-20-221
+machine: x86_64
+clock source: unix
+pcre jit disabled
+detected number of CPU cores: 1
+current working directory: /etc/nginx/sites-available
+detected binary path: /home/ubuntu/.local/bin/uwsgi
+chdir() to /home/ubuntu/barcode_identifier_api
+your processes number limit is 3811
+your memory page size is 4096 bytes
+detected max file descriptor number: 1048576
+lock engine: pthread robust mutexes
+thunder lock: disabled (you can enable it with --thunder-lock)
+uwsgi socket 0 bound to UNIX address /home/ubuntu/barcode_identifier_api/barcode_identifier_api.sock fd 3
+Python version: 3.10.6 (main, Nov 14 2022, 16:10:14) [GCC 11.3.0]
+PEP 405 virtualenv detected: /home/ubuntu/barcode_identifier_api/env_barcode
+Set PythonHome to /home/ubuntu/barcode_identifier_api/env_barcode
+Python main interpreter initialized at 0x56484d8576e0
+python threads support enabled
+your server socket listen backlog is limited to 100 connections
+your mercy for graceful operations on workers is 60 seconds
+mapped 145840 bytes (142 KB) for 1 cores
+*** Operational MODE: single process ***
+WSGI app 0 (mountpoint='') ready in 0 seconds on interpreter 0x56484d8576e0 pid: 40044 (default app)
+*** uWSGI is running in multiple interpreter mode ***
+spawned uWSGI master process (pid: 40044)
+spawned uWSGI worker 1 (pid: 40045, cores: 1)
+[pid: 40045|app: 0|req: 1/1] 142.112.237.154 () {56 vars in 803 bytes} [Wed Dec 21 20:55:03 2022] GET /blastdbs/ => generated 1929 bytes in 149 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 2/2] 142.112.237.154 () {56 vars in 875 bytes} [Wed Dec 21 20:55:05 2022] GET /blastdbs/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d => generated 0 bytes in 3 msecs (HTTP/1.1 301) 8 headers in 322 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 3/3] 142.112.237.154 () {54 vars in 839 bytes} [Wed Dec 21 20:55:05 2022] GET /blastdbs/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/ => generated 20324 bytes in 29 msecs (HTTP/1.1 200) 9 headers in 325 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 4/4] 142.112.237.154 () {56 vars in 875 bytes} [Wed Dec 21 20:55:52 2022] GET /blastdbs/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d => generated 0 bytes in 1 msecs (HTTP/1.1 301) 8 headers in 322 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 5/5] 142.112.237.154 () {54 vars in 839 bytes} [Wed Dec 21 20:55:52 2022] GET /blastdbs/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/ => generated 20324 bytes in 47 msecs (HTTP/1.1 200) 9 headers in 325 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 6/6] 142.112.237.154 () {56 vars in 875 bytes} [Wed Dec 21 20:56:10 2022] GET /blastdbs/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d => generated 0 bytes in 1 msecs (HTTP/1.1 301) 8 headers in 322 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 7/7] 142.112.237.154 () {54 vars in 839 bytes} [Wed Dec 21 20:56:10 2022] GET /blastdbs/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/ => generated 20324 bytes in 33 msecs (HTTP/1.1 200) 9 headers in 325 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 8/8] 142.112.237.154 () {56 vars in 803 bytes} [Wed Dec 21 20:56:18 2022] GET /blastdbs/ => generated 1929 bytes in 27 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 9/9] 142.112.237.154 () {54 vars in 870 bytes} [Wed Dec 21 20:56:44 2022] GET /admin/ => generated 0 bytes in 23 msecs (HTTP/1.1 302) 10 headers in 380 bytes (2 switches on core 0)
+[pid: 40045|app: 0|req: 10/10] 142.112.237.154 () {54 vars in 907 bytes} [Wed Dec 21 20:56:44 2022] GET /admin/login/?next=/admin/ => generated 2218 bytes in 48 msecs (HTTP/1.1 200) 10 headers in 478 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 11/11] 142.112.237.154 () {62 vars in 1128 bytes} [Wed Dec 21 20:57:03 2022] POST /admin/login/?next=/admin/ => generated 0 bytes in 348 msecs (HTTP/1.1 302) 12 headers in 642 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 12/12] 142.112.237.154 () {56 vars in 983 bytes} [Wed Dec 21 20:57:03 2022] GET /admin/ => generated 5664 bytes in 51 msecs (HTTP/1.1 200) 10 headers in 478 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 13/13] 142.112.237.154 () {56 vars in 952 bytes} [Wed Dec 21 20:57:13 2022] GET / => generated 179 bytes in 2 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 14/14] 142.112.237.154 () {54 vars in 918 bytes} [Wed Dec 21 20:57:17 2022] GET /nuccores => generated 0 bytes in 1 msecs (HTTP/1.1 301) 7 headers in 233 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 15/15] 142.112.237.154 () {54 vars in 920 bytes} [Wed Dec 21 20:57:17 2022] GET /nuccores/ => generated 40951 bytes in 82 msecs (HTTP/1.1 200) 9 headers in 402 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 16/16] 142.112.237.154 () {54 vars in 912 bytes} [Wed Dec 21 20:57:27 2022] GET /runs/ => generated 57012 bytes in 129 msecs (HTTP/1.1 200) 9 headers in 402 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 17/17] 142.112.237.154 () {54 vars in 984 bytes} [Wed Dec 21 20:57:59 2022] GET /runs/6209ae80-2bf8-491c-bac5-e2a1fc6cdadc => generated 0 bytes in 0 msecs (HTTP/1.1 301) 7 headers in 266 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 18/18] 142.112.237.154 () {54 vars in 986 bytes} [Wed Dec 21 20:57:59 2022] GET /runs/6209ae80-2bf8-491c-bac5-e2a1fc6cdadc/ => generated 7815 bytes in 36 msecs (HTTP/1.1 200) 9 headers in 409 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 19/19] 142.112.237.154 () {60 vars in 1219 bytes} [Wed Dec 21 20:58:12 2022] DELETE /runs/6209ae80-2bf8-491c-bac5-e2a1fc6cdadc/ => generated 6953 bytes in 45 msecs (HTTP/1.1 200) 9 headers in 409 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 20/20] 142.112.237.154 () {54 vars in 986 bytes} [Wed Dec 21 20:58:44 2022] GET /runs/71cfccba-ba9a-4555-900b-d971ae1da909/ => generated 7739 bytes in 37 msecs (HTTP/1.1 200) 9 headers in 409 bytes (2 switches on core 0)
+[pid: 40045|app: 0|req: 21/21] 142.112.237.154 () {60 vars in 1219 bytes} [Wed Dec 21 20:58:46 2022] DELETE /runs/71cfccba-ba9a-4555-900b-d971ae1da909/ => generated 6953 bytes in 44 msecs (HTTP/1.1 200) 9 headers in 409 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 22/22] 142.112.237.154 () {54 vars in 986 bytes} [Wed Dec 21 20:58:57 2022] GET /runs/990824df-3fa1-4800-811c-9ee9c8547ce3/ => generated 7739 bytes in 36 msecs (HTTP/1.1 200) 9 headers in 409 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 23/23] 142.112.237.154 () {60 vars in 1219 bytes} [Wed Dec 21 20:59:05 2022] DELETE /runs/990824df-3fa1-4800-811c-9ee9c8547ce3/ => generated 6953 bytes in 42 msecs (HTTP/1.1 200) 9 headers in 409 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 24/24] 142.112.237.154 () {54 vars in 986 bytes} [Wed Dec 21 20:59:17 2022] GET /runs/cad1d225-343c-4932-94b5-070043a76791/ => generated 7739 bytes in 37 msecs (HTTP/1.1 200) 9 headers in 409 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 25/25] 142.112.237.154 () {60 vars in 1219 bytes} [Wed Dec 21 20:59:23 2022] DELETE /runs/cad1d225-343c-4932-94b5-070043a76791/ => generated 6953 bytes in 44 msecs (HTTP/1.1 200) 9 headers in 409 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 26/26] 142.112.237.154 () {54 vars in 984 bytes} [Wed Dec 21 20:59:36 2022] GET /runs/4c635a8e-28b5-4aa5-9811-d4aa3cb3431d => generated 0 bytes in 0 msecs (HTTP/1.1 301) 7 headers in 266 bytes (2 switches on core 0)
+[pid: 40045|app: 0|req: 27/27] 142.112.237.154 () {54 vars in 986 bytes} [Wed Dec 21 20:59:36 2022] GET /runs/4c635a8e-28b5-4aa5-9811-d4aa3cb3431d/ => generated 7812 bytes in 37 msecs (HTTP/1.1 200) 9 headers in 409 bytes (2 switches on core 0)
+[pid: 40045|app: 0|req: 28/28] 142.112.237.154 () {60 vars in 1219 bytes} [Wed Dec 21 20:59:38 2022] DELETE /runs/4c635a8e-28b5-4aa5-9811-d4aa3cb3431d/ => generated 6953 bytes in 40 msecs (HTTP/1.1 200) 9 headers in 409 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 29/29] 142.112.237.154 () {54 vars in 986 bytes} [Wed Dec 21 21:02:41 2022] GET /runs/7f6a8fa1-ed5e-4c47-bf6b-4a84a8ecb2dc/ => generated 8354 bytes in 36 msecs (HTTP/1.1 200) 9 headers in 409 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 30/30] 142.112.237.154 () {60 vars in 1219 bytes} [Wed Dec 21 21:02:44 2022] DELETE /runs/7f6a8fa1-ed5e-4c47-bf6b-4a84a8ecb2dc/ => generated 6953 bytes in 41 msecs (HTTP/1.1 200) 9 headers in 409 bytes (2 switches on core 0)
+[pid: 40045|app: 0|req: 31/31] 142.112.237.154 () {54 vars in 986 bytes} [Wed Dec 21 21:02:51 2022] GET /runs/477a20b9-03eb-4c74-a123-bec57581bcf6/ => generated 8354 bytes in 35 msecs (HTTP/1.1 200) 9 headers in 409 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 32/32] 142.112.237.154 () {60 vars in 1219 bytes} [Wed Dec 21 21:02:53 2022] DELETE /runs/477a20b9-03eb-4c74-a123-bec57581bcf6/ => generated 6953 bytes in 41 msecs (HTTP/1.1 200) 9 headers in 409 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 33/33] 142.112.237.154 () {54 vars in 986 bytes} [Wed Dec 21 21:03:05 2022] GET /runs/9ee67546-6d61-4599-bbac-64b286917197/ => generated 13973 bytes in 45 msecs (HTTP/1.1 200) 9 headers in 410 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 34/34] 142.112.237.154 () {60 vars in 1219 bytes} [Wed Dec 21 21:03:09 2022] DELETE /runs/9ee67546-6d61-4599-bbac-64b286917197/ => generated 6953 bytes in 42 msecs (HTTP/1.1 200) 9 headers in 409 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 35/35] 142.112.237.154 () {54 vars in 912 bytes} [Wed Dec 21 21:04:34 2022] GET /runs/ => generated 41995 bytes in 94 msecs (HTTP/1.1 200) 9 headers in 402 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 36/36] 142.112.237.154 () {54 vars in 984 bytes} [Wed Dec 21 21:04:51 2022] GET /runs/deefd532-b7c9-48f1-98e7-1020cc37cef8 => generated 0 bytes in 0 msecs (HTTP/1.1 301) 7 headers in 266 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 37/37] 142.112.237.154 () {54 vars in 986 bytes} [Wed Dec 21 21:04:51 2022] GET /runs/deefd532-b7c9-48f1-98e7-1020cc37cef8/ => generated 8284 bytes in 36 msecs (HTTP/1.1 200) 9 headers in 409 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 38/38] 142.112.237.154 () {60 vars in 1219 bytes} [Wed Dec 21 21:04:55 2022] DELETE /runs/deefd532-b7c9-48f1-98e7-1020cc37cef8/ => generated 6953 bytes in 43 msecs (HTTP/1.1 200) 9 headers in 409 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 39/39] 142.112.237.154 () {54 vars in 984 bytes} [Wed Dec 21 21:05:00 2022] GET /runs/e0efcef5-189e-4450-945e-171059fbb171 => generated 0 bytes in 0 msecs (HTTP/1.1 301) 7 headers in 266 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 40/40] 142.112.237.154 () {54 vars in 986 bytes} [Wed Dec 21 21:05:01 2022] GET /runs/e0efcef5-189e-4450-945e-171059fbb171/ => generated 13973 bytes in 46 msecs (HTTP/1.1 200) 9 headers in 410 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 41/41] 142.112.237.154 () {60 vars in 1219 bytes} [Wed Dec 21 21:05:02 2022] DELETE /runs/e0efcef5-189e-4450-945e-171059fbb171/ => generated 6953 bytes in 42 msecs (HTTP/1.1 200) 9 headers in 409 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 42/42] 142.112.237.154 () {54 vars in 912 bytes} [Wed Dec 21 21:05:07 2022] GET /runs/ => generated 33086 bytes in 80 msecs (HTTP/1.1 200) 9 headers in 402 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 43/43] 142.112.237.154 () {54 vars in 986 bytes} [Wed Dec 21 21:05:12 2022] GET /runs/b17f3d63-5d3f-43bd-aebc-8d7c22ecca4c/ => generated 10730 bytes in 41 msecs (HTTP/1.1 200) 9 headers in 410 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 44/44] 142.112.237.154 () {60 vars in 1219 bytes} [Wed Dec 21 21:05:25 2022] DELETE /runs/b17f3d63-5d3f-43bd-aebc-8d7c22ecca4c/ => generated 6953 bytes in 46 msecs (HTTP/1.1 200) 9 headers in 409 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 45/45] 142.112.237.154 () {54 vars in 912 bytes} [Wed Dec 21 21:07:08 2022] GET /runs/ => generated 29028 bytes in 75 msecs (HTTP/1.1 200) 9 headers in 402 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 46/46] 142.112.237.154 () {54 vars in 986 bytes} [Wed Dec 21 21:07:14 2022] GET /runs/781f3e23-6c5b-46ea-b493-6fae5b75d080/ => generated 8321 bytes in 36 msecs (HTTP/1.1 200) 9 headers in 409 bytes (2 switches on core 0)
+[pid: 40045|app: 0|req: 47/47] 142.112.237.154 () {60 vars in 1219 bytes} [Wed Dec 21 21:07:19 2022] DELETE /runs/781f3e23-6c5b-46ea-b493-6fae5b75d080/ => generated 6953 bytes in 42 msecs (HTTP/1.1 200) 9 headers in 409 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 48/48] 142.112.237.154 () {54 vars in 912 bytes} [Wed Dec 21 21:07:22 2022] GET /runs/ => generated 27567 bytes in 73 msecs (HTTP/1.1 200) 9 headers in 402 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 49/49] 142.112.237.154 () {54 vars in 984 bytes} [Wed Dec 21 21:07:29 2022] GET /runs/5bdb6e01-8a2a-4fa3-888e-94f7c24d8011 => generated 0 bytes in 1 msecs (HTTP/1.1 301) 7 headers in 266 bytes (2 switches on core 0)
+[pid: 40045|app: 0|req: 50/50] 142.112.237.154 () {54 vars in 986 bytes} [Wed Dec 21 21:07:29 2022] GET /runs/5bdb6e01-8a2a-4fa3-888e-94f7c24d8011/ => generated 8310 bytes in 37 msecs (HTTP/1.1 200) 9 headers in 409 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 51/51] 142.112.237.154 () {60 vars in 1219 bytes} [Wed Dec 21 21:07:31 2022] DELETE /runs/5bdb6e01-8a2a-4fa3-888e-94f7c24d8011/ => generated 6953 bytes in 40 msecs (HTTP/1.1 200) 9 headers in 409 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 52/52] 142.112.237.154 () {54 vars in 986 bytes} [Wed Dec 21 21:07:39 2022] GET /runs/8ee10a68-37b8-4045-a6b0-5db4634128cc/ => generated 8336 bytes in 36 msecs (HTTP/1.1 200) 9 headers in 409 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 53/53] 142.112.237.154 () {60 vars in 1219 bytes} [Wed Dec 21 21:07:42 2022] DELETE /runs/8ee10a68-37b8-4045-a6b0-5db4634128cc/ => generated 6953 bytes in 40 msecs (HTTP/1.1 200) 9 headers in 409 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 54/54] 142.112.237.154 () {54 vars in 986 bytes} [Wed Dec 21 21:07:52 2022] GET /runs/9af8107e-aab5-4b16-9506-b4621c8e0a64/ => generated 8349 bytes in 35 msecs (HTTP/1.1 200) 9 headers in 409 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 55/55] 142.112.237.154 () {60 vars in 1219 bytes} [Wed Dec 21 21:07:54 2022] DELETE /runs/9af8107e-aab5-4b16-9506-b4621c8e0a64/ => generated 6953 bytes in 42 msecs (HTTP/1.1 200) 9 headers in 409 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 56/56] 142.112.237.154 () {54 vars in 986 bytes} [Wed Dec 21 21:08:18 2022] GET /runs/dec784d2-1239-487a-a945-ca53931fc097/ => generated 8333 bytes in 37 msecs (HTTP/1.1 200) 9 headers in 409 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 57/57] 142.112.237.154 () {60 vars in 1219 bytes} [Wed Dec 21 21:08:22 2022] DELETE /runs/dec784d2-1239-487a-a945-ca53931fc097/ => generated 6953 bytes in 42 msecs (HTTP/1.1 200) 9 headers in 409 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 58/58] 142.112.237.154 () {54 vars in 986 bytes} [Wed Dec 21 21:08:46 2022] GET /runs/8a89be49-09e2-4188-9ede-0f6c31fb806b/ => generated 13980 bytes in 46 msecs (HTTP/1.1 200) 9 headers in 410 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 59/59] 142.112.237.154 () {60 vars in 1219 bytes} [Wed Dec 21 21:08:48 2022] DELETE /runs/8a89be49-09e2-4188-9ede-0f6c31fb806b/ => generated 6953 bytes in 41 msecs (HTTP/1.1 200) 9 headers in 409 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 60/60] 142.112.237.154 () {54 vars in 986 bytes} [Wed Dec 21 21:09:00 2022] GET /runs/b168c846-818f-47cb-8ca2-9d3269af46ce/ => generated 14005 bytes in 45 msecs (HTTP/1.1 200) 9 headers in 410 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 61/61] 142.112.237.154 () {60 vars in 1219 bytes} [Wed Dec 21 21:09:02 2022] DELETE /runs/b168c846-818f-47cb-8ca2-9d3269af46ce/ => generated 6953 bytes in 42 msecs (HTTP/1.1 200) 9 headers in 409 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 62/62] 142.112.237.154 () {54 vars in 912 bytes} [Wed Dec 21 21:09:09 2022] GET /runs/ => generated 6670 bytes in 34 msecs (HTTP/1.1 200) 9 headers in 401 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 63/63] 142.112.237.154 () {54 vars in 984 bytes} [Wed Dec 21 21:09:31 2022] GET /runs/e130a40e-1b0d-4cc8-9f99-38de2a5d2898 => generated 0 bytes in 1 msecs (HTTP/1.1 301) 7 headers in 266 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 64/64] 142.112.237.154 () {54 vars in 986 bytes} [Wed Dec 21 21:09:31 2022] GET /runs/e130a40e-1b0d-4cc8-9f99-38de2a5d2898/ => generated 8333 bytes in 37 msecs (HTTP/1.1 200) 9 headers in 409 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 65/65] 142.112.237.154 () {60 vars in 1219 bytes} [Wed Dec 21 21:09:33 2022] DELETE /runs/e130a40e-1b0d-4cc8-9f99-38de2a5d2898/ => generated 6953 bytes in 42 msecs (HTTP/1.1 200) 9 headers in 409 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 66/66] 142.112.237.154 () {54 vars in 986 bytes} [Wed Dec 21 21:09:45 2022] GET /runs/b168c846-818f-47cb-8ca2-9d3269af46ce/ => generated 6949 bytes in 31 msecs (HTTP/1.1 404) 9 headers in 416 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 67/67] 142.112.237.154 () {54 vars in 910 bytes} [Wed Dec 21 21:09:49 2022] GET /runs => generated 0 bytes in 0 msecs (HTTP/1.1 301) 7 headers in 229 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 68/68] 142.112.237.154 () {54 vars in 912 bytes} [Wed Dec 21 21:09:49 2022] GET /runs/ => generated 5197 bytes in 31 msecs (HTTP/1.1 200) 9 headers in 401 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 69/69] 142.112.237.154 () {56 vars in 803 bytes} [Wed Dec 21 21:10:00 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 70/70] 142.112.237.154 () {56 vars in 803 bytes} [Wed Dec 21 21:10:03 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 71/71] 142.112.237.154 () {54 vars in 912 bytes} [Wed Dec 21 21:12:16 2022] GET /runs/ => generated 5197 bytes in 30 msecs (HTTP/1.1 200) 9 headers in 401 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 72/72] 142.112.237.154 () {54 vars in 912 bytes} [Wed Dec 21 22:03:33 2022] GET /runs/ => generated 5197 bytes in 39 msecs (HTTP/1.1 200) 9 headers in 401 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 73/73] 142.112.237.154 () {56 vars in 803 bytes} [Wed Dec 21 22:04:48 2022] GET /blastdbs/ => generated 1929 bytes in 30 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 74/74] 142.112.237.154 () {56 vars in 803 bytes} [Wed Dec 21 22:04:58 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 75/75] 142.112.237.154 () {56 vars in 803 bytes} [Wed Dec 21 22:05:15 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 76/76] 142.112.237.154 () {56 vars in 803 bytes} [Wed Dec 21 22:08:29 2022] GET /blastdbs/ => generated 1929 bytes in 56 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 77/77] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:10:50 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 78/78] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:10:51 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 79/79] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:10:53 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 80/80] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:11:06 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 81/81] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:11:11 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 82/82] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:11:12 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 83/83] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:11:14 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 84/84] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:11:18 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 85/85] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:11:23 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 86/86] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:11:24 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 87/87] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:11:26 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 88/88] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:11:30 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 89/89] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:11:32 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 90/90] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:11:33 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 91/91] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:13:36 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 92/92] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:13:38 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 93/93] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:13:39 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 94/94] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:13:41 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 95/95] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:13:45 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 96/96] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:13:49 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 97/97] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:13:50 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 98/98] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:13:52 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (2 switches on core 0)
+[pid: 40045|app: 0|req: 99/99] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:13:56 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 100/100] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:13:59 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 101/101] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:14:00 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 102/102] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:14:27 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 103/103] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:14:28 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 104/104] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:19:32 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 105/105] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:19:33 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 106/106] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:19:51 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 107/107] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:19:52 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 108/108] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:21:19 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 109/109] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:21:20 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 110/110] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:21:25 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (2 switches on core 0)
+[pid: 40045|app: 0|req: 111/111] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:21:26 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 112/112] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:21:29 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 113/113] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:21:31 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 114/114] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:21:54 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 115/115] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:21:55 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 116/116] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:22:14 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 117/117] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:22:15 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 118/118] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:22:36 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 119/119] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:22:44 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 120/120] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:23:48 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 121/121] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:23:48 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 122/122] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:23:53 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 123/123] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:24:08 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 124/124] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:24:08 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 125/125] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:25:51 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 126/126] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:26:06 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 127/127] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:26:07 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 128/128] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:26:31 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 129/129] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:26:32 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 130/130] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:28:40 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 131/131] 142.112.237.154 () {54 vars in 920 bytes} [Wed Dec 21 22:28:45 2022] GET /runs/k212 => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (2 switches on core 0)
+[pid: 40045|app: 0|req: 132/132] 142.112.237.154 () {58 vars in 973 bytes} [Wed Dec 21 22:28:53 2022] GET /runs/k212 => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 133/133] 142.112.237.154 () {56 vars in 906 bytes} [Wed Dec 21 22:28:53 2022] GET /favicon.ico => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 134/134] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:31:50 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 135/135] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:32:02 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (2 switches on core 0)
+[pid: 40045|app: 0|req: 136/136] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:32:03 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 137/137] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:32:08 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 138/138] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:32:27 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 139/139] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:32:27 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 140/140] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:32:32 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 141/141] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:32:33 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 142/142] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:32:38 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 143/143] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:32:43 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 144/144] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:34:27 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 145/145] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:34:49 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 146/146] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:34:54 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 147/147] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:34:55 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 148/148] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:34:59 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 149/149] 142.112.237.154 () {56 vars in 813 bytes} [Wed Dec 21 22:35:01 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 150/150] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:35:04 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 151/151] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:35:09 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 152/152] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:35:41 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 153/153] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:35:42 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 154/154] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:35:47 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 155/155] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:35:52 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 156/156] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:36:08 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 157/157] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:37:49 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 158/158] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:37:54 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 159/159] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:37:59 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 160/160] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:38:04 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 161/161] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:41:10 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 162/162] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:41:35 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 163/163] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:41:44 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 164/164] 142.112.237.154 () {52 vars in 760 bytes} [Wed Dec 21 22:42:04 2022] GET /runs/23/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 165/165] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 22:42:12 2022] GET /blastdbs/ => generated 1929 bytes in 50 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 166/166] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 22:42:14 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 167/167] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 22:42:17 2022] GET /blastdbs/ => generated 1929 bytes in 29 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 168/168] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 22:42:20 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 169/169] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 22:46:00 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 170/170] 142.112.237.154 () {52 vars in 762 bytes} [Wed Dec 21 22:46:11 2022] GET /runs/231/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 171/171] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 23:05:14 2022] GET /blastdbs/ => generated 1929 bytes in 27 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 172/172] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 23:05:18 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 173/173] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 23:07:31 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 174/174] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 23:08:29 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 175/175] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 23:08:35 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 176/176] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 23:08:37 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 177/177] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 23:10:22 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 178/178] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 23:11:50 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (2 switches on core 0)
+[pid: 40045|app: 0|req: 179/179] 146.190.43.137 () {36 vars in 588 bytes} [Wed Dec 21 23:13:21 2022] GET /apis/apps/v1/namespaces/kube-system/daemonsets/ => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 180/180] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 23:15:40 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 181/181] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 23:16:14 2022] GET /blastdbs/ => generated 1929 bytes in 27 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 182/182] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 23:16:15 2022] GET /blastdbs/ => generated 1929 bytes in 27 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 183/183] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 23:16:16 2022] GET /blastdbs/ => generated 1929 bytes in 27 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 184/184] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 23:16:20 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 185/185] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 23:16:22 2022] GET /blastdbs/ => generated 1929 bytes in 27 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 186/186] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 23:16:29 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 187/187] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 23:16:36 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 188/188] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 23:16:38 2022] GET /blastdbs/ => generated 1929 bytes in 27 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 189/189] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 23:17:31 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 190/190] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 23:17:33 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 191/191] 142.112.237.154 () {52 vars in 822 bytes} [Wed Dec 21 23:17:35 2022] GET /blastdbs/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d => generated 0 bytes in 1 msecs (HTTP/1.1 301) 8 headers in 322 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 192/192] 142.112.237.154 () {50 vars in 786 bytes} [Wed Dec 21 23:17:35 2022] GET /blastdbs/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/ => generated 20324 bytes in 31 msecs (HTTP/1.1 200) 9 headers in 325 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 193/193] 142.112.237.154 () {50 vars in 786 bytes} [Wed Dec 21 23:17:42 2022] GET /blastdbs/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/ => generated 20324 bytes in 29 msecs (HTTP/1.1 200) 9 headers in 325 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 194/194] 142.112.237.154 () {50 vars in 786 bytes} [Wed Dec 21 23:17:43 2022] GET /blastdbs/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/ => generated 20324 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 325 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 195/195] 142.112.237.154 () {50 vars in 786 bytes} [Wed Dec 21 23:17:52 2022] GET /blastdbs/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/ => generated 20324 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 325 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 196/196] 142.112.237.154 () {50 vars in 786 bytes} [Wed Dec 21 23:17:57 2022] GET /blastdbs/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/ => generated 20324 bytes in 29 msecs (HTTP/1.1 200) 9 headers in 325 bytes (2 switches on core 0)
+[pid: 40045|app: 0|req: 197/197] 142.112.237.154 () {50 vars in 786 bytes} [Wed Dec 21 23:17:57 2022] GET /blastdbs/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/ => generated 20324 bytes in 29 msecs (HTTP/1.1 200) 9 headers in 325 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 198/198] 142.112.237.154 () {50 vars in 786 bytes} [Wed Dec 21 23:18:03 2022] GET /blastdbs/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/ => generated 20324 bytes in 29 msecs (HTTP/1.1 200) 9 headers in 325 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 199/199] 142.112.237.154 () {50 vars in 786 bytes} [Wed Dec 21 23:18:03 2022] GET /blastdbs/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/ => generated 20324 bytes in 29 msecs (HTTP/1.1 200) 9 headers in 325 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 200/200] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 23:18:24 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 201/201] 142.112.237.154 () {50 vars in 786 bytes} [Wed Dec 21 23:18:27 2022] GET /blastdbs/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/ => generated 20324 bytes in 29 msecs (HTTP/1.1 200) 9 headers in 325 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 202/202] 142.112.237.154 () {50 vars in 786 bytes} [Wed Dec 21 23:18:32 2022] GET /blastdbs/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/ => generated 20324 bytes in 30 msecs (HTTP/1.1 200) 9 headers in 325 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 203/203] 142.112.237.154 () {50 vars in 786 bytes} [Wed Dec 21 23:18:47 2022] GET /blastdbs/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/ => generated 20324 bytes in 29 msecs (HTTP/1.1 200) 9 headers in 325 bytes (2 switches on core 0)
+[pid: 40045|app: 0|req: 204/204] 142.112.237.154 () {50 vars in 786 bytes} [Wed Dec 21 23:18:47 2022] GET /blastdbs/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/ => generated 20324 bytes in 29 msecs (HTTP/1.1 200) 9 headers in 325 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 205/205] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 23:18:49 2022] GET /blastdbs/ => generated 1929 bytes in 27 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 206/206] 142.112.237.154 () {50 vars in 786 bytes} [Wed Dec 21 23:18:51 2022] GET /blastdbs/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/ => generated 20324 bytes in 29 msecs (HTTP/1.1 200) 9 headers in 325 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 207/207] 142.112.237.154 () {50 vars in 786 bytes} [Wed Dec 21 23:19:01 2022] GET /blastdbs/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/ => generated 20324 bytes in 29 msecs (HTTP/1.1 200) 9 headers in 325 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 208/208] 142.112.237.154 () {50 vars in 786 bytes} [Wed Dec 21 23:19:25 2022] GET /blastdbs/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/ => generated 20324 bytes in 29 msecs (HTTP/1.1 200) 9 headers in 325 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 209/209] 142.112.237.154 () {50 vars in 786 bytes} [Wed Dec 21 23:19:32 2022] GET /blastdbs/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/ => generated 20324 bytes in 29 msecs (HTTP/1.1 200) 9 headers in 325 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 210/210] 142.112.237.154 () {50 vars in 786 bytes} [Wed Dec 21 23:20:23 2022] GET /blastdbs/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/ => generated 20324 bytes in 29 msecs (HTTP/1.1 200) 9 headers in 325 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 211/211] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 23:20:24 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 212/212] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 23:20:29 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 213/213] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 23:20:32 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 214/214] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 23:20:37 2022] GET /blastdbs/ => generated 1929 bytes in 27 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 215/215] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 23:20:42 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 216/216] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 23:23:32 2022] GET /blastdbs/ => generated 1929 bytes in 27 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 217/217] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 23:23:33 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 218/218] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 23:23:35 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 219/219] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 23:23:39 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 220/220] 142.112.237.154 () {52 vars in 750 bytes} [Wed Dec 21 23:23:43 2022] GET /blastdbs/ => generated 1929 bytes in 27 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 221/221] 198.235.24.5 () {32 vars in 609 bytes} [Wed Dec 21 23:48:31 2022] GET / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 222/222] 143.198.46.86 () {38 vars in 530 bytes} [Thu Dec 22 00:16:53 2022] GET / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 223/223] 142.112.237.154 () {52 vars in 750 bytes} [Thu Dec 22 00:27:43 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 224/224] 142.112.237.154 () {52 vars in 750 bytes} [Thu Dec 22 00:27:43 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 225/225] 142.112.237.154 () {50 vars in 786 bytes} [Thu Dec 22 00:27:47 2022] GET /blastdbs/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/ => generated 20324 bytes in 29 msecs (HTTP/1.1 200) 9 headers in 325 bytes (2 switches on core 0)
+[pid: 40045|app: 0|req: 226/226] 142.112.237.154 () {52 vars in 750 bytes} [Thu Dec 22 00:27:48 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 227/227] 142.112.237.154 () {52 vars in 750 bytes} [Thu Dec 22 00:27:50 2022] GET /blastdbs/ => generated 1929 bytes in 27 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 228/228] 142.112.237.154 () {50 vars in 786 bytes} [Thu Dec 22 00:27:54 2022] GET /blastdbs/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/ => generated 20324 bytes in 30 msecs (HTTP/1.1 200) 9 headers in 325 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 229/229] 142.112.237.154 () {52 vars in 750 bytes} [Thu Dec 22 00:28:14 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 230/230] 142.112.237.154 () {52 vars in 750 bytes} [Thu Dec 22 00:28:16 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 231/231] 142.112.237.154 () {52 vars in 750 bytes} [Thu Dec 22 00:28:36 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 232/232] 142.112.237.154 () {52 vars in 750 bytes} [Thu Dec 22 00:28:42 2022] GET /blastdbs/ => generated 1929 bytes in 27 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[{'definition': 'query_sequence', 'query_sequence': 'CCGGAATAGTTGGCACAGCCCTAAGCCTCCTCATCCGAGCAGAACTAAGTCAACCCGGGACCCTCCTTGGCGATGACCAAATTTATAACGTAATTGTTACTGCCCACGCCTTTGTAATAATCTTCTTTATAGTTATACCTATCATGATTGGCGGCTTTGGAAACTGACTTATCCCACTAATAATCGGAGCCCCAGATATAGCATTCCCCCGAATAAACAACATGAGCTTCTGACTTCTCCCGCCCTCTTTCCTGCTTCTCCTTGCCTCATCAGGAGTTGAGGCCGGGGCTGGAACAGGCTGAACCGTATACCCCCCTCTTGCAGGTAACCTTGCCCACGCAGGAGCCTCAGTAGACCTAACTATTTTCTCCCTACACCTTGCCGGAGTTTCCTCAATTCTCGGGGCTATTAATTTTATCACTACAATTATTAATATAAAACCCCCAGCTATCTCTCAGTATCAAACCCCTTTATTTATCTGGGCCCTGCTAGTAACCACCGTCCTCTTACTTCTTTCTCTTCCAGTCTTAGCTGCCGGTATTACCATACTACT'}]
+Run id: e07cecac-6a85-46e4-a0c8-fd558b3f48a2
+Database was locked. Will use existing local database.
+Generating query fasta file ...
+Running BLAST search ...
+[pid: 40045|app: 0|req: 233/233] 142.112.237.154 () {56 vars in 1072 bytes} [Thu Dec 22 00:28:44 2022] POST /blastdbs/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/run/ => generated 970 bytes in 1080 msecs (HTTP/1.1 201) 9 headers in 308 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 234/234] 142.112.237.154 () {52 vars in 828 bytes} [Thu Dec 22 00:28:45 2022] GET /runs/e07cecac-6a85-46e4-a0c8-fd558b3f48a2/status => generated 0 bytes in 7 msecs (HTTP/1.1 301) 8 headers in 325 bytes (2 switches on core 0)
+[pid: 40045|app: 0|req: 235/235] 142.112.237.154 () {50 vars in 792 bytes} [Thu Dec 22 00:28:45 2022] GET /runs/e07cecac-6a85-46e4-a0c8-fd558b3f48a2/status/ => generated 202 bytes in 30 msecs (HTTP/1.1 200) 9 headers in 308 bytes (2 switches on core 0)
+[pid: 40045|app: 0|req: 236/236] 142.112.237.154 () {50 vars in 792 bytes} [Thu Dec 22 00:28:50 2022] GET /runs/e07cecac-6a85-46e4-a0c8-fd558b3f48a2/status/ => generated 227 bytes in 25 msecs (HTTP/1.1 200) 9 headers in 308 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 237/237] 142.112.237.154 () {52 vars in 814 bytes} [Thu Dec 22 00:28:55 2022] GET /runs/e07cecac-6a85-46e4-a0c8-fd558b3f48a2 => generated 0 bytes in 1 msecs (HTTP/1.1 301) 8 headers in 318 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 238/238] 142.112.237.154 () {50 vars in 778 bytes} [Thu Dec 22 00:28:55 2022] GET /runs/e07cecac-6a85-46e4-a0c8-fd558b3f48a2/ => generated 3998 bytes in 36 msecs (HTTP/1.1 200) 9 headers in 317 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 239/239] 185.180.143.8 () {38 vars in 534 bytes} [Thu Dec 22 00:29:17 2022] GET / => generated 179 bytes in 1 msecs (HTTP/1.1 404) 7 headers in 228 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 240/240] 142.112.237.154 () {50 vars in 778 bytes} [Thu Dec 22 00:29:45 2022] GET /runs/e07cecac-6a85-46e4-a0c8-fd558b3f48a2/ => generated 3998 bytes in 35 msecs (HTTP/1.1 200) 9 headers in 317 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 241/241] 142.112.237.154 () {50 vars in 778 bytes} [Thu Dec 22 00:44:30 2022] GET /runs/e07cecac-6a85-46e4-a0c8-fd558b3f48a2/ => generated 3998 bytes in 35 msecs (HTTP/1.1 200) 9 headers in 317 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 242/242] 142.112.237.154 () {50 vars in 778 bytes} [Thu Dec 22 00:45:09 2022] GET /runs/e07cecac-6a85-46e4-a0c8-fd558b3f48a2/ => generated 3998 bytes in 36 msecs (HTTP/1.1 200) 9 headers in 317 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 243/243] 142.112.237.154 () {52 vars in 750 bytes} [Thu Dec 22 00:45:11 2022] GET /blastdbs/ => generated 1929 bytes in 29 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 244/244] 142.112.237.154 () {52 vars in 750 bytes} [Thu Dec 22 00:45:23 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 245/245] 142.112.237.154 () {52 vars in 750 bytes} [Thu Dec 22 00:45:45 2022] GET /blastdbs/ => generated 1929 bytes in 27 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 246/246] 142.112.237.154 () {52 vars in 750 bytes} [Thu Dec 22 00:45:47 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (2 switches on core 0)
+[pid: 40045|app: 0|req: 247/247] 142.112.237.154 () {52 vars in 750 bytes} [Thu Dec 22 00:45:47 2022] GET /blastdbs/ => generated 1929 bytes in 27 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 248/248] 142.112.237.154 () {50 vars in 786 bytes} [Thu Dec 22 00:45:48 2022] GET /blastdbs/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/ => generated 20324 bytes in 30 msecs (HTTP/1.1 200) 9 headers in 325 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 249/249] 142.112.237.154 () {52 vars in 750 bytes} [Thu Dec 22 00:45:50 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 250/250] 142.112.237.154 () {52 vars in 750 bytes} [Thu Dec 22 00:45:54 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 251/251] 142.112.237.154 () {52 vars in 750 bytes} [Thu Dec 22 00:46:17 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 252/252] 142.112.237.154 () {52 vars in 750 bytes} [Thu Dec 22 00:46:17 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 253/253] 142.112.237.154 () {52 vars in 750 bytes} [Thu Dec 22 00:46:21 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 254/254] 142.112.237.154 () {52 vars in 750 bytes} [Thu Dec 22 00:46:21 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 255/255] 142.112.237.154 () {50 vars in 786 bytes} [Thu Dec 22 00:46:22 2022] GET /blastdbs/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/ => generated 20324 bytes in 29 msecs (HTTP/1.1 200) 9 headers in 325 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 256/256] 142.112.237.154 () {52 vars in 750 bytes} [Thu Dec 22 00:46:46 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 257/257] 142.112.237.154 () {52 vars in 750 bytes} [Thu Dec 22 00:46:50 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 258/258] 142.112.237.154 () {56 vars in 1070 bytes} [Thu Dec 22 00:46:52 2022] POST /blastdbs/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/run/ => generated 133 bytes in 27 msecs (HTTP/1.1 400) 9 headers in 312 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 259/259] 142.112.237.154 () {52 vars in 774 bytes} [Thu Dec 22 00:46:52 2022] GET /runs/undefined/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 260/260] 142.112.237.154 () {56 vars in 803 bytes} [Thu Dec 22 00:48:05 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 261/261] 142.112.237.154 () {56 vars in 803 bytes} [Thu Dec 22 00:48:09 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 262/262] 142.112.237.154 () {56 vars in 803 bytes} [Thu Dec 22 00:48:39 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 263/263] 142.112.237.154 () {56 vars in 803 bytes} [Thu Dec 22 00:48:40 2022] GET /blastdbs/ => generated 1929 bytes in 30 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 264/264] 142.112.237.154 () {60 vars in 1125 bytes} [Thu Dec 22 00:48:45 2022] POST /blastdbs/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/run/ => generated 133 bytes in 27 msecs (HTTP/1.1 400) 9 headers in 312 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 265/265] 142.112.237.154 () {56 vars in 827 bytes} [Thu Dec 22 00:48:45 2022] GET /runs/undefined/status => generated 179 bytes in 1 msecs (HTTP/1.1 404) 8 headers in 280 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 266/266] 142.112.237.154 () {56 vars in 803 bytes} [Thu Dec 22 00:49:53 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 267/267] 142.112.237.154 () {56 vars in 803 bytes} [Thu Dec 22 00:49:57 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[{'definition': 'query_1', 'query_sequence': 'TTGGTGCCTGAGCCGGAATAGTTGGCACAGCCCTAAGCCTCCTCATCCGAGCAGAACTAAGTCAACCCGGGACCCTCCTTGGCGATGACCAAATTTATAACGTAATTGTTACTGCCCACGCCTTTGTAATAATCTTCTTTATAGTTATACCTATCATGATTGGCGGCTTTGGAAACTGACTTATCCCACTAATAATCGGAGCCCCAGATATAGCATTCCCCCGAATAAACAACATGAGCTTCTGACTTCTCCCGCCCTCTTTCCTGCTTCTCCTTGCCTCATCAGGAGTTGAGGCCGGGGCTGGAACAGGCTGAACCGTATACCCCCCTCTTGCAGGTAACCTTGCCCACGCAGGAGCCTCAGTAGACCTAACTATTTTCTCCCTACACCTTGCCGGAGTTTCCTCAATTCTCGGGGCTATTAATTTTATCACTACAATTATTAATATAAAACCCCCAGCTATCTCTCAGTATCAAACCCCTTTATTTATCTGGGCCCTGCTAGTAACCACCGTCCTCTTACTTCTTTCTCTTCCAGTCTTAGCTGCCGGTATTACCATACTACTAA'}, {'definition': 'query_2', 'query_sequence': 'AGCATTCCCCCGAATAAACAACATGAGCTTCTGACTTCTCCCGCCCTCTTTCCTGCTTCTCCTTGCCTCATCAGGAGTTGAGGCCGGGGCTGGAACAGGCTGAACCGTATACCCCCCTCTTGCAGGTAACCTTGCCCACGCAGGAGCCTCAGTAGACCTAACTATTTTCTCCCTACACCTTGCCGGAGTTTCCTCAATTCTCGGGGCTATTAATTTTATCACTACAATTATTAATATAAAACCCCCAGCTATCTCTCAGTATCAAACCCCTTTATTTATCTGGGCCCTGCTAGTAACCACCGTCCTCTTACTTCTTTCTCTTCCAGTCTTAGCTGCCGGTATTACCATACTACTAA'}, {'definition': 'query_3', 'query_sequence': 'ATAATATAAGCTTTTGACTCCTTCCTCCTTCTTTTTTACTTCTCCTTGCATCATCCGGAGTTGAAGCAGGGGCCGGAACAGGCTGAACAGTATACCCCCCTCTTGCAGGCAATCTTGCCCATGCAGGAGCCTCAGTAGATCTAACTATTTTTTCTCTTCATCTAGCCGGAGTTTCTTCAATTCTAGGGTCCATTAACTTTATTACCACAATTATTAATATGAAACCTCCAGCCATTTCTCAATATCAAACCCCACTATTTATTTGATCACTTCTAGTAACCACTGTCCTTTTACTCCTCTCTC'}]
+Run id: 01b1de15-e18a-4c22-af84-c2bfc2143999
+Database was locked. Will use existing local database.
+Generating query fasta file ...
+Running BLAST search ...
+[pid: 40045|app: 0|req: 268/268] 142.112.237.154 () {60 vars in 1125 bytes} [Thu Dec 22 00:50:05 2022] POST /blastdbs/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/run/ => generated 1733 bytes in 155 msecs (HTTP/1.1 201) 9 headers in 309 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 269/269] 142.112.237.154 () {56 vars in 881 bytes} [Thu Dec 22 00:50:05 2022] GET /runs/01b1de15-e18a-4c22-af84-c2bfc2143999/status => generated 0 bytes in 1 msecs (HTTP/1.1 301) 8 headers in 325 bytes (2 switches on core 0)
+[pid: 40045|app: 0|req: 270/270] 142.112.237.154 () {54 vars in 845 bytes} [Thu Dec 22 00:50:05 2022] GET /runs/01b1de15-e18a-4c22-af84-c2bfc2143999/status/ => generated 209 bytes in 36 msecs (HTTP/1.1 200) 9 headers in 308 bytes (2 switches on core 0)
+[pid: 40045|app: 0|req: 271/271] 142.112.237.154 () {50 vars in 792 bytes} [Thu Dec 22 00:50:10 2022] GET /runs/01b1de15-e18a-4c22-af84-c2bfc2143999/status/ => generated 234 bytes in 25 msecs (HTTP/1.1 200) 9 headers in 308 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 272/272] 142.112.237.154 () {52 vars in 814 bytes} [Thu Dec 22 00:50:15 2022] GET /runs/01b1de15-e18a-4c22-af84-c2bfc2143999 => generated 0 bytes in 1 msecs (HTTP/1.1 301) 8 headers in 318 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 273/273] 142.112.237.154 () {50 vars in 778 bytes} [Thu Dec 22 00:50:15 2022] GET /runs/01b1de15-e18a-4c22-af84-c2bfc2143999/ => generated 19454 bytes in 58 msecs (HTTP/1.1 200) 9 headers in 318 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 274/274] 142.112.237.154 () {50 vars in 778 bytes} [Thu Dec 22 00:50:32 2022] GET /runs/01b1de15-e18a-4c22-af84-c2bfc2143999/ => generated 19454 bytes in 59 msecs (HTTP/1.1 200) 9 headers in 318 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 275/275] 142.112.237.154 () {50 vars in 778 bytes} [Thu Dec 22 00:51:10 2022] GET /runs/01b1de15-e18a-4c22-af84-c2bfc2143999/ => generated 19454 bytes in 57 msecs (HTTP/1.1 200) 9 headers in 318 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 276/276] 142.112.237.154 () {50 vars in 778 bytes} [Thu Dec 22 00:51:16 2022] GET /runs/01b1de15-e18a-4c22-af84-c2bfc2143999/ => generated 19454 bytes in 59 msecs (HTTP/1.1 200) 9 headers in 318 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 277/277] 142.112.237.154 () {50 vars in 778 bytes} [Thu Dec 22 00:52:26 2022] GET /runs/01b1de15-e18a-4c22-af84-c2bfc2143999/ => generated 19454 bytes in 58 msecs (HTTP/1.1 200) 9 headers in 318 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 278/278] 142.112.237.154 () {50 vars in 778 bytes} [Thu Dec 22 00:52:27 2022] GET /runs/01b1de15-e18a-4c22-af84-c2bfc2143999/ => generated 19454 bytes in 57 msecs (HTTP/1.1 200) 9 headers in 318 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 279/279] 142.112.237.154 () {52 vars in 750 bytes} [Thu Dec 22 00:53:05 2022] GET /blastdbs/ => generated 1929 bytes in 27 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 280/280] 142.112.237.154 () {52 vars in 750 bytes} [Thu Dec 22 00:53:07 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 281/281] 142.112.237.154 () {52 vars in 750 bytes} [Thu Dec 22 00:53:40 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 282/282] 142.112.237.154 () {52 vars in 750 bytes} [Thu Dec 22 00:57:51 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 283/283] 142.112.237.154 () {52 vars in 750 bytes} [Thu Dec 22 00:57:57 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 284/284] 142.112.237.154 () {52 vars in 750 bytes} [Thu Dec 22 00:57:58 2022] GET /blastdbs/ => generated 1929 bytes in 29 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 285/285] 142.112.237.154 () {52 vars in 750 bytes} [Thu Dec 22 01:03:42 2022] GET /blastdbs/ => generated 1929 bytes in 104 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+[pid: 40045|app: 0|req: 286/286] 142.112.237.154 () {52 vars in 750 bytes} [Thu Dec 22 01:03:42 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
+Thu Dec 22 01:04:44 2022 - uWSGI worker 1 screams: UAAAAAAH my master disconnected: i will kill myself !!!

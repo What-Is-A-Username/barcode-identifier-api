@@ -1,0 +1,41 @@
+# BLASTN 2.12.0+
+# Query: query_1
+# Database: /home/ubuntu/barcode_identifier_api/fishdb/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/database
+# Fields: query acc.ver, subject acc.ver, % identity, alignment length, mismatches, gap opens, q. start, q. end, s. start, s. end, evalue, bit score
+# 13 hits found
+query_1	ON303378	100.000	567	0	0	1	567	8	574	0.0	1048
+query_1	ON303383	91.358	567	49	0	1	567	8	574	0.0	776
+query_1	ON303386	86.949	567	74	0	1	567	8	574	0.0	638
+query_1	ON303381	87.050	556	72	0	1	556	8	563	0.0	628
+query_1	ON303382	86.691	556	74	0	1	556	8	563	7.05e-180	617
+query_1	ON303379	86.691	556	74	0	1	556	8	563	7.05e-180	617
+query_1	ON303390	86.268	568	76	2	1	567	8	574	2.54e-179	616
+query_1	ON303393	86.067	567	79	0	1	567	8	574	1.18e-177	610
+query_1	ON303380	86.331	556	76	0	1	556	8	563	1.53e-176	606
+query_1	ON303394	85.185	567	84	0	1	567	8	574	2.57e-169	582
+query_1	ON303385	85.185	567	84	0	1	567	8	574	2.57e-169	582
+query_1	ON303389	84.480	567	88	0	1	567	8	574	1.21e-162	560
+query_1	ON303387	83.774	567	92	0	1	567	8	574	5.65e-156	538
+# BLASTN 2.12.0+
+# Query: query_2
+# Database: /home/ubuntu/barcode_identifier_api/fishdb/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/database
+# Fields: query acc.ver, subject acc.ver, % identity, alignment length, mismatches, gap opens, q. start, q. end, s. start, s. end, evalue, bit score
+# 2 hits found
+query_2	ON303378	100.000	356	0	0	1	356	219	574	0.0	658
+query_2	ON303383	89.888	356	36	0	1	356	219	574	2.79e-132	459
+# BLASTN 2.12.0+
+# Query: query_3
+# Database: /home/ubuntu/barcode_identifier_api/fishdb/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/database
+# Fields: query acc.ver, subject acc.ver, % identity, alignment length, mismatches, gap opens, q. start, q. end, s. start, s. end, evalue, bit score
+# 9 hits found
+query_3	ON303390	99.010	303	3	0	1	303	236	538	6.37e-158	544
+query_3	ON303382	91.362	301	26	0	1	301	236	536	1.87e-118	412
+query_3	ON303381	91.362	301	26	0	1	301	236	536	1.87e-118	412
+query_3	ON303379	91.030	301	27	0	1	301	236	536	8.72e-117	407
+query_3	ON303380	90.940	298	27	0	1	298	236	533	4.06e-115	401
+query_3	ON303386	90.604	298	28	0	1	298	236	533	1.89e-113	396
+query_3	ON303384	89.037	301	33	0	1	301	236	536	8.84e-107	374
+query_3	ON303385	89.078	293	32	0	3	295	238	530	5.32e-104	364
+query_3	ON303389	88.814	295	33	0	1	295	236	530	1.91e-103	363
+# BLAST processed 3 queries
+

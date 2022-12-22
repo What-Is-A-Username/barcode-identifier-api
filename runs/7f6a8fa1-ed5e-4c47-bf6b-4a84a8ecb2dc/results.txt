@@ -1,3 +1,0 @@
-
-Errors occurred when processing the query:
-/bin/sh: 1: /home/ubuntu/barcode_identifier_api/ncbi-blast-2.12.0+/bin/blastn: not found
