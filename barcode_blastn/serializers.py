@@ -11,7 +11,7 @@ class NuccoreSequenceSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = NuccoreSequence
-        fields = ['owner_database', 'accession_number', 'definition', 'organism', 'organelle', 'mol_type', 'isolate', 'country', 'specimen_voucher', 'lat_lon', 'dna_sequence', 'translation', 'created']
+        fields = ['id', 'owner_database', 'accession_number', 'definition', 'organism', 'organelle', 'mol_type', 'isolate', 'country', 'specimen_voucher', 'lat_lon', 'dna_sequence', 'translation', 'created']
 
 '''
 Show a condensed summary of a sequence, in order to display with a list of all blastdbs

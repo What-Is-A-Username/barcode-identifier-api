@@ -286,14 +286,17 @@ systemctl stop celery.service
 
 The following procedure starts the app and the worker, each in a different terminal. Once the terminal is closed, both the app and worker close.
 
-Open a terminal and run the API server. This is the web server that serves the API and allows the user to access information.
+Open a terminal and run the API server. This is the web server that serves the API and allows the user to access information. You may need to have the SSL certificates available.
 ```
 uwsgi --ini barcode_identifier_api_uwsgi.ini
+# Alternative which doesn't setup the server
+# source env_barcode/bin/activate
+# python manage.py runserver
 ```
 
 Open another terminal and run the worker queue used to perform the BLAST searches. 
 ```
-celery -A barcode_identifier_api worker --loglevel=INFO -Q BarcodeQueue.fifo
+celery -A barcode_identifier_api worker --loglevel=INFO -Q BarcodeQueue.fifo -B -s /var/log/celery/celerybeat-schedule -c 1
 ```
 
 ### Option 3: Development on a localhost 

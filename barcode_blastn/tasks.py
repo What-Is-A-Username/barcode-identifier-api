@@ -1,11 +1,14 @@
 import os
+from ratelimit import limits
 from shlex import quote
-from datetime import datetime
+from datetime import datetime, timezone
 import subprocess
+from typing import Dict, List
+from barcode_blastn.helper.parse_gb import retrieve_gb
 from barcode_blastn.helper.parse_results import parse_results
 
-from barcode_blastn.models import BlastRun, Hit, NuccoreSequence 
-
+from barcode_blastn.models import BlastDb, BlastRun, Hit, NuccoreSequence 
+from django.db.models import QuerySet
 from celery import shared_task
 
 @shared_task(time_limit=30)  # hard time limit of 30 seconds 
@@ -17,7 +20,7 @@ def run_blast_command(ncbi_blast_version, fishdb_id, run_id):
     print(f'Using blast version {ncbi_blast_version}')
     print(f'Using database id {fishdb_id} and run id {run_id}')
     
-    run_details = BlastRun.objects.get(id = run_id)
+    run_details : BlastRun = BlastRun.objects.get(id = run_id)
 
     run_details.job_status = BlastRun.JobStatus.STARTED
     run_details.job_start_time = datetime.now()
@@ -78,3 +81,43 @@ def run_blast_command(ncbi_blast_version, fishdb_id, run_id):
     # TODO: Add a soft time limit to the function, and update the job status as ERRORED if reached. Docs: https://docs.celeryq.dev/en/stable/userguide/workers.html#time-limits
 
     print('Queued BLAST search completed.')
+
+PERIOD = 3500 # Time between calls, in number of seconds
+@limits(calls = 1, period = PERIOD)
+@shared_task(time_limit=30)  # hard time limit of 30 seconds 
+def update_database():
+    print("update_database ran at " + datetime.now().strftime("%H:%M:%S.%f"))
+    all_dbs : QuerySet = BlastDb.objects.all() 
+    db : BlastDb
+    for db in all_dbs:
+        all_seqs: QuerySet = NuccoreSequence.objects.filter(owner_database=db.id)
+        all_numbers: List[str] = [seq.accession_number for seq in all_seqs]
+        print("Updating database " + str(db.id) + " ...")
+
+        new_data = retrieve_gb(all_numbers)
+        fields_to_update = list(new_data[0].keys())
+        fields_to_update.append('created')
+        seq : NuccoreSequence
+
+        # make a dictionary mapping accession -> uid
+        an_to_uid : Dict = {}
+        for seq in all_seqs:
+            an_to_uid[seq.accession_number] = str(seq.id)
+
+        new_created_time = datetime.now(timezone.utc)
+
+        # using the fetched data as a base, add updated values for 'created' and ensure that the id is present
+        def make_updated_dict(old_dict: Dict):
+            old_dict['created'] = new_created_time
+            old_dict['id'] = an_to_uid[old_dict['accession_number']]
+            return old_dict
+
+        updated_data = [make_updated_dict(entry) for entry in new_data if entry['accession_number'] in an_to_uid]
+        
+        print(f"Submitting updates to database ...")
+        
+        NuccoreSequence.objects.bulk_update([NuccoreSequence(**data) for data in updated_data], fields=fields_to_update, batch_size=100)
+
+        print(f"Finished updating database {str(db.id)}")
+    print("Finished updating all databases.")
+        

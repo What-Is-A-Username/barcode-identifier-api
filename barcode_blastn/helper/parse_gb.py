@@ -9,17 +9,27 @@ from ratelimit.decorators import sleep_and_retry
 from datetime import datetime
 from urllib.error import HTTPError
 
-ONE_SECOND = 1 # NCBI Rate limit without an API key is 3 requests per second
-MAX_ACCESSIONS_PER_REQUEST = 500 # Limit each request to only return 500 
+# NCBI Rate limit without an API key is 3 requests per second
+PERIOD = 1 # Time between calls, in number of seconds
+MAX_ACCESSIONS_PER_REQUEST = 300 # Limit each request to only return a max number of accessions
 
 class InvalidAccessionNumberError(Exception):
     """Raised when accession number cannot be found in the retrieved GenBank XML"""
     pass
 
 @sleep_and_retry
-@limits(calls = 1, period = ONE_SECOND)
+@limits(calls = 1, period = PERIOD)
 def retrieve_gb(accession_numbers: List[str]) -> List[Dict]: 
-
+    """
+        Retrieve from GenBank the nucleotide entries for the given accession numbers.
+        
+    Raises:
+        ValueError: If no accession numbers are provided, or the number of accessions is more than the maximum specified by MAX_ACCESSIONS_PER_REQUEST
+    """
+    if accession_numbers is None:
+        raise ValueError(f'List of accession numbers to query is None.')
+    if len(accession_numbers) == 0:
+        raise ValueError(f'List of accession numbers to query is empty.')
     if len(accession_numbers) > MAX_ACCESSIONS_PER_REQUEST:
         raise ValueError(f'Cannot query the {len(accession_numbers)} found in a single request. Limit per request is {MAX_ACCESSIONS_PER_REQUEST}')
 
@@ -64,6 +74,8 @@ def retrieve_gb(accession_numbers: List[str]) -> List[Dict]:
                         current_data[qualifier_name] = source_feature.qualifiers[qualifier_name][0]
                     except IndexError:
                         current_data[qualifier_name] = ''
+                else:
+                    current_data[qualifier_name] = ''
 
         all_data.append(current_data)
 

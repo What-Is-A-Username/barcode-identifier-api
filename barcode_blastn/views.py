@@ -19,6 +19,7 @@ from rest_framework.permissions import IsAdminUser, AllowAny
 from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer, TemplateHTMLRenderer
 from rest_framework.response import Response
 from urllib.error import HTTPError
+from django.db.models import QuerySet
 
 from barcode_blastn.tasks import run_blast_command
 
@@ -295,6 +296,8 @@ class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
                     'query_sequence': full_query
                 })
         else:
+            if len(request.FILES) == 0:
+                return Response({'message': 'No submitted sequences were found. Either upload a .fasta file or paste raw text for a single sequence.'}, status = status.HTTP_400_BAD_REQUEST)
             query_file = request.FILES['query_file']
             # TODO: Check file type uploaded
             file_name = query_file.name
