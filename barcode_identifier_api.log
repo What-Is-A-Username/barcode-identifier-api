@@ -1637,3 +1637,50 @@ Running BLAST search ...
 [pid: 40045|app: 0|req: 285/285] 142.112.237.154 () {52 vars in 750 bytes} [Thu Dec 22 01:03:42 2022] GET /blastdbs/ => generated 1929 bytes in 104 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
 [pid: 40045|app: 0|req: 286/286] 142.112.237.154 () {52 vars in 750 bytes} [Thu Dec 22 01:03:42 2022] GET /blastdbs/ => generated 1929 bytes in 28 msecs (HTTP/1.1 200) 9 headers in 315 bytes (1 switches on core 0)
 Thu Dec 22 01:04:44 2022 - uWSGI worker 1 screams: UAAAAAAH my master disconnected: i will kill myself !!!
+*** Starting uWSGI 2.0.21 (64bit) on [Wed Jan  4 21:28:45 2023] ***
+compiled with version: 9.4.0 on 28 November 2022 03:30:49
+os: Linux-5.10.16.3-microsoft-standard-WSL2 #1 SMP Fri Apr 2 22:23:49 UTC 2021
+nodename: DESKTOP-QHI5NE3
+machine: x86_64
+clock source: unix
+detected number of CPU cores: 4
+current working directory: /home/linux_user1/django_projects/djangorest/barcode_identifier_api/barcode_identifier_api
+detected binary path: /home/linux_user1/django_projects/djangorest/barcode_identifier_api/barcode_identifier_api/env_barcode/bin/uwsgi
+!!! no internal routing support, rebuild with pcre support !!!
+chdir() to /home/linux_user1/django_projects/djangorest/barcode_identifier_api/barcode_identifier_api
+your processes number limit is 37828
+your memory page size is 4096 bytes
+detected max file descriptor number: 4096
+lock engine: pthread robust mutexes
+thunder lock: disabled (you can enable it with --thunder-lock)
+invalid socket name
+*** Starting uWSGI 2.0.21 (64bit) on [Wed Jan  4 21:29:18 2023] ***
+compiled with version: 9.4.0 on 28 November 2022 03:30:49
+os: Linux-5.10.16.3-microsoft-standard-WSL2 #1 SMP Fri Apr 2 22:23:49 UTC 2021
+nodename: DESKTOP-QHI5NE3
+machine: x86_64
+clock source: unix
+detected number of CPU cores: 4
+current working directory: /home/linux_user1/django_projects/djangorest/barcode_identifier_api/barcode_identifier_api
+detected binary path: /home/linux_user1/django_projects/djangorest/barcode_identifier_api/barcode_identifier_api/env_barcode/bin/uwsgi
+!!! no internal routing support, rebuild with pcre support !!!
+chdir() to /home/linux_user1/django_projects/djangorest/barcode_identifier_api/barcode_identifier_api
+your processes number limit is 37828
+your memory page size is 4096 bytes
+detected max file descriptor number: 4096
+lock engine: pthread robust mutexes
+thunder lock: disabled (you can enable it with --thunder-lock)
+uwsgi socket 0 bound to UNIX address /home/linux_user1/django_projects/djangorest/barcode_identifier_api/barcode_identifier_api/u.sock fd 3
+Python version: 3.8.10 (default, Jun 22 2022, 20:18:18)  [GCC 9.4.0]
+PEP 405 virtualenv detected: /home/linux_user1/django_projects/djangorest/barcode_identifier_api/barcode_identifier_api/env_barcode
+Set PythonHome to /home/linux_user1/django_projects/djangorest/barcode_identifier_api/barcode_identifier_api/env_barcode
+Python main interpreter initialized at 0x560525fe0980
+python threads support enabled
+your server socket listen backlog is limited to 100 connections
+your mercy for graceful operations on workers is 60 seconds
+mapped 145840 bytes (142 KB) for 1 cores
+*** Operational MODE: single process ***
+WSGI app 0 (mountpoint='') ready in 3 seconds on interpreter 0x560525fe0980 pid: 2576 (default app)
+*** uWSGI is running in multiple interpreter mode ***
+spawned uWSGI master process (pid: 2576)
+spawned uWSGI worker 1 (pid: 2593, cores: 1)

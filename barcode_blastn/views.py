@@ -271,11 +271,11 @@ class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
                 query_record : SeqIO.SeqRecord
                 
                 for query_record in query_records:
-                    seq = str(query_record.seq)
+                    seq = str(query_record.seq).strip()
                     if not verify_dna(seq):
                         query_string_io.close()
                         return Response({
-                            'message': f"The sequence provided for '>{query_record.description}' has non-nucleotide characters."
+                            'message': f"The sequence provided for '>{query_record.description}' has non-DNA nucleotide characters."
                         }, status = status.HTTP_400_BAD_REQUEST) 
                     query_sequences.append({
                         'definition': query_record.description,
@@ -296,51 +296,34 @@ class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
                     'query_sequence': full_query
                 })
         else:
-            if len(request.FILES) == 0:
+            query_file = request.FILES.get('query_file', False)
+            # return an error if no file of name 'query_file' was found in the request
+            if not query_file:
                 return Response({'message': 'No submitted sequences were found. Either upload a .fasta file or paste raw text for a single sequence.'}, status = status.HTTP_400_BAD_REQUEST)
-            query_file = request.FILES['query_file']
+
             # TODO: Check file type uploaded
-            file_name = query_file.name
-            file_ext = file_name.split('.')[-1]
 
-            last_line = ';start'
-            # ignore comments
-            while last_line.startswith(';'):
-                last_line = query_file.file.readline().decode().strip()
+            # parse the file with Biopython
+            try:
+                query_file_io = io.StringIO(query_file.file.read().decode('UTF-8'))
+                query_file_seqs = SeqIO.parse(query_file_io, 'fasta')
+            except BaseException:
+                return Response({'message': 'The fasta file received was unable to be parsed with Biopython SeqIO using the "fasta" format. Double check the fasta contents.'}, status = status.HTTP_400_BAD_REQUEST)
 
-            if last_line == '':
-                return Response({'message': 'Found an empty line in the uploaded sequence file before any sequence definitions. Please omit all empty lines before or between your parts of your data.'}, status = status.HTTP_400_BAD_REQUEST)
-
-            definition = last_line 
-            query_sequence = query_file.file.readline().decode().strip()
-            
-            # used to account for duplicate definitions
-            definitions_used = [last_line]
-
-            while definition != '':
-                # remove leading >
-                if len(definition) > 0:
-                    definition = definition[1:]
-
-                # verify if definitions and sequences are nonblank
-                if not verify_query(definition, query_sequence):
-                    return Response({'message': f'The following definition and sequence pair was either erroneously parsed or incorrectly formatted. Definition = "{definition}", sequence = "{query_sequence}"'},
-                    status = status.HTTP_400_BAD_REQUEST)
-
-                # verify that there is not already a sequence with the same definition
-                if definition in definitions_used:
-                    return Response({'message': f'We found more than one sequence with the same definition in the uploaded sequence file. Definition = "{definition}"'}, status = status.HTTP_400_BAD_REQUEST)
-                else:
-                    definitions_used.append(definition)
-
+            parsed_entry: SeqIO.SeqRecord
+            for parsed_entry in query_file_seqs:
+                seq = str(parsed_entry.seq)
+                if not verify_dna(seq):
+                    return Response({
+                        'message': f"The sequence provided for '>{parsed_entry.description}' has non-DNA nucleotide characters."
+                    }, status = status.HTTP_400_BAD_REQUEST) 
                 query_sequences.append({
-                    'definition': definition, 
-                    'query_sequence': query_sequence
+                    'definition': parsed_entry.description,
+                    'query_sequence': seq
                 })
 
-                # attempt to read the next sequence
-                definition = query_file.file.readline().decode().strip()
-                query_sequence = query_file.file.readline().decode().strip()
+        if len(query_sequences) == 0:
+            return Response({'message': 'Found zero sequences in the request to query with. Sequences can be sent as text in a form or a file.'}, status = status.HTTP_400_BAD_REQUEST)
 
         print(query_sequences)
 
