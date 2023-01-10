@@ -11,7 +11,7 @@ class NuccoreSequenceSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = NuccoreSequence
-        fields = ['id', 'owner_database', 'accession_number', 'definition', 'organism', 'organelle', 'mol_type', 'isolate', 'country', 'specimen_voucher', 'lat_lon', 'dna_sequence', 'translation', 'created']
+        fields = ['id', 'owner_database', 'accession_number', 'definition', 'organism', 'organelle', 'mol_type', 'isolate', 'country', 'specimen_voucher', 'lat_lon', 'dna_sequence', 'translation', 'type_material', 'created']
 
 '''
 Show a condensed summary of a sequence, in order to display with a list of all blastdbs
@@ -37,7 +37,7 @@ Show a summary of a sequence, to be shown when only its blastdb or blastrun is s
 class BlastDbSequenceEntrySerializer(serializers.ModelSerializer):
     class Meta:
         model = NuccoreSequence
-        fields = ['id', 'accession_number', 'definition', 'organism', 'isolate', 'country', 'specimen_voucher', 'lat_lon', 'dna_sequence']
+        fields = ['id', 'accession_number', 'definition', 'organism', 'isolate', 'country', 'specimen_voucher', 'lat_lon',  'type_material', 'dna_sequence']
 
 '''
 Show detailed information about a specific blastdb
@@ -81,7 +81,7 @@ Show a summary of a sequence, when a query registers a hit on it.
 class NuccoreSequenceHitSerializer(serializers.ModelSerializer):
     class Meta:
         model = NuccoreSequence
-        fields = ['accession_number', 'definition', 'organism', 'isolate', 'country', 'specimen_voucher', 'lat_lon']
+        fields = ['accession_number', 'definition', 'organism', 'isolate', 'country', 'specimen_voucher', 'type_material', 'lat_lon']
 
 
 '''

@@ -32,8 +32,17 @@
 # json_data = json.loads(existing)
 # existing_sequences = [r["accession_number"] for r in json_data["sequences"]]
 
+
+
+
+# print single comma-separated string, no quotes
+with open("default.txt", "r") as desired_seqs:
+    lines = desired_seqs.readlines()
+    desired = [f'{line.strip()}' for line in lines]
+print(",".join(desired))
+
+# print single comma-separated string, with quotes
 with open("default.txt", "r") as desired_seqs:
     lines = desired_seqs.readlines()
     desired = [f'"{line.strip()}"' for line in lines]
-
 print(",".join(desired))

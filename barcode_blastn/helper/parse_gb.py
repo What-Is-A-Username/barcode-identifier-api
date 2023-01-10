@@ -1,4 +1,5 @@
 from typing import Dict, Generator, List
+from warnings import warn
 from Bio import Entrez 
 from Bio import SeqIO
 from Bio.SeqIO import SeqRecord
@@ -25,6 +26,7 @@ def retrieve_gb(accession_numbers: List[str]) -> List[Dict]:
         
     Raises:
         ValueError: If no accession numbers are provided, or the number of accessions is more than the maximum specified by MAX_ACCESSIONS_PER_REQUEST
+        HTTPError: If there is a network error when retrieving data from GenBank using Bio.Entrez
     """
     if accession_numbers is None:
         raise ValueError(f'List of accession numbers to query is None.')
@@ -42,13 +44,10 @@ def retrieve_gb(accession_numbers: List[str]) -> List[Dict]:
     request_time_str = datetime.now().strftime("%H:%M:%S.%f")
     print(f'{request_time_str} | Fetching from GenBank for accessions {accessions}')
 
-    try: 
-        handle = Entrez.efetch(db="nucleotide", rettype="gb", retmode="text", id=accessions)
-    except HTTPError:
-        raise 
-    else:
-        response_time_str = datetime.now().strftime("%H:%M:%S.%f")
-        print(f'{response_time_str} | Response received from GenBank for accessions {accessions}')
+    # Raises HTTPError if there is a network error
+    handle = Entrez.efetch(db="nucleotide", rettype="gb", retmode="text", id=accessions)
+    response_time_str = datetime.now().strftime("%H:%M:%S.%f")
+    print(f'{response_time_str} | Response received from GenBank for accessions {accessions}')
     seq_records : Generator = SeqIO.parse(handle, "genbank")
 
     all_data = []
@@ -61,23 +60,46 @@ def retrieve_gb(accession_numbers: List[str]) -> List[Dict]:
             'dna_sequence': str(seq_record.seq)
         }
         features : List[ SeqFeature ] = seq_record.features
-        qualifiers_to_extract = ['organism', 'organelle', 'mol_type', 'isolate', 'country', 'specimen_voucher', 'lat_lon']
+        qualifiers_to_extract = ['organism', 'organelle', 'mol_type', 'isolate', 'country', 'specimen_voucher', 'type_material', 'lat_lon']
         try: 
             source_feature : SeqFeature = [feature for feature in features if feature.type == 'source'][0]
         except IndexError:
+            # set fields to N/A if no source features found
             for qualifier_name in qualifiers_to_extract:
-                current_data[qualifier_name] = ''
+                current_data[qualifier_name] = 'N/A'
         else:
             for qualifier_name in qualifiers_to_extract:
                 if qualifier_name in source_feature.qualifiers:
                     try:
+                        # take only the first line/element of the feature
                         current_data[qualifier_name] = source_feature.qualifiers[qualifier_name][0]
                     except IndexError:
-                        current_data[qualifier_name] = ''
+                        # set it to 'error' if above code errored
+                        current_data[qualifier_name] = 'error'
                 else:
+                    # set it to empty string if qualifier was not found in the data
                     current_data[qualifier_name] = ''
 
-        all_data.append(current_data)
+            # use type material specified in 'note' if no type_material was found 
+            if (current_data['type_material'] == '' and 'note' in source_feature.qualifiers):
+                notes : str = ''
+                try:
+                    # include all notes 
+                    notes = "\n".join(source_feature.qualifiers['note']).lower()
+                except BaseException:
+                    notes = 'error'
+                else:
+                    if 'paratype' in notes or 'holotype' in notes:
+                        if notes.startswith('type: '):
+                            # remove "type: " from the beginning if it is present
+                            notes = notes.replace('type: ', '')
+                        else:
+                            # print a warning to the console if the "type: " string was not found at start
+                            print(f'Inferred type material from notes since it contained "paratype" or "holotype". It did not start with "type: ". Consider checking /type_material and/or /note info for {seq_record.name} in GenBank.')
+                finally:
+                    current_data['type_material'] = notes
+        finally:
+            all_data.append(current_data)
 
     handle.close()
 

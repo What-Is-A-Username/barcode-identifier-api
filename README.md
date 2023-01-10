@@ -346,17 +346,24 @@ python manage.py migrate barcode_blastn zero
 psql -d barcode_identifier_db -f db.sql -U admin -h 127.0.0.1 
 ```
 
-Alternatively, you can drop the database and recreate it:
+Alternatively, you can drop the database and recreate it. Replace user_name (default: "admin") according to your setup:
 ```
 sudo su postgres
 psql
-drop database your_database_name;
-create database your_database_name with owner user_you_use_in_django;
+drop database barcode_identifier_db;
+create database barcode_identifier_db with owner <user_name>;
 \q
 exit
 python manage.py makemigrations
 python manage.py migrate
 psql -h 127.0.0.1 -d barcode_identifier_db -U admin -f db.sql
+```
+
+### I dropped the database and remade it after migrations. Now the password credentials to the admin dashboard don't work.
+
+It is possible that dropping the database and deleting the old migrations may have removed the admin user account. You can create a new admin account by using the following commands and entering the new information for admin login.
+```
+python manage.py createsuperuser
 ```
 
 ### I started the app as a background daemon. How do I kill the process?

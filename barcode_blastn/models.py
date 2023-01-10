@@ -37,11 +37,10 @@ class NuccoreSequence(models.Model):
     dna_sequence = models.TextField(max_length=10000, blank=True, default='')
     translation = models.TextField(max_length=10000, blank=True, default='')
     lat_lon = models.CharField(max_length=64, blank=True, default='')
+    type_material = models.CharField(max_length=255, blank=True, default='')
 
     class Meta:
         ordering = ['accession_number']
-
-
 
 class BlastRun(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
