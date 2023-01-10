@@ -1,7 +1,7 @@
 # TODO: Install Python 3.10.6 to match EC2
 
 import io
-from typing import List
+from typing import Dict, List
 from urllib import request
 import uuid
 import os
@@ -12,7 +12,7 @@ from barcode_blastn.helper.verify_query import verify_query, verify_dna
 from barcode_blastn.models import BlastQuerySequence, BlastRun, Hit, NuccoreSequence, BlastDb
 from barcode_blastn.permissions import IsAdminOrReadOnly
 from barcode_blastn.renderers import BlastRunCSVRenderer, BlastRunTxtRenderer, BlastDbCSVRenderer, BlastDbFastaRenderer
-from barcode_blastn.serializers import BlastRunRunSerializer, BlastRunSerializer, BlastRunStatusSerializer, HitSerializer, NuccoreSequenceAddSerializer, NuccoreSequenceSerializer, BlastDbSerializer, BlastDbListSerializer
+from barcode_blastn.serializers import BlastRunRunSerializer, BlastRunSerializer, BlastRunStatusSerializer, HitSerializer, NuccoreSequenceAddSerializer, NuccoreSequenceBulkAddSerializer, NuccoreSequenceSerializer, BlastDbSerializer, BlastDbListSerializer
 from rest_framework import status, generics, mixins
 from rest_framework.parsers import JSONParser, FormParser, MultiPartParser
 from rest_framework.permissions import IsAdminUser, AllowAny
@@ -36,7 +36,89 @@ class NuccoreSequenceList(mixins.ListModelMixin, generics.GenericAPIView):
     '''
     def get(self, request, *args, **kwargs):
         return self.list(request, *args, **kwargs)
+
+'''
+Bulk add sequences to a specified database
+'''
+class NuccoreSequenceBulkAdd(generics.CreateAPIView):
+    serializer_class = NuccoreSequenceBulkAddSerializer
+    permission_classes = [ IsAdminUser ]
+    queryset = NuccoreSequence.objects.all()
+    
+    '''
+    Create a new accession number and add it to an existing database
+    '''
+    def post(self, request, *args, **kwargs):
+        desired_numbers = request.data['accession_numbers']
+        if len(desired_numbers) == 0:
+            return Response({'message': 'The list of numbers to add cannot be empty.', 'accession_numbers': str(desired_numbers)}, status.HTTP_400_BAD_REQUEST)
+
+        pk = kwargs['pk']
+        # Query for the Blast database
+        try:
+            db = BlastDb.objects.get(id=pk)
+        except BlastDb.DoesNotExist:
+            return Response({'message': 'Database does not exist', 'requested': pk}, status.HTTP_404_NOT_FOUND)
         
+        # Check what accession numbers are duplicate (i.e. already existing in the datab)
+        existing = NuccoreSequence.objects.filter(
+            owner_database_id = pk
+        ).filter(
+            accession_number__in = desired_numbers
+        )
+            
+        # return an OK status if all the numbers to be added already exist
+        if existing.count() == len(desired_numbers):
+            return Response({'message': "Every accession number specified to be added already exists in the database.", 'accession_numbers': desired_numbers}, status=status.HTTP_200_OK)
+
+        existing_numbers = [dup.accession_number for dup in existing]
+        missing_numbers = [number for number in desired_numbers if number not in existing_numbers ]
+
+        # retrieve data
+        genbank_data : List[Dict]
+        try:
+            genbank_data = retrieve_gb(accession_numbers = missing_numbers)
+        except ValueError:
+            return Response({
+                    'message': f"Bulk addition of sequences requires a list of accession numbers and the list length must have 1 to 100 elements (inclusive).", 
+                    "accession_numbers": desired_numbers 
+                }, 
+                status=status.HTTP_400_BAD_REQUEST)
+        except HTTPError:
+            return Response({
+                    'message': f"The GenBank database could not be connected to.", 
+                    "accession_numbers": desired_numbers, 
+                    "queried_numbers": missing_numbers
+                }, 
+                status=status.HTTP_400_BAD_REQUEST)
+        except BaseException:
+            return Response({'message': f"Failed to parse GenBank database response when requested for a list of accession numbers", 
+                    "accession_numbers": desired_numbers, 
+                    "queried_numbers": missing_numbers
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                
+        # check if we are missing any data
+        failed_queries : List[str]
+        failed_queries = [entry["accession_number"] for entry in genbank_data]
+        # stop execution if data not complete
+        if len(failed_queries) < len(missing_numbers):
+            return Response({
+                    'message': f"The GenBank database failed to return some accession numbers so no numbers were added at all.", 
+                    "accession_numbers": desired_numbers,
+                    "queried_numbers": failed_queries
+                }, 
+                status=status.HTTP_400_BAD_REQUEST)
+        
+        # save the new sequences using a bulk operation
+        all_new_sequences = [NuccoreSequence(owner_database=db, **data) for data in genbank_data]
+        created_sequences = NuccoreSequence.objects.bulk_create(all_new_sequences)
+
+        # serialize the list of created objects so they can be sent back
+        serialized_data = NuccoreSequenceSerializer(created_sequences, many = True).data
+
+        return Response(serialized_data, status = status.HTTP_201_CREATED)
+
 '''
 Add a sequence to a specified database
 '''
@@ -355,10 +437,11 @@ class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
 
         if not odb.locked:
             print('Database was not locked. Creating database locally ...')
-            # Make the database
             
+            # Make the database from scratch
             if os.path.exists(fishdb_path):
                 try:
+                    # delete the old folder
                     shutil.rmtree(fishdb_path, ignore_errors = False)
                 except BaseException as base_exception:
                     return Response({

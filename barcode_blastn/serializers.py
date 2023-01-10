@@ -48,7 +48,7 @@ class BlastDbSerializer(serializers.ModelSerializer):
     class Meta:
         model = BlastDb
         fields = ['id', 'custom_name', 'description', 'locked', 'sequences']
-    
+
 '''
 Required fields for adding a sequence accession to the database
 '''
@@ -56,6 +56,14 @@ class NuccoreSequenceAddSerializer(serializers.ModelSerializer):
     class Meta:
         model = NuccoreSequence
         fields = ['accession_number']
+
+'''
+Serialize data when receiving a request to bulk add sequences to a database
+'''
+class NuccoreSequenceBulkAddSerializer(serializers.Serializer):
+    accession_numbers = serializers.ListField(
+        child=NuccoreSequenceAddSerializer()
+    )
 
 '''
 Serialize a hit to be returned with a list of all hits
