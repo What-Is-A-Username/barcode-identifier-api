@@ -11,7 +11,7 @@ from barcode_blastn.serializers import BlastDbSequenceEntrySerializer,  BlastRun
 Return the entries of blastdb in FASTA format (accession number + sequence)
 '''
 class BlastDbFastaRenderer(BaseRenderer):
-    media_type = 'text/plain'
+    media_type = 'text/x-fasta'
     format = 'fasta'
     charset = 'utf-8'
 
@@ -20,6 +20,17 @@ class BlastDbFastaRenderer(BaseRenderer):
         for sequence in data['sequences']:
             fasta_file.append(f'>{sequence["accession_number"]}\n{sequence["dna_sequence"]}\n')
         return ''.join(fasta_file).encode(self.charset)
+
+'''
+Return input file of run in FASTA format 
+'''
+class BlastRunFastaRenderer(BaseRenderer):
+    media_type = 'text/x-fasta'
+    format = 'fasta'
+    charset = 'utf-8'
+    
+    def render(self, data, accepted_media_type=None, renderer_context=None):
+        return data
 
 '''
 Return the blastdb in CSV format
