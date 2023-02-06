@@ -18,5 +18,6 @@ from django.contrib import admin
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('', include('barcode_blastn.urls'))
+    path('', include('barcode_blastn.urls')),
+    path('', include('barcode_tree.urls'))
 ]
