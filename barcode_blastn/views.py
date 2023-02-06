@@ -11,7 +11,7 @@ from barcode_blastn.helper.parse_gb import retrieve_gb
 from barcode_blastn.helper.verify_query import verify_query, verify_dna
 from barcode_blastn.models import BlastQuerySequence, BlastRun, Hit, NuccoreSequence, BlastDb
 from barcode_blastn.permissions import IsAdminOrReadOnly
-from barcode_blastn.renderers import BlastRunCSVRenderer, BlastRunTxtRenderer, BlastDbCSVRenderer, BlastDbFastaRenderer
+from barcode_blastn.renderers import BlastRunCSVRenderer, BlastRunTxtRenderer, BlastDbCSVRenderer, BlastDbFastaRenderer, BlastRunFastaRenderer
 from barcode_blastn.serializers import BlastRunRunSerializer, BlastRunSerializer, BlastRunStatusSerializer, HitSerializer, NuccoreSequenceAddSerializer, NuccoreSequenceBulkAddSerializer, NuccoreSequenceSerializer, BlastDbSerializer, BlastDbListSerializer
 from rest_framework import status, generics, mixins
 from rest_framework.parsers import JSONParser, FormParser, MultiPartParser
@@ -254,7 +254,7 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
         file_name_root = db.custom_name
         if request.accepted_media_type.startswith('text/csv'):
             response['Content-Disposition'] = f'attachment; filename={file_name_root}.csv";'
-        elif request.accepted_media_type.startswith('text/plain'):
+        elif request.accepted_media_type.startswith('text/x-fasta'):
             response['Content-Disposition'] = f'attachment; filename="{file_name_root}.fasta";'
 
         return response
@@ -454,7 +454,6 @@ class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
             fasta_file = fishdb_path + f'/database.fasta'
             with open(fasta_file, 'w') as my_file:
                 for x in sequences:
-                    print(x.organism)
                     identifier = x.accession_number
                     dna_sequence = x.dna_sequence
                     my_file.write('>' + identifier + '\n' + dna_sequence + '\n')
@@ -547,6 +546,35 @@ class BlastRunDetail(mixins.DestroyModelMixin, generics.GenericAPIView):
             shutil.rmtree(local_run_folder, ignore_errors=True)
 
         return self.destroy(request, *args, **kwargs)
+
+'''
+Return the sequences submitted to a run as a .fasta file
+'''
+class BlastRunInputDownload(generics.GenericAPIView):
+    queryset = BlastRun.objects.all()
+    serializer_class = BlastRunSerializer
+    permission_classes = [IsAdminOrReadOnly]
+    renderer_classes = [BlastRunFastaRenderer]
+    
+    def get(self, request, *args, **kwargs):
+        db_primary_key = kwargs['pk']
+
+        try:
+            run = BlastRun.objects.get(id = db_primary_key)
+        except BlastRun.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        
+        file_name = 'query.fasta'
+        query_path = os.path.abspath(f'./runs/{run.id}/{file_name}')
+        if os.path.exists(query_path) and os.path.isfile(query_path):
+            # return file in response
+            file_handler = open(query_path, 'r')
+            response = Response(file_handler, content_type="text/x-fasta", status=status.HTTP_200_OK)
+            response['Content-Disposition'] = f'attachment; filename="{file_name}";'
+            return response
+        else:
+            # return 404 error if the query.fasta file does not exist
+            return Response(status=status.HTTP_404_NOT_FOUND)
 
 '''
 Download the run results in either .txt or .csv format
