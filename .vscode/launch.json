@@ -13,6 +13,15 @@
                 "runserver"
             ],
             "django": true
+        },
+        {
+            "name": "Python: ClustalO",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/clustalo.py",
+            "args": [
+                "--asyncjob", "--email", "email@domain.com", "./aggregate.fasta"
+            ],
         }
     ]
 }

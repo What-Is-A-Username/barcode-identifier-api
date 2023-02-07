@@ -1,3 +1,5 @@
 from django.contrib import admin
 
-# Register your models here.
+from barcode_tree.models import ResultTree
+
+admin.site.register(ResultTree)

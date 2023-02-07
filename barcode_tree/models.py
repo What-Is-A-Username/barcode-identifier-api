@@ -17,8 +17,6 @@ class ResultTree(models.Model):
     tree_job_id = models.CharField(max_length=100, blank=True, default='')
 
     class TreeStatus(models.TextChoices):
-        # Result tree is just being made, but no requests have been made yet
-        STARTING = 'STA', _('STARTING') 
         # Waiting for web tool to return an aligned sequence
         ALIGNING = 'ALN', _('ALIGNING')
         # Waiting for alignments to saved and relayed for tree construction
@@ -30,6 +28,9 @@ class ResultTree(models.Model):
         # Finished constructing tree and saving it locally
         FINISHED = 'FIN', _('FINISHED')
         # Unexpected error 
+        ERRORED = 'ERR', _('ERRORED')
+
+    internal_status = models.CharField(max_length=3,choices=TreeStatus.choices, default=TreeStatus.ALIGNING)
         
         
         

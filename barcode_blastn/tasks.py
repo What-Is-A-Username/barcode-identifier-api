@@ -51,7 +51,7 @@ def run_blast_command(ncbi_blast_version: str, fishdb_id: str, run_id: str) -> N
 
     db_path = project_root + '/fishdb/' + fishdb_id + '/database' 
     # check if the database file exists
-    if not os.path.exists(db_path) or not os.path.isfile(db_path):
+    if not os.path.exists(db_path + '.fasta') or not os.path.isfile(db_path + '.fasta'):
         raise_error(run_details, f"Critical error: Failed to find BLAST database at {db_path}")
         return
 
