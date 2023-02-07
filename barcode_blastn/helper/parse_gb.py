@@ -85,14 +85,15 @@ def retrieve_gb(accession_numbers: List[str]) -> List[Dict]:
                 notes : str = ''
                 try:
                     # include all notes 
-                    notes = "\n".join(source_feature.qualifiers['note']).lower()
+                    notes = "\n".join(source_feature.qualifiers['note'])
                 except BaseException:
                     notes = 'error'
                 else:
-                    if 'paratype' in notes or 'holotype' in notes:
-                        if notes.startswith('type: '):
+                    notes_lower = notes.lower()
+                    if 'paratype' in notes_lower or 'holotype' in notes_lower:
+                        if notes_lower.startswith('type: ') and len(notes_lower) > 6:
                             # remove "type: " from the beginning if it is present
-                            notes = notes.replace('type: ', '')
+                            notes = notes[6:]
                         else:
                             # print a warning to the console if the "type: " string was not found at start
                             print(f'Inferred type material from notes since it contained "paratype" or "holotype". It did not start with "type: ". Consider checking /type_material and/or /note info for {seq_record.name} in GenBank.')

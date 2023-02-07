@@ -71,3 +71,6 @@ old_requirements.txt
 # results
 fishdb/
 runs/
+
+# log files
+barcode_identifier_api.log
