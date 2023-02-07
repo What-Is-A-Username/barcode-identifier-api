@@ -121,7 +121,10 @@ Now the error should be resolved, and commands like `python manage.py runserver`
 One method of resolving it, albeit very blunt and destructive, is to remove all the data in the table and let the database be constructed from scratch using the `db.sql` file.
 ```
 python manage.py flush
-python manage.py migrate barcode_blastn zero
+```
+Delete all XXXX_name.py files from the barcode_blastn/migrations folder to reset the database migrations before running the following:
+```
+python manage.py makemigrations 
 psql -d barcode_identifier_db -f db.sql -U admin -h 127.0.0.1 
 ```
 
@@ -129,8 +132,8 @@ Alternatively, you can drop the database and recreate it:
 ```
 sudo su postgres
 psql
-drop database your_database_name;
-create database your_database_name with owner user_you_use_in_django;
+drop database barcode_identifier_db;
+create database barcode_identifier_db with owner admin;
 \q
 exit
 python manage.py makemigrations

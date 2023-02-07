@@ -70,3 +70,6 @@ old_requirements.txt
 
 # results
 fishdb/
+
+# runs
+runs/
