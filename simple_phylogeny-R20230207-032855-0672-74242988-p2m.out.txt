@@ -1,0 +1,27 @@
+
+
+
+ CLUSTAL 2.1 Multiple Sequence Alignments
+
+
+Sequence format is Pearson
+Sequence 1: ON303353            660 bp
+Sequence 2: KF533336            660 bp
+Sequence 3: ON303425            660 bp
+Sequence 4: KF533341            660 bp
+Sequence 5: ON303375            660 bp
+Sequence 6: ON303429            660 bp
+Sequence 7: ON303428            660 bp
+Sequence 8: ON303427            660 bp
+Sequence 9: ON303431            660 bp
+Sequence 10: KF533332            660 bp
+Sequence 11: KR491582            660 bp
+Sequence 12: ON303430            660 bp
+Sequence 13: ON303368            660 bp
+Sequence 14: ON303367            660 bp
+Sequence 15: ON303370            660 bp
+Sequence 16: query_sequence      660 bp
+Sequence 17: KR491592            660 bp
+
+Phylogenetic tree file created:   [simple_phylogeny-R20230207-032855-0672-74242988-p2m.ph]
+

@@ -9,6 +9,7 @@ from Bio.Seq import Seq
 import os
 import json
 from barcode_tree.modified_clustalo import getMultipleAlignmentResult, serviceGetStatus, submitMultipleAlignmentAsync
+from barcode_tree.modified_simple_phylogeny import checkSimplePhylogenyStatus, getSimplePhylogenyOutput, readTreeFromFile, submitSimplePhylogenyAsync
 
 from barcode_tree.serializers import ResultTreeCreatorSerializer, ResultTreeDetailSerializer 
 
@@ -33,42 +34,62 @@ class ResultTreeDetail(mixins.DestroyModelMixin, generics.GenericAPIView):
             tree : ResultTree = ResultTree.objects.get(owner_run=run_id)
         except ResultTree.DoesNotExist:
             # If there is no object, return nothing
-            return Response(status=status.HTTP_404_NOT_FOUND); 
-
+            return Response(status=status.HTTP_404_NOT_FOUND);       
+    
         if tree.internal_status == ResultTree.TreeStatus.ALIGNING:
+            # If the last status indicated that multiple sequence alignment was occurring
+
+            # Check if the job finished
+
             operationFinished = serviceGetStatus(tree.alignment_job_id)
+            # if operation is finished, change status and prepare data for tree construction
             if operationFinished:
                 tree.internal_status = ResultTree.TreeStatus.PROCESSING
-                # save clustal files 
                 tree.save()
-                getMultipleAlignmentResult(job_id=tree.alignment_job_id, run_id=run_id)
+                # save clustal files locally
+                try:
+                    getMultipleAlignmentResult(job_id=tree.alignment_job_id, run_id=run_id)
+                except BaseException:
+                    tree.internal_status = ResultTree.TreeStatus.ERRORED
+                    tree.save()
+                    return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                # submit tree construction job
+                try:
+                    new_job_id : str = submitSimplePhylogenyAsync(run_id=run_id)
+                except FileNotFoundError:
+                    tree.internal_status = ResultTree.TreeStatus.ERRORED
+                    tree.save()
+                    return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                else:
+                    # TODO: Confirm operation was successful by checking for network error, exceptions
+                    tree.tree_job_id = new_job_id
+                    tree.internal_status = ResultTree.TreeStatus.CONSTRUCTING
+                    tree.save()
         elif tree.internal_status == ResultTree.TreeStatus.CONSTRUCTING:
-            # TODO: Return response
-            pass
-        elif tree.internal_status == ResultTree.TreeStatus.CLEANING:
-            # TODO: Return response
-            pass
-        elif tree.internal_status == ResultTree.TreeStatus.FINISHED:
-            # TODO: Return response
-            pass
-        elif tree.internal_status == ResultTree.TreeStatus.ERRORED:
-            # TODO: Return response
-            pass
+            # If the last status indicated that tree construction was occurring
+
+            # Check if the job finished
+            operationFinished = checkSimplePhylogenyStatus(tree.tree_job_id)
+            if operationFinished:
+                tree.internal_status = ResultTree.TreeStatus.CLEANING
+                tree.save()
+                # save tree files locally
+                try:
+                    getSimplePhylogenyOutput(jobId=tree.tree_job_id, run_id=run_id)
+                except BaseException:
+                    tree.internal_status = ResultTree.TreeStatus.ERRORED
+                    tree.save()
+                else:
+                    tree.internal_status = ResultTree.TreeStatus.FINISHED
+                    tree.save()
 
         serializer = ResultTreeDetailSerializer(tree)
-        response = Response(serializer.data, status = status.HTTP_200_OK)
+        data = serializer.data
+        # read the tree string from file, return an empty string otherwise
+        data['tree'] = readTreeFromFile(run_id) if tree.internal_status == ResultTree.TreeStatus.FINISHED else ''
+        response = Response(data, status = status.HTTP_200_OK)
 
         return response
-
-        # If there is an object, then based on status,
-            # TODO: check if tree result already exists in the file system
-                # return it if it exists
-            # TODO: check if multiple sequence alignment exists in system (ALTERNATIVE: use celery worker)
-                # TODO: if job not yet submitted, submit to simple phylogeny
-                # TODO: if job submitted, poll for result
-                    # TODO:  if response has result, write result to file system and return the response
-                    # else return status
-            # throw error 
 
     '''
         View and create phylogenic trees for blast output sequences.
@@ -90,14 +111,14 @@ class ResultTreeDetail(mixins.DestroyModelMixin, generics.GenericAPIView):
             )
 
         # If a Result tree object already exists for this run, don't do anything and return a response
-        # try:
-        #     tree : ResultTree = ResultTree.objects.get(owner_run=run_id)
-        # except ResultTree.DoesNotExist:
-        #     pass
-        # else:
-        #     return Response(
-        #         {'message': 'Already started performing tree construction. Cannot start tree construction more than once.' }, 
-        #         status=status.HTTP_400_BAD_REQUEST)
+        try:
+            tree : ResultTree = ResultTree.objects.get(owner_run=run_id)
+        except ResultTree.DoesNotExist:
+            pass
+        else:
+            return Response(
+                {'message': 'Already started performing tree construction. Cannot start tree construction more than once.' }, 
+                status=status.HTTP_400_BAD_REQUEST)
 
         # Gather sequences (query sequences + hit sequences) into a single FASTA
         run_folder = os.path.abspath(f'./runs/{run_id}')

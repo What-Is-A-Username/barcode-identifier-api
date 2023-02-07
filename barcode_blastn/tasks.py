@@ -109,6 +109,8 @@ def run_blast_command(ncbi_blast_version: str, fishdb_id: str, run_id: str) -> N
     except BaseException:
         raise_error(run_details, f"Errored while bulk creating hit results.")
         return
+
+    # update run information
     try:
         run_details.errors = err
         run_details.job_status = BlastRun.JobStatus.FINISHED
