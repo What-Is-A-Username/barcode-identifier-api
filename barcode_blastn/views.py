@@ -433,6 +433,13 @@ class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
             shutil.chown(results_path, group='celery') 
             os.chmod(results_path, 0o774)
 
+        # static path to download results
+        static_path = '/var/www/runs/' + str(results_uuid)
+        if not os.path.exists(static_path):
+            os.mkdir(static_path)
+            shutil.chown(static_path, group='celery')
+            os.chmod(static_path, 0o774)
+
         print("Run id: " + str(results_uuid))
 
         if not odb.locked:

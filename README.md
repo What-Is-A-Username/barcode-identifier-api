@@ -197,9 +197,19 @@ tar -xzvf ncbi-blast-2.12.0+-x64-linux.tar.gz
 rm ncbi-blast-2.12.0+-x64-linux.tar.gz
 ```
 
-If not already done so, make the blast db file used to run the queries. FIRST, make a database.fasta file at ./4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/database.fasta, and add fasta entries for every species in the database. Then, run the following command in the terminal to make the db:
+If everything above worked, then BLAST tools should now be installed in the `ncbi-blast-2.12.0+` subfolder within this project.
+
+### Setup the necessary folders
+Ensure that the root directory already has a `runs` folder (i.e. the folder `~/barcode_identifier_api/runs` should exist). If it doesn't, run:
 ```
-ncbi-blast-2.12.0+/bin/makeblastdb -in fishdb/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/database.fasta -dbtype nucl -out fishdb/4f33c746-e566-4cfb-a79d-1d4bcb8cae6d/database -title database 
+sudo mkdir runs
+sudo chown 775 runs
+```
+
+There should also be a separate `runs` folder in `/var/www/`, to allow users to download results files (primarily alignment output).
+```
+sudo mkdir /var/www/runs
+sudo chown 755 /var/www/runs
 ```
 
 ### Setup the systemd services

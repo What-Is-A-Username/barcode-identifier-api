@@ -168,9 +168,10 @@ def readTreeFromFile(run_id: str) -> str:
     run_folder = os.path.abspath(f'./runs/{run_id}')
     run_files = os.listdir(run_folder)
     try:
-        phylip_file = [r for r in run_files if r.endswith(".tree.ph")][0]
+        phylip_file = [r for r in run_files if r.endswith(".phylotree.ph")][0]
     except IndexError:
         print("Warning: Tried to find local copy of tree PHYLIP file, but no file was found.")
+        # TODO: return error if no file is actually found?
         return ''
     else:
         with open(f'{run_folder}/{phylip_file}') as tree_file:

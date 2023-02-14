@@ -11,4 +11,4 @@ class ResultTreeCreatorSerializer(serializers.ModelSerializer):
 class ResultTreeDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = ResultTree
-        fields = ['owner_run', 'alignment_job_id', 'tree_job_id', 'internal_status']
+        fields = ['owner_run', 'alignment_job_id', 'internal_status']

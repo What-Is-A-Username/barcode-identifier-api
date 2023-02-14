@@ -5,6 +5,7 @@ from barcode_blastn.models import BlastRun, Hit
 from barcode_tree.models import ResultTree
 from rest_framework.response import Response
 from Bio import SeqIO
+import shutil
 from Bio.Seq import Seq
 import os
 import json
@@ -53,33 +54,19 @@ class ResultTreeDetail(mixins.DestroyModelMixin, generics.GenericAPIView):
                     tree.internal_status = ResultTree.TreeStatus.ERRORED
                     tree.save()
                     return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                # submit tree construction job
-                try:
-                    new_job_id : str = submitSimplePhylogenyAsync(run_id=run_id)
-                except FileNotFoundError:
-                    tree.internal_status = ResultTree.TreeStatus.ERRORED
-                    tree.save()
-                    return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
                 else:
                     # TODO: Confirm operation was successful by checking for network error, exceptions
-                    tree.tree_job_id = new_job_id
-                    tree.internal_status = ResultTree.TreeStatus.CONSTRUCTING
-                    tree.save()
-        elif tree.internal_status == ResultTree.TreeStatus.CONSTRUCTING:
-            # If the last status indicated that tree construction was occurring
-
-            # Check if the job finished
-            operationFinished = checkSimplePhylogenyStatus(tree.tree_job_id)
-            if operationFinished:
-                tree.internal_status = ResultTree.TreeStatus.CLEANING
-                tree.save()
-                # save tree files locally
-                try:
-                    getSimplePhylogenyOutput(jobId=tree.tree_job_id, run_id=run_id)
-                except BaseException:
-                    tree.internal_status = ResultTree.TreeStatus.ERRORED
-                    tree.save()
-                else:
+                    
+                    # move files to be downloaded
+                    destination_dir = f'/var/www/runs/{run_id}'
+                    parent_folder = os.path.abspath(f'./runs/{run_id}')
+                    files = os.listdir(parent_folder)
+                    files_to_transfer = ['.aln-clustal_num.clustal_num', '.phylotree.ph', '.pim.pim', '.sequence.txt']
+                    for file in files:
+                        if any(file.endswith(extension) for extension in files_to_transfer):
+                            shutil.copy(f'{parent_folder}/{file}', destination_dir)
+                            
+                    
                     tree.internal_status = ResultTree.TreeStatus.FINISHED
                     tree.save()
 
@@ -145,7 +132,7 @@ class ResultTreeDetail(mixins.DestroyModelMixin, generics.GenericAPIView):
         # DOI:  10.1038/msb.2011.75
         # TODO: Find citation for EMBL-EBI
 
-        # This runs the tool
+        # This runs the tool, mimicking the following command line calls from the original Python wrapper
         # python clustalo.py --asyncjob --email email@domain.com ./aggregate.fasta
         # This checks if its done
         # python clustalo.py --status --jobid clustalo-R20230207-011805-0893-96632125-p2m
