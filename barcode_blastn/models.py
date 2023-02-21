@@ -1,3 +1,4 @@
+from datetime import datetime
 from unittest.util import _MAX_LENGTH
 from django.db import models
 from django.utils.translation import gettext_lazy as _
@@ -47,14 +48,24 @@ class BlastRun(models.Model):
 
     # Reference to the database used
     db_used = models.ForeignKey(BlastDb, related_name='usages', on_delete=models.CASCADE)
-    # When was the blastn run?
+    # When was the run request first received (i.e. added to queue)
     runtime = models.DateTimeField(auto_now_add=True)
     # Job name
     job_name = models.CharField(max_length=255, blank=True, default='')
 
-    # Query sequence
-    # TODO: remove query_sequence reference
-    query_sequence = models.TextField(max_length=10000, blank=True, default='')
+    # Perform alignment and construct NJ tree of query sequences + hits?
+    create_hit_tree = models.BooleanField(default=True)
+    # Job ID of alignment using query + hit sequences
+    alignment_job_id = models.CharField(max_length=100, blank=True, default='')
+    
+    # Perform alignment and construct NJ tree of query sequences + all DB sequences?
+    create_db_tree = models.BooleanField(default=True)
+    # Job ID for alignment using query + all database sequences
+    complete_alignment_job_id = models.CharField(max_length=100, blank=True, default='')
+    # Newick string of tree with query sequences + hits 
+    hit_tree = models.TextField(blank=True, default='')
+    # Newick string of tree with query sequences + all database sequences
+    db_tree = models.TextField(blank=True, default='')
 
     class JobStatus(models.TextChoices):
         UNKNOWN = 'UNK', _('UNKNOWN')
@@ -64,17 +75,27 @@ class BlastRun(models.Model):
         ERRORED = 'ERR', _('ERRORED')
         FINISHED = 'FIN', _('FINISHED')
 
+    def throw_error(self, debug_error_message: str = ''):
+        '''Designate the current run to error and add debug_error_message string to errors.
+        '''
+        self.job_error_time = datetime.now()
+        self.errors = ('\n' + debug_error_message) if len(self.errors) > 0 else debug_error_message
+        self.job_status = self.JobStatus.ERRORED
+        self.save()
+
+    # What is the current status of the job?
     job_status = models.CharField(max_length=3,choices=JobStatus.choices, default=JobStatus.UNKNOWN)
-
+    # Time that the job started running
     job_start_time = models.DateTimeField(blank=True, null=True)
+    # Time that job successfully finished
     job_end_time = models.DateTimeField(blank=True, null=True)
+    # Time that job errored
+    job_error_time = models.DateTimeField(blank=True, null=True)
 
-    # RESULTS
     # Blast version
     blast_version = models.TextField(max_length=100, blank=True, default='')
-    # Database name 
 
-    # Error
+    # Error for internal debugging
     errors = models.TextField(max_length=10000, blank=True, default='')
 
 class BlastQuerySequence(models.Model):

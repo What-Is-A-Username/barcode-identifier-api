@@ -1,15 +1,26 @@
+import copy
+from io import StringIO
 import os
+import shutil
+from typing import Tuple
 from ratelimit import limits
 from shlex import quote
+from Bio import SeqIO
+from Bio.Seq import Seq
 from datetime import datetime, timezone
 import subprocess
 from typing import Dict, List
+from barcode_blastn.helper.modified_clustalo import getMultipleAlignmentResult, submitMultipleAlignmentAsync
 from barcode_blastn.helper.parse_gb import retrieve_gb
 from barcode_blastn.helper.parse_results import parse_results
-
+from rest_framework import status
+from barcode_blastn.helper.read_tree import readDbTreeFromFile, readHitTreeFromFile
 from barcode_blastn.models import BlastDb, BlastRun, Hit, NuccoreSequence 
 from django.db.models import QuerySet
-from celery import shared_task
+from barcode_identifier_api.celery import app
+
+# Max time
+HARD_TIME_LIMIT_IN_SECONDS = 600
 
 # update the blast run with the errors and print to console
 def raise_error(run: BlastRun, err: str) -> None:
@@ -19,10 +30,11 @@ def raise_error(run: BlastRun, err: str) -> None:
     run.save()
     return
 
-@shared_task(time_limit=30)  # hard time limit of 30 seconds 
-def run_blast_command(ncbi_blast_version: str, fishdb_id: str, run_id: str) -> None:   
-    '''
-        Performs a BLASTn search using the specified ncbi_blast_version, database with id fishdb_id, for the run of id run_id
+@app.task(time_limit=HARD_TIME_LIMIT_IN_SECONDS)  # hard time limit of 30 seconds 
+def run_blast_command(ncbi_blast_version: str, fishdb_id: str, run_id: str) -> bool:   
+    '''Performs a BLASTn search using the specified ncbi_blast_version, database with id fishdb_id, for the run of id run_id
+
+    Return true if operation was successful.
     '''
     print('Beginning queued BLAST search ...')
 
@@ -34,9 +46,9 @@ def run_blast_command(ncbi_blast_version: str, fishdb_id: str, run_id: str) -> N
     # TODO: throw error if blastrun DNE
     try:
         run_details : BlastRun = BlastRun.objects.get(id = run_id)
-    except BlastRun.DoesNotExist:
+    except BlastRun.DoesNotExist as exc:
         print(f"Critical error: BlastRun of id {run_id} does not exist.")
-        return
+        raise RuntimeError('BlastRun of specified id does not exist')
 
     run_details.job_status = BlastRun.JobStatus.STARTED
     run_details.job_start_time = datetime.now()
@@ -46,14 +58,14 @@ def run_blast_command(ncbi_blast_version: str, fishdb_id: str, run_id: str) -> N
     command_app = blast_root + '/blastn'
     # check if blast executable are present
     if not os.path.exists(command_app) or not os.path.isfile(command_app):
-        raise_error(run_details, f"Critical error: Failed to find BLASTn executable at {command_app}")
-        return
+        raise_error(run_details, f"Critical error: Failed to find blastn executable at {command_app}")
+        raise FileNotFoundError('Failed to find blastn executable')
 
     db_path = project_root + '/fishdb/' + fishdb_id + '/database' 
     # check if the database file exists
     if not os.path.exists(db_path + '.fasta') or not os.path.isfile(db_path + '.fasta'):
         raise_error(run_details, f"Critical error: Failed to find BLAST database at {db_path}")
-        return
+        raise FileNotFoundError('Failed to find BLAST database')
 
     run_folder = f'{project_root}/runs/{run_id}'
     results_file = f'{run_folder}/results.txt'
@@ -63,11 +75,11 @@ def run_blast_command(ncbi_blast_version: str, fishdb_id: str, run_id: str) -> N
     # check if run status folder exists
     if not os.path.exists(run_folder) or not os.path.isdir(run_folder):
         raise_error(run_details, f"Critical error: Failed to find run folder at {run_folder}")
-        return
+        raise FileNotFoundError('Failed to find run folder')
     # check if query file exists
     if not os.path.exists(query_file) or not os.path.isfile(query_file):
         raise_error(run_details, f"Critical error: Failed to find query sequence file at {query_file}")
-        return
+        raise FileNotFoundError('Failed to find query sequence file')
 
     outfmt = 7
 
@@ -84,8 +96,9 @@ def run_blast_command(ncbi_blast_version: str, fishdb_id: str, run_id: str) -> N
             out = process.stdout.read().decode()
         if process.stderr is not None:
             err = process.stderr.read().decode()
-    except BaseException:
+    except BaseException as exc:
         raise_error(run_details, f"Errored while retrieving shell output.")
+        raise RuntimeError('Errored while retrieving shell output.') from exc
 
     print('Writing results to file ...')
 
@@ -95,9 +108,9 @@ def run_blast_command(ncbi_blast_version: str, fishdb_id: str, run_id: str) -> N
         if err:
             with open(errors_file, "w") as errors_out:
                 errors_out.write(err)
-    except BaseException:
+    except BaseException as exc:
         raise_error(run_details, f"Errored while handling results output.")
-        return
+        raise RuntimeError('Errored while handling results output.') from exc
        
     # bulk create hits
     try:
@@ -106,26 +119,24 @@ def run_blast_command(ncbi_blast_version: str, fishdb_id: str, run_id: str) -> N
         accession_entries = NuccoreSequence.objects.filter(accession_number__in=accessions)
         all_hits = [Hit(**hit, owner_run = run_details, db_entry = accession_entries.get(accession_number=hit['subject_accession_version'])) for hit in parsed_data]
         Hit.objects.bulk_create(all_hits)
-    except BaseException:
+    except BaseException as exc:
         raise_error(run_details, f"Errored while bulk creating hit results.")
-        return
+        raise RuntimeError('Errored while bulk creating hit results.') from exc
 
     # update run information
     try:
         run_details.errors = err
-        run_details.job_status = BlastRun.JobStatus.FINISHED
-        run_details.job_end_time = datetime.now()
         run_details.save()
-    except BaseException:
-        raise_error(run_details, f"Errored while updating run status.")
-        return
+    except BaseException as exc:
+        raise_error(run_details, f"Errored while updating run errors.")
+        raise RuntimeError('Errored while updating run errors.') from exc
 
     print('Queued BLAST search completed.')
-    return
+    return True
 
 PERIOD = 3500 # Time between calls, in number of seconds
 @limits(calls = 1, period = PERIOD)
-@shared_task(time_limit=30)  # hard time limit of 30 seconds 
+@app.task(time_limit=HARD_TIME_LIMIT_IN_SECONDS)  # hard time limit of 30 seconds 
 def update_database() -> None:
     print("update_database ran at " + datetime.now().strftime("%H:%M:%S.%f"))
     all_dbs : QuerySet = BlastDb.objects.all() 
@@ -156,9 +167,167 @@ def update_database() -> None:
         updated_data = [make_updated_dict(entry) for entry in new_data if entry['accession_number'] in an_to_uid]
         
         print(f"Submitting updates to database ...")
-        
+
         NuccoreSequence.objects.bulk_update([NuccoreSequence(**data) for data in updated_data], fields=fields_to_update, batch_size=100)
 
         print(f"Finished updating database {str(db.id)}")
     print("Finished updating all databases.")
         
+
+PERIOD = 10 # Time between calls, in number of seconds
+@limits(calls = 1, period = PERIOD)
+@app.task(time_limit=HARD_TIME_LIMIT_IN_SECONDS)
+def performAlignment(blast_successful: bool, run_id: str) -> Tuple[str, int]:
+    '''Perform tree construction for the given run specified by run_id.
+        Return a three item tuple, representing the status message and status number.
+        The job was successful if status number is 201 
+    '''
+
+    if not blast_successful:
+        return ('BLAST returned error code', status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    # Check that the run exists
+    try:
+        run : BlastRun = BlastRun.objects.get(id=run_id)
+    except BlastRun.DoesNotExist:
+        return ('Could not find a run result with the given id.', status.HTTP_400_BAD_REQUEST)
+        
+    # Return if no construction needs to occur
+    if not run.create_db_tree and not run.create_hit_tree:
+        run.job_status = BlastRun.JobStatus.FINISHED
+        run.job_end_time = datetime.now()
+        run.save()
+        return ('', status.HTTP_200_OK)
+
+    # Gather sequences (query sequences + hit sequences) into a single list
+    run_folder = os.path.abspath(f'./runs/{run_id}')
+    query_sequences: List[SeqIO.SeqRecord] = list(SeqIO.parse(f'{run_folder}/query.fasta', 'fasta'))
+    for i in range(len(query_sequences)):
+        query_sequences[i].id += '|query'
+
+    def gatherSequences(sequences: List[NuccoreSequence], existingSequences: List[SeqIO.SeqRecord] = []) -> List[SeqIO.SeqRecord]:
+        '''Creates a new List of SeqRecords created by making a new deep copy of existingSequences and SeqRecords
+        made from the NuccoreSequences in sequences
+        '''
+        concatSequences = copy.deepcopy(existingSequences)
+        sequences_added = [q.id for q in concatSequences]
+        for seq in sequences:
+            seq_id = f'{seq.accession_number}|{seq.organism}'.replace(' ', '_')
+            if seq_id not in sequences_added:
+                concatSequences.append(SeqIO.SeqRecord(
+                    seq=Seq(seq.dna_sequence), 
+                    id= seq_id,
+                    description=seq.definition
+                ))
+                sequences_added.append(seq_id)
+        return concatSequences
+    
+    if run.create_hit_tree:
+        # Construct a list of all hit and query sequences
+        queryAndHitSequences = query_sequences[:]
+        # Query over all hits
+        hits = [h.db_entry for h in list(run.hits.all())] # type: ignore
+        queryAndHitSequences = gatherSequences(hits, query_sequences)
+
+        sequence_string = StringIO()
+        SeqIO.write(queryAndHitSequences, sequence_string, 'fasta')
+
+        hit_job_result = completeAlignment(sequence_string.getvalue(), run_id)
+        run.alignment_job_id = hit_job_result[0]
+        if hit_job_result[-1] != status.HTTP_200_OK:
+            run.throw_error(hit_job_result[1])
+            return (hit_job_result[1], hit_job_result[2]) 
+    
+    if run.create_db_tree:
+    # Construct a list of query sequences and all database sequences
+        allSequences = query_sequences[:]
+        blast_db = run.db_used
+        db_sequences = list(blast_db.sequences.all()) # type:ignore
+        allSequences = gatherSequences(db_sequences, query_sequences)
+        
+        sequence_string = StringIO()
+        SeqIO.write(allSequences, sequence_string, 'fasta')
+
+        all_job_result = completeAlignment(sequence_string.getvalue(), run_id)
+        run.complete_alignment_job_id = all_job_result[0]
+        if all_job_result[-1] != status.HTTP_200_OK:
+            run.throw_error(all_job_result[1])
+            return (all_job_result[1], all_job_result[2]) 
+
+    try:
+        run.job_status = BlastRun.JobStatus.FINISHED
+        run.db_tree = readDbTreeFromFile(run) if run.create_db_tree else ''
+        run.hit_tree = readHitTreeFromFile(run) if run.create_hit_tree else ''
+        run.job_end_time = datetime.now()
+        run.save()
+    except BaseException as exc:
+        raise_error(run, f"Errored while updating run status.")
+        raise RuntimeError('Errored while updating run status.') from exc
+
+    return ('', status.HTTP_201_CREATED)
+
+
+
+
+def completeAlignment(sequence_string: str, run_id: str) -> Tuple[str, str, int]:
+    '''
+        Submit a .fasta string for submission as a synchronous job to Clustal Omega.
+        Return a three-item tuple, containing the job ID, status message, and status number.
+        The job was successful if status message is 200 (OK).
+    '''
+
+    # The following code submits the fasta file to ClustalO at EMBL-EBI for multiple sequence alignment, and is adapted from clustalo.py at https://www.ebi.ac.uk/seqdb/confluence/display/JDSAT/Clustal+Omega+Help+and+Documentation
+    # ClustalO:
+    # TODO: Add citation to web interface
+    #   Sievers F., Wilm A., Dineen D., Gibson T.J., Karplus K., Li W., Lopez R., McWilliam H., Remmert M., Söding J., Thompson J.D. and Higgins D.G. (2011)
+    # Fast, scalable generation of high-quality protein multiple sequence alignments using Clustal Omega. 
+    # Mol. Syst. Biol. 7:539
+    # PMID:  21988835 
+    # DOI:  10.1038/msb.2011.75
+    # TODO: Find citation for EMBL-EBI
+
+    # This runs the tool, mimicking the following command line calls from the original Python wrapper
+    # python clustalo.py --asyncjob --email email@domain.com ./aggregate.fasta
+    # This checks if its done
+    # python clustalo.py --status --jobid clustalo-R20230207-011805-0893-96632125-p2m
+    # This outputs the data 
+    # python clustalo.py --polljob --jobid clustalo-R20230207-011805-0893-96632125-p2m
+    # job_id: str = submitClustalOAsyncJob(f'runs/{run_id}/aggregate.fasta', run_id)
+
+    job_id: str
+    try:
+        job_id = submitMultipleAlignmentAsync(sequence=sequence_string, run_id=run_id)
+    except BaseException:
+        return ('', 'Encountered unexpected error submitting job', status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # tree.internal_status = ResultTree.TreeStatus.ERRORED
+        # tree.save()
+
+    # tree.internal_status = ResultTree.TreeStatus.PROCESSING
+    # tree.save()
+    # save clustal files locally
+    try:
+        getMultipleAlignmentResult(job_id=job_id, run_id=run_id)
+    except BaseException:
+        return (job_id, 'Encountered unexpected error retrieving results', status.HTTP_500_INTERNAL_SERVER_ERROR)
+    else:
+        # TODO: Confirm operation was successful by checking for network error, exceptions
+        
+        # move files to be downloaded
+        try:
+            destination_dir = f'/var/www/runs/{run_id}'
+            parent_folder = os.path.abspath(f'./runs/{run_id}')
+            files = os.listdir(parent_folder)
+            files_to_transfer = ['.aln-clustal_num.clustal_num', '.phylotree.ph', '.pim.pim', '.sequence.txt']
+            for file in files:
+                if any(file.endswith(extension) for extension in files_to_transfer):
+                    shutil.copy(f'{parent_folder}/{file}', destination_dir)
+            # tree.internal_status = ResultTree.TreeStatus.FINISHED
+        except BaseException as exc:
+            pass
+        # except BaseException:
+            # tree.internal_status = ResultTree.TreeStatus.ERRORED
+        # tree.save()
+
+    # return success
+    return (job_id, 'Successfully ran alignment job', status.HTTP_200_OK); 
+

@@ -1,6 +1,8 @@
 # TODO: Install Python 3.10.6 to match EC2
 
 import io
+from celery import chain, signature
+from barcode_identifier_api.celery import app
 from typing import Dict, List
 from urllib import request
 import uuid
@@ -9,6 +11,7 @@ import shutil
 from Bio import SeqIO
 from barcode_blastn.helper.parse_gb import retrieve_gb
 from barcode_blastn.helper.verify_query import verify_query, verify_dna
+from barcode_blastn.helper.read_tree import readDbTreeFromFile, readHitTreeFromFile
 from barcode_blastn.models import BlastQuerySequence, BlastRun, Hit, NuccoreSequence, BlastDb
 from barcode_blastn.permissions import IsAdminOrReadOnly
 from barcode_blastn.renderers import BlastRunCSVRenderer, BlastRunTxtRenderer, BlastDbCSVRenderer, BlastDbFastaRenderer, BlastRunFastaRenderer
@@ -21,7 +24,8 @@ from rest_framework.response import Response
 from urllib.error import HTTPError
 from django.db.models import QuerySet
 
-from barcode_blastn.tasks import run_blast_command
+from barcode_blastn.tasks import run_blast_command, performAlignment
+# from barcode_tree.tasks import performAlignment
 
 '''
 List all the sequences in the server, irrespective of database
@@ -342,6 +346,28 @@ class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
                 'message': f"Cannot begin a blastn query on a database of less than {MINIMUM_NUMBER_OF_SEQUENCES} sequences. This database only contains {num_sequences_found} sequences."
             }, status = status.HTTP_400_BAD_REQUEST)
 
+        # Bad request if create_hit_tree and create_db_tree are not boolean values
+        create_hit_tree = False
+        create_db_tree = False 
+        if 'create_hit_tree' in request.data:
+            val = request.data['create_hit_tree']
+            if val is bool:
+                create_hit_tree = val
+            elif isinstance(val, str):
+                create_hit_tree = (val == 'true')
+            else:
+                return Response({'message': 'Could not parse parameters for create_hit_tree'},
+                status=status.HTTP_400_BAD_REQUEST)
+        if 'create_db_tree' in request.data:
+            val = request.data['create_db_tree']
+            if val is bool:
+                create_db_tree = val 
+            elif isinstance(val, str):
+                create_db_tree = (val == 'true')
+            else:
+                return Response({'message': 'Could not parse parameters for create_db_tree'},
+                status=status.HTTP_400_BAD_REQUEST)
+
         query_sequences : List = []
         # obtain the query sequence, either from raw text or from the file upload
         # take precedence for the raw text
@@ -491,7 +517,7 @@ class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
         print('Running BLAST search ...')
 
         # TODO: remove query_sequence reference
-        run_details = BlastRun(id = results_uuid, db_used = odb, job_name = job_name, blast_version = ncbi_blast_version, errors = '', query_sequence = '', job_status=BlastRun.JobStatus.QUEUED, job_start_time = None, job_end_time = None)
+        run_details = BlastRun(id = results_uuid, db_used = odb, job_name = job_name, blast_version = ncbi_blast_version, errors = '', job_status=BlastRun.JobStatus.QUEUED, job_start_time = None, job_end_time = None, job_error_time = None, create_hit_tree = create_hit_tree, create_db_tree = create_db_tree)
         run_details.save()
 
         # make query sequence objects
@@ -505,14 +531,22 @@ class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
             'MessageDeduplicationId': str(run_details_id),
         }
 
+        run_id_str = str(run_details_id)
+
         run_blast_command.apply_async(
             queue='BarcodeQueue.fifo',
             **message_properties, 
             kwargs={
                 'ncbi_blast_version': ncbi_blast_version,
                 'fishdb_id': str(odb.id),
-                'run_id': run_details_id
-        })      # type: ignore
+                'run_id': run_id_str
+            }, 
+            link=signature('barcode_blastn.tasks.performAlignment', 
+                kwargs={
+                    'run_id': run_id_str
+                }
+            )  # type: ignore
+        )      # type: ignore
 
         # django_rq.enqueue(run_blast_command, blast_root=blast_root, fishdb_path=fishdb_path, query_file=query_file, run_details=run_details, results_path=results_path)
 
@@ -538,7 +572,7 @@ class BlastRunDetail(mixins.DestroyModelMixin, generics.GenericAPIView):
         except BlastRun.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
         
-        serializer = BlastRunSerializer(run)      
+        serializer = BlastRunSerializer(run)
         response = Response(serializer.data, status=status.HTTP_200_OK)
 
         return response

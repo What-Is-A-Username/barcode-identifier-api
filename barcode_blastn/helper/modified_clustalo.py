@@ -30,6 +30,7 @@
 from __future__ import print_function
 
 import sys
+import time
 from xmltramp2 import xmltramp
 
 from barcode_tree.embl_utils import printDebugMessage, getUserAgent, restRequest, serviceGetResult, serviceGetResultTypes
@@ -48,7 +49,7 @@ except NameError:
     unicode = str
 
 # Set interval for checking status
-pollFreq = 3
+pollFreq = 2
 # Output level
 outputLevel = 1
 # Debug level
@@ -60,9 +61,10 @@ debugLevel = 0
 
 base_url = 'https://www.ebi.ac.uk/Tools/services/rest/clustalo'
 
-def submitMultipleAlignmentJob(sequence: str, run_id: str) -> str:  
-    '''Submit a multiple alignment job using the provided string of sequences, and return
-    the job ID.
+# TODO: Make call sync instead of async
+def submitMultipleAlignmentAsync(sequence: str, run_id: str) -> str:  
+    '''
+    Submit a multiple alignment job
     '''
 
     print(f'Starting multiple alignment job for run {run_id}')
@@ -83,9 +85,7 @@ def submitMultipleAlignmentJob(sequence: str, run_id: str) -> str:
         'outfmt': 'clustal_num',
         'order': 'aligned'
     }
-
-    print(params)
-
+    
     requestUrl = f'{base_url}/run/'
     requestData = urlencode(params)
 
@@ -117,7 +117,19 @@ def serviceGetStatus(jobId):
     printDebugMessage(u'serviceGetStatus', u'status: ' + result, 2)
     printDebugMessage(u'serviceGetStatus', u'End', 1)
     print(result)
-    return result == "FINISHED"
+    return result
+
+# Client-side poll
+def clientPoll(jobId):
+    time.sleep(1)
+    printDebugMessage(u'clientPoll', u'Begin', 1)
+    result = u'PENDING'
+    while result == u'RUNNING' or result == u'PENDING':
+        result = serviceGetStatus(jobId)
+        print("polling: ", result)
+        if result == u'RUNNING' or result == u'PENDING':
+            time.sleep(pollFreq)
+    printDebugMessage(u'clientPoll', u'End', 1)
 
 def getMultipleAlignmentResult(job_id: str, run_id: str):
     '''
@@ -127,6 +139,11 @@ def getMultipleAlignmentResult(job_id: str, run_id: str):
     printDebugMessage(u'getResult', u'Begin', 1)
     printDebugMessage(u'getResult', u'jobId: ' + job_id, 1)
     print("Getting ClustalO results for job %s" % job_id)
+
+    # Poll
+    clientPoll(job_id)
+
+    print("Polling completed %s" % job_id)
 
     # Get available result types
     resultTypes = serviceGetResultTypes(base_url, job_id)

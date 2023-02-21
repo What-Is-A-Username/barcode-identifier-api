@@ -9,7 +9,7 @@ import shutil
 from Bio.Seq import Seq
 import os
 import json
-from barcode_tree.modified_clustalo import getMultipleAlignmentResult, serviceGetStatus, submitMultipleAlignmentAsync
+from barcode_tree.modified_clustalo import getMultipleAlignmentResult, serviceGetStatus, submitMultipleAlignmentJob
 from barcode_tree.modified_simple_phylogeny import checkSimplePhylogenyStatus, getSimplePhylogenyOutput, readTreeFromFile, submitSimplePhylogenyAsync
 
 from barcode_tree.serializers import ResultTreeCreatorSerializer, ResultTreeDetailSerializer 
@@ -66,7 +66,6 @@ class ResultTreeDetail(mixins.DestroyModelMixin, generics.GenericAPIView):
                         if any(file.endswith(extension) for extension in files_to_transfer):
                             shutil.copy(f'{parent_folder}/{file}', destination_dir)
                             
-                    
                     tree.internal_status = ResultTree.TreeStatus.FINISHED
                     tree.save()
 
@@ -88,64 +87,66 @@ class ResultTreeDetail(mixins.DestroyModelMixin, generics.GenericAPIView):
 
         run_id = kwargs['run']
 
+        return Response(status=status.HTTP_301_MOVED_PERMANENTLY)
+
         # Check that the run exists
-        try:
-            run : BlastRun = BlastRun.objects.get(id=run_id)
-        except BlastRun.DoesNotExist:
-            return Response(
-                {'message': 'Could not find a run result with the given id.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        # try:
+        #     run : BlastRun = BlastRun.objects.get(id=run_id)
+        # except BlastRun.DoesNotExist:
+        #     return Response(
+        #         {'message': 'Could not find a run result with the given id.'},
+        #         status=status.HTTP_400_BAD_REQUEST
+        #     )
 
-        # If a Result tree object already exists for this run, don't do anything and return a response
-        try:
-            tree : ResultTree = ResultTree.objects.get(owner_run=run_id)
-        except ResultTree.DoesNotExist:
-            pass
-        else:
-            return Response(
-                {'message': 'Already started performing tree construction. Cannot start tree construction more than once.' }, 
-                status=status.HTTP_400_BAD_REQUEST)
+        # # If a Result tree object already exists for this run, don't do anything and return a response
+        # try:
+        #     tree : ResultTree = ResultTree.objects.get(owner_run=run_id)
+        # except ResultTree.DoesNotExist:
+        #     pass
+        # else:
+        #     return Response(
+        #         {'message': 'Already started performing tree construction. Cannot start tree construction more than once.' }, 
+        #         status=status.HTTP_400_BAD_REQUEST)
 
-        # Gather sequences (query sequences + hit sequences) into a single FASTA
-        run_folder = os.path.abspath(f'./runs/{run_id}')
+        # # Gather sequences (query sequences + hit sequences) into a single FASTA
+        # run_folder = os.path.abspath(f'./runs/{run_id}')
 
-        # Gather query sequences as a list
-        s = list(SeqIO.parse(f'{run_folder}/query.fasta', 'fasta'))
+        # # Gather query sequences as a list
+        # s = list(SeqIO.parse(f'{run_folder}/query.fasta', 'fasta'))
         
-        hit : Hit
-        # Query over all hits
-        hits = list(run.hits.all())  # type: ignore
-        for hit in hits:
-            s.append(SeqIO.SeqRecord(seq=Seq(hit.db_entry.dna_sequence), id=hit.db_entry.accession_number, description=hit.db_entry.definition))
+        # hit : Hit
+        # # Query over all hits
+        # hits = list(run.hits.all())  # type: ignore
+        # for hit in hits:
+        #     s.append(SeqIO.SeqRecord(seq=Seq(hit.db_entry.dna_sequence), id=hit.db_entry.accession_number, description=hit.db_entry.definition))
 
-        sequence_string = StringIO()
-        SeqIO.write(s, sequence_string, 'fasta')
+        # sequence_string = StringIO()
+        # SeqIO.write(s, sequence_string, 'fasta')
 
-        # The following code submits the fasta file to ClustalO at EMBL-EBI for multiple sequence alignment, and is adapted from clustalo.py at https://www.ebi.ac.uk/seqdb/confluence/display/JDSAT/Clustal+Omega+Help+and+Documentation
-        # ClustalO:
-        # TODO: Add citation to web interface
-        #   Sievers F., Wilm A., Dineen D., Gibson T.J., Karplus K., Li W., Lopez R., McWilliam H., Remmert M., Söding J., Thompson J.D. and Higgins D.G. (2011)
-        # Fast, scalable generation of high-quality protein multiple sequence alignments using Clustal Omega. 
-        # Mol. Syst. Biol. 7:539
-        # PMID:  21988835 
-        # DOI:  10.1038/msb.2011.75
-        # TODO: Find citation for EMBL-EBI
+        # # The following code submits the fasta file to ClustalO at EMBL-EBI for multiple sequence alignment, and is adapted from clustalo.py at https://www.ebi.ac.uk/seqdb/confluence/display/JDSAT/Clustal+Omega+Help+and+Documentation
+        # # ClustalO:
+        # # TODO: Add citation to web interface
+        # #   Sievers F., Wilm A., Dineen D., Gibson T.J., Karplus K., Li W., Lopez R., McWilliam H., Remmert M., Söding J., Thompson J.D. and Higgins D.G. (2011)
+        # # Fast, scalable generation of high-quality protein multiple sequence alignments using Clustal Omega. 
+        # # Mol. Syst. Biol. 7:539
+        # # PMID:  21988835 
+        # # DOI:  10.1038/msb.2011.75
+        # # TODO: Find citation for EMBL-EBI
 
-        # This runs the tool, mimicking the following command line calls from the original Python wrapper
-        # python clustalo.py --asyncjob --email email@domain.com ./aggregate.fasta
-        # This checks if its done
-        # python clustalo.py --status --jobid clustalo-R20230207-011805-0893-96632125-p2m
-        # This outputs the data 
-        # python clustalo.py --polljob --jobid clustalo-R20230207-011805-0893-96632125-p2m
-        # job_id: str = submitClustalOAsyncJob(f'runs/{run_id}/aggregate.fasta', run_id)
-        job_id: str = submitMultipleAlignmentAsync(sequence=sequence_string.getvalue(), run_id=run_id)
+        # # This runs the tool, mimicking the following command line calls from the original Python wrapper
+        # # python clustalo.py --asyncjob --email email@domain.com ./aggregate.fasta
+        # # This checks if its done
+        # # python clustalo.py --status --jobid clustalo-R20230207-011805-0893-96632125-p2m
+        # # This outputs the data 
+        # # python clustalo.py --polljob --jobid clustalo-R20230207-011805-0893-96632125-p2m
+        # # job_id: str = submitClustalOAsyncJob(f'runs/{run_id}/aggregate.fasta', run_id)
+        # job_id: str = submitMultipleAlignmentAsync(sequence=sequence_string.getvalue(), run_id=run_id)
 
-        tree = ResultTree(owner_run=run, internal_status=ResultTree.TreeStatus.ALIGNING, alignment_job_id=job_id)
-        tree.save()
+        # tree = ResultTree(owner_run=run, internal_status=ResultTree.TreeStatus.ALIGNING, alignment_job_id=job_id)
+        # tree.save()
 
-        serializer = ResultTreeDetailSerializer(tree)
+        # serializer = ResultTreeDetailSerializer(tree)
 
-        # return success
-        return Response(serializer.data, status=status.HTTP_201_CREATED); 
+        # # return success
+        # return Response(serializer.data, status=status.HTTP_201_CREATED); 
 

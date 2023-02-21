@@ -109,6 +109,7 @@ def restRequest(url):
     # Errors are indicated by HTTP status codes.
     except HTTPError as ex:
         result = requests.get(url).content
+        printDebugMessage(u'restRequest', f'HTTP Error: {result}', 11)
     printDebugMessage(u'restRequest', u'End', 11)
     return result
 

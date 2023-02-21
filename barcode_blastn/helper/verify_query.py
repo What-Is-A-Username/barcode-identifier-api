@@ -19,4 +19,4 @@ def verify_query(definition: str, sequence: str):
         return True
 
 def verify_dna(sequence: str):
-    return bool(re.match('^[NCAGTncagt]+$', sequence))
+    return bool(re.match('^[NCAGTncagt-]+$', sequence))
