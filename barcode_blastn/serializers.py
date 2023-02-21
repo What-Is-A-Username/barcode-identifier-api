@@ -110,20 +110,19 @@ class BlastRunRunSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = BlastRun
-        fields = ['id', 'job_name', 'queries']
+        fields = ['id', 'job_name', 'queries', 'create_hit_tree', 'create_db_tree']
 
 '''
 Show results of a blast run
 '''
 class BlastRunSerializer(serializers.ModelSerializer):
-
     db_used = BlastDbShortSerializer(many=False, read_only=True)
     hits = HitEntrySerializer(many=True, read_only=True)
-    queries = BlastQuerySequenceSerializer(many=True, read_only=True)
-    
+    queries = BlastQuerySequenceSerializer(many=True, read_only=True)    
+
     class Meta:
         model = BlastRun    
-        fields = ['id', 'job_name', 'queries', 'db_used', 'runtime', 'job_status', 'job_start_time', 'job_end_time', 'hits']
+        fields = ['id', 'job_name', 'queries', 'db_used', 'runtime', 'job_status', 'job_start_time', 'job_end_time', 'job_error_time', 'hits', 'create_hit_tree', 'hit_tree', 'alignment_job_id', 'create_db_tree', 'db_tree', 'complete_alignment_job_id']
 
 '''
 Show status of a blast run
@@ -131,6 +130,6 @@ Show status of a blast run
 class BlastRunStatusSerializer(serializers.ModelSerializer):    
     class Meta:
         model = BlastRun    
-        fields = ['id', 'job_name', 'runtime', 'job_status', 'job_start_time', 'job_end_time']
+        fields = ['id', 'job_name', 'runtime', 'job_status', 'job_start_time', 'job_end_time', 'job_error_time']
 
 

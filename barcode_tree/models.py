@@ -1,4 +1,5 @@
 from ctypes import alignment
+from email.policy import default
 from django.db import models
 from barcode_blastn.models import BlastRun
 from django.utils.translation import gettext_lazy as _
@@ -10,8 +11,11 @@ class ResultTree(models.Model):
     # The run from which the results were gathered
     owner_run = models.ForeignKey(BlastRun, related_name='tree', on_delete=models.CASCADE)
     
-    # Job ID of the asynchronous request to Multiple Sequence Alignment with ClustalOmega
+    # Job ID of the request to Multiple Sequence Alignment with ClustalOmega, using query + hit sequences
     alignment_job_id = models.CharField(max_length=100, blank=True, default='')
+
+    # Job ID of the request to Multiple Sequence Alignment with ClustalOmega, using query + all database sequences
+    complete_alignment_job_id = models.CharField(max_length=100, blank=True, default='')
 
     class TreeStatus(models.TextChoices):
         # Waiting for web tool to return an aligned sequence
