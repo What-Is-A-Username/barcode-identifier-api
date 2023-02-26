@@ -319,15 +319,16 @@ def completeAlignment(sequence_string: str, run_id: str) -> Tuple[str, str, int]
             files = os.listdir(parent_folder)
             files_to_transfer = ['.aln-clustal_num.clustal_num', '.phylotree.ph', '.pim.pim', '.sequence.txt']
             for file in files:
-                if any(file.endswith(extension) for extension in files_to_transfer):
+                if any([file.endswith(extension) for extension in files_to_transfer]):
+                    print(f"Moving {file}")
                     shutil.copy(f'{parent_folder}/{file}', destination_dir)
             # tree.internal_status = ResultTree.TreeStatus.FINISHED
         except BaseException as exc:
-            pass
+            return (job_id, 'Failed to process output files', status.HTTP_500_INTERNAL_SERVER_ERROR)
         # except BaseException:
             # tree.internal_status = ResultTree.TreeStatus.ERRORED
         # tree.save()
 
     # return success
-    return (job_id, 'Successfully ran alignment job', status.HTTP_200_OK); 
+    return (job_id, 'Successfully ran alignment job', status.HTTP_200_OK)
 

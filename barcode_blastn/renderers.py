@@ -73,7 +73,8 @@ class BlastRunTxtRenderer(BaseRenderer):
         run_id = data['id']
         
         # get a list of fields to display as comments at the start of the file
-        comment_fields = [ field for field in BlastRunSerializer.Meta.fields if field != 'hits' and field != 'owner_run']
+        exclude_fields = ['runtime', 'queries', 'job_status', 'hits', 'create_hit_tree', 'hit_tree', 'alignment_job_id', 'create_db_tree', 'db_tree', 'complete_alignment_job_id', 'owner_run']
+        comment_fields = [ field for field in BlastRunSerializer.Meta.fields if field not in exclude_fields]
 
         # write the comments
         for comment in comment_fields:
@@ -120,7 +121,8 @@ class BlastRunCSVRenderer(BaseRenderer):
         response = io.StringIO()
 
         # get a list of fields to display as comments at the start of the file
-        comment_fields = [ field for field in BlastRunSerializer.Meta.fields if field != 'hits']
+        exclude_fields = ['runtime', 'queries', 'job_status', 'hits', 'create_hit_tree', 'hit_tree', 'alignment_job_id', 'create_db_tree', 'db_tree', 'complete_alignment_job_id', 'owner_run']
+        comment_fields = [ field for field in BlastRunSerializer.Meta.fields if field not in exclude_fields]
 
         # write the comments
         comment_writer = csv.writer(response)

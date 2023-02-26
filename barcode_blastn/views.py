@@ -464,7 +464,7 @@ class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
         if not os.path.exists(static_path):
             os.mkdir(static_path)
             shutil.chown(static_path, group='celery')
-            os.chmod(static_path, 0o755)
+            os.chmod(static_path, 0o775)
 
         print("Run id: " + str(results_uuid))
 
