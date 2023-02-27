@@ -60,7 +60,7 @@ def retrieve_gb(accession_numbers: List[str]) -> List[Dict]:
             'dna_sequence': str(seq_record.seq)
         }
         features : List[ SeqFeature ] = seq_record.features
-        qualifiers_to_extract = ['organism', 'organelle', 'mol_type', 'isolate', 'country', 'specimen_voucher', 'type_material', 'lat_lon']
+        qualifiers_to_extract = ['organism', 'organelle', 'isolate', 'country', 'specimen_voucher', 'type_material', 'lat_lon']
         try: 
             source_feature : SeqFeature = [feature for feature in features if feature.type == 'source'][0]
         except IndexError:

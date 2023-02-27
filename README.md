@@ -314,7 +314,7 @@ celery -A barcode_identifier_api worker --loglevel=INFO -Q BarcodeQueue.fifo -B 
 The following allows you to directly run the app and worker, without the need to interact with nginx or any web server configurations. Note that this does not allow for access to media/ and HTTPS.
 
 ```
-uwsgi --socket barcode_identifier_api.sock --module barcode_identifier_api.wsgi --chmod-socket=666
+uwsgi --socket u.sock --module barcode_identifier_api.wsgi --chmod-socket=666
 ```
 
 To stop the app or the worker, press `Ctrl-C` in the appropriate terminal.

@@ -33,7 +33,7 @@ import sys
 import time
 from xmltramp2 import xmltramp
 
-from barcode_tree.embl_utils import printDebugMessage, getUserAgent, restRequest, serviceGetResult, serviceGetResultTypes
+from barcode_blastn.helper.embl_utils import printDebugMessage, getUserAgent, restRequest, serviceGetResult, serviceGetResultTypes
 
 try:
     from urllib.parse import urlencode

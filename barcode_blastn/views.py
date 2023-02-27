@@ -1,58 +1,72 @@
 # TODO: Install Python 3.10.6 to match EC2
 
 import io
-from celery import chain, signature
+from celery import signature
 from barcode_identifier_api.celery import app
 from typing import Dict, List
-from urllib import request
 import uuid
 import os
 import shutil
 from Bio import SeqIO
 from barcode_blastn.helper.parse_gb import retrieve_gb
-from barcode_blastn.helper.verify_query import verify_query, verify_dna
-from barcode_blastn.helper.read_tree import readDbTreeFromFile, readHitTreeFromFile
+from barcode_blastn.helper.verify_query import verify_dna
 from barcode_blastn.models import BlastQuerySequence, BlastRun, Hit, NuccoreSequence, BlastDb
 from barcode_blastn.permissions import IsAdminOrReadOnly
 from barcode_blastn.renderers import BlastRunCSVRenderer, BlastRunTxtRenderer, BlastDbCSVRenderer, BlastDbFastaRenderer, BlastRunFastaRenderer
-from barcode_blastn.serializers import BlastRunRunSerializer, BlastRunSerializer, BlastRunStatusSerializer, HitSerializer, NuccoreSequenceAddSerializer, NuccoreSequenceBulkAddSerializer, NuccoreSequenceSerializer, BlastDbSerializer, BlastDbListSerializer
+from barcode_blastn.serializers import BlastDbCreateSerializer, BlastRunRunSerializer, BlastRunSerializer, BlastRunStatusSerializer, HitSerializer, NuccoreSequenceAddSerializer, NuccoreSequenceBulkAddSerializer, NuccoreSequenceSerializer, BlastDbSerializer, BlastDbListSerializer
 from rest_framework import status, generics, mixins
 from rest_framework.parsers import JSONParser, FormParser, MultiPartParser
 from rest_framework.permissions import IsAdminUser, AllowAny
 from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer, TemplateHTMLRenderer
 from rest_framework.response import Response
 from urllib.error import HTTPError
-from django.db.models import QuerySet
+from barcode_blastn.tasks import run_blast_command
 
-from barcode_blastn.tasks import run_blast_command, performAlignment
-# from barcode_tree.tasks import performAlignment
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 
-'''
-List all the sequences in the server, irrespective of database
-'''
 class NuccoreSequenceList(mixins.ListModelMixin, generics.GenericAPIView):
+    '''
+    List all the sequences in the server, irrespective of database
+    '''
     queryset = NuccoreSequence.objects.all()
     serializer_class = NuccoreSequenceSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAdminUser]
 
-    '''
-    List all accession numbers saved to all databases
-    '''
+    @swagger_auto_schema(
+        operation_summary='Global view of all sequence database entries.',
+        operation_description='Return a list of all accession numbers across all databases.',
+    )
     def get(self, request, *args, **kwargs):
         return self.list(request, *args, **kwargs)
 
-'''
-Bulk add sequences to a specified database
-'''
-class NuccoreSequenceBulkAdd(generics.CreateAPIView):
+class NuccoreSequenceBulkAdd(generics.CreateAPIView):   
+    '''
+    Bulk add sequences to a specified database
+    '''
     serializer_class = NuccoreSequenceBulkAddSerializer
     permission_classes = [ IsAdminUser ]
     queryset = NuccoreSequence.objects.all()
     
-    '''
-    Create a new accession number and add it to an existing database
-    '''
+    @swagger_auto_schema(
+        operation_summary='Bulk-add accessions.',
+        operation_description='From a list of accession numbers, bulk add them to an existing database. List must contain between 1-100 accession numbers inclusive.',
+        responses={
+            '200': openapi.Response(
+                description='No new sequences added because all already exist in the database.',
+                schema=NuccoreSequenceBulkAddSerializer()
+            ),
+            '201': 'Sequences successfully added to the database.',
+            '400': 'Bad parameters in request. Example reasons: list may be empty or too long (>100); accession numbers may be invalid or duplicate.',
+            '404': 'BLAST database matching the specified ID was not found.',
+            '500': 'Unexpected error.',
+            '502': 'Encountered error connecting to GenBank.'
+        }
+    )
     def post(self, request, *args, **kwargs):
+        '''
+        Create a new accession number and add it to an existing database
+        '''
         desired_numbers = request.data['accession_numbers']
         if len(desired_numbers) == 0:
             return Response({'message': 'The list of numbers to add cannot be empty.', 'accession_numbers': str(desired_numbers)}, status.HTTP_400_BAD_REQUEST)
@@ -94,7 +108,7 @@ class NuccoreSequenceBulkAdd(generics.CreateAPIView):
                     "accession_numbers": desired_numbers, 
                     "queried_numbers": missing_numbers
                 }, 
-                status=status.HTTP_400_BAD_REQUEST)
+                status=status.HTTP_502_BAD_GATEWAY)
         except BaseException:
             return Response({'message': f"Failed to parse GenBank database response when requested for a list of accession numbers", 
                     "accession_numbers": desired_numbers, 
@@ -129,11 +143,26 @@ Add a sequence to a specified database
 class NuccoreSequenceAdd(generics.CreateAPIView):
     serializer_class = NuccoreSequenceAddSerializer
     permission_classes = [IsAdminUser]
+    queryset = NuccoreSequence.objects.all()
     
-    '''
-    Create a new accession number and add it to an existing database
-    '''
+    @swagger_auto_schema(
+        operation_summary='Add a sequence entry.',
+        operation_description='Add a sequence to a BLAST database, using GenBank accession data corresponding to the accession number given.',
+        responses={
+            '201': openapi.Response(
+                description='Sequences successfully added to the database.',
+                schema=NuccoreSequenceSerializer(),
+            ),
+            '400': 'Bad parameters in request. Example reasons: accession number was not found on GenBank; an entry with the same accession number already exists in the BLAST database.',
+            '404': 'BLAST database matching the specified ID was not found.',
+            '500': 'Unexpected error.',
+            '502': 'Encountered error connecting to GenBank.'
+        }
+    )
     def post(self, request, *args, **kwargs):
+        '''
+        Create a new accession number and add it to an existing database
+        '''
         accession_number = request.data['accession_number']
 
         pk = kwargs['pk']
@@ -156,7 +185,7 @@ class NuccoreSequenceAdd(generics.CreateAPIView):
             genbank_data = retrieve_gb(accession_numbers = [accession_number])
             assert len(genbank_data) > 0  
         except AssertionError:
-            return Response({'message': f"The GenBank database did not return an entry for the accession number {accession_number}"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'message': f"The GenBank database did not return an entry for the accession number {accession_number}"}, status=status.HTTP_502_BAD_GATEWAY)
         except HTTPError:
             return Response({'message': f"The GenBank database does not contain an entry for the accession number {accession_number}"}, status=status.HTTP_400_BAD_REQUEST)
         except BaseException:
@@ -172,78 +201,136 @@ class NuccoreSequenceAdd(generics.CreateAPIView):
             serializer.save(owner_database = db)
             return Response(serializer.data, status = status.HTTP_201_CREATED)
 
-        return Response(serializer.errors, status = status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status = status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-'''
-Get or delete a sequence specified by ID
-'''
+
 class NuccoreSequenceDetail(mixins.DestroyModelMixin, generics.RetrieveAPIView):
+    '''
+    Get or delete a sequence specified by ID
+    '''
     queryset = NuccoreSequence.objects.all()
     serializer_class = NuccoreSequenceSerializer
     permission_classes = [IsAdminOrReadOnly]
 
-    '''
-    Delete an accession number from the database
-    '''
-    def delete(self, request, *args, **kwargs):
-        return self.destroy(request, *args, **kwargs)
-
-'''
-Get a sequence by accession number
-'''
-class NuccoreSequenceDetailByAccession(mixins.RetrieveModelMixin, generics.GenericAPIView):
-    queryset = NuccoreSequence.objects.all()
-    serializer_class = NuccoreSequenceSerializer
-    permission_classes = [IsAdminOrReadOnly]
-
-    '''
-    Retrieve all sequences with an accession number specified in the list
-    '''
+    @swagger_auto_schema(
+        operation_summary='Get information about a sequence entry.',
+        operation_description='Get information about a sequence entry.',
+        responses={
+            '200': openapi.Response(
+                description='Successfully returned sequence information',
+                schema=NuccoreSequenceSerializer()
+            ),
+            '404': 'Sequence does not exist',
+            '500': 'Unexpected error.',
+        }
+    )
     def get(self, request, *args, **kwargs):
-        accession_number = kwargs['an'].split(',')
+        db_primary_key = kwargs['pk']
 
         try:
-            seq = NuccoreSequence.objects.filter(accession_number__in=accession_number)
+            seq = NuccoreSequence.objects.get(id = db_primary_key)
         except NuccoreSequence.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
+        
+        serializer = NuccoreSequenceSerializer(seq)
+        return Response(serializer.data, status = status.HTTP_200_OK)
 
-        serializer = NuccoreSequenceSerializer(seq, many=True)
-        response = Response(serializer.data, status=status.HTTP_200_OK)
-        return response
+    @swagger_auto_schema(
+        operation_summary='Delete a sequence entry.',
+        operation_description='Delete a sequence entry from a BLAST database.',
+        responses={
+            '204': 'Deletion successful.',
+            '400': 'Deletion failed because entry belongs to a database that is locked for editing.',
+            '404': 'Sequence does not exist',
+            '500': 'Unexpected error.',
+        }
+    )
+    def delete(self, request, *args, **kwargs):
+        pk = kwargs['pk']
+        try:
+            seq : NuccoreSequence = NuccoreSequence.objects.get(id=pk)
+        except NuccoreSequence.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        db : BlastDb = seq.owner_db   # type: ignore
+        if db.locked:
+            return Response({'message': 'Cannot remove sequences from a locked database.'}, status=status.HTTP_400_BAD_REQUEST)
+        return self.destroy(request, *args, **kwargs)
 
-'''
-Return a list of all blast databases
-'''
 class BlastDbList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.GenericAPIView):
+    '''
+    Return a list of all blast databases
+    '''
     queryset = BlastDb.objects.all()
-    serializer_class = BlastDbListSerializer
     permission_classes = [IsAdminOrReadOnly]
 
-    '''
-    List all blast databases
-    '''
+    def get_serializer_class(self):
+        if self.request is None:
+            return BlastDbListSerializer
+        elif self.request.method == 'POST':
+            return BlastDbCreateSerializer
+        else:
+            return BlastDbListSerializer
+
+    @swagger_auto_schema(
+        operation_summary='Get all databases.',
+        operation_description='Return a list of all BLAST databases publicly available for queries.',
+        responses={
+            '200': openapi.Response(
+                description='A list of all accession numbers saved to all databases.',
+                schema=BlastDbListSerializer(),
+                examples={
+                    'application/json': BlastDbListSerializer.Meta.example,
+                }
+            )
+        }
+    )
     def get(self, request, *args, **kwargs):
+        '''
+        List all blast databases
+        '''
         return self.list(request, *args, **kwargs)
 
-    '''
-    Create a new blast database.
-    '''
+    @swagger_auto_schema(
+        operation_summary='Create a database.',
+        operation_description='Create a new publicly accessible BLAST database available for queries.',
+        responses={
+            '200': openapi.Response(
+                description='A list of all accession numbers saved to all databases.',
+                schema=BlastDbCreateSerializer()
+            )
+        }
+    )
     def post(self, request, *args, **kwargs):
+        '''
+        Create a new blast database.
+        '''
         return self.create(request, *args, **kwargs)
 
-'''
-Retrieve the details of a given blast database
-'''
+
 class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.DestroyModelMixin, generics.GenericAPIView):
+    '''
+    Retrieve the details of a given blast database
+    '''
     queryset = BlastDb.objects.all()
     serializer_class = BlastDbSerializer
     permission_classes = [IsAdminOrReadOnly]
     renderer_classes = [JSONRenderer, BrowsableAPIRenderer, TemplateHTMLRenderer, BlastDbCSVRenderer, BlastDbFastaRenderer]
 
-    '''
-    Retrieve data in the blastdb.
-    '''
+    @swagger_auto_schema(
+        operation_summary='Get information about a BLAST database.',
+        operation_description='Return all available information of the BLAST database specified by the ID given.',
+        responses={
+            '200': openapi.Response(
+                description='Information of the matching BLAST database.',
+                schema=BlastDbSerializer()
+            ),
+            '404': 'Database with the ID does not exist',
+        }
+    )
     def get(self, request, *args, **kwargs):
+        '''
+        Retrieve data in the blastdb.
+        '''
 
         db_primary_key = kwargs['pk']
 
@@ -263,63 +350,118 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
 
         return response
 
-    '''
-    Partially update this blastdb.
-    '''
+    @swagger_auto_schema(
+        operation_summary='Update information of a BLAST database.',
+        operation_description='Edit information of a BLAST database. This method does not allow adding/removing/editing of the sequence entries within.',
+        responses={
+            '200': openapi.Response(
+                description='Database updated successfully.',
+                schema=BlastDbSerializer()
+            ),
+            '400': 'Bad request parameters.',
+            '404': 'Database with the ID does not exist',
+        }
+    )
     def patch(self, request, *args, **kwargs):
+        '''
+        Partially update this blastdb.
+        '''
         try:
             db = BlastDb.objects.get(id = kwargs['pk'])
         except BlastDb.DoesNotExist:
             return Response("Resource does not exist", status = status.HTTP_404_NOT_FOUND)
         
-        if db.locked and (not 'locked' in request.data or request.data['locked'] == db.locked):
+        if db.locked and ('locked' in request.data and request.data['locked'] != db.locked):
             return Response("This entry is locked and cannot be patched.", status = status.HTTP_400_BAD_REQUEST)
 
         return self.partial_update(request, *args, **kwargs)
 
-    '''
-    Delete the blastdb
-    '''
+    @swagger_auto_schema(
+        operation_summary='Delete a BLAST database.',
+        operation_description='Delete the BLAST database specified by the given ID.',
+        responses={
+            '204': 'Deletion successful.',
+            '404': 'BLAST database with the given ID does not exist',
+            '500': 'Unexpected error.',
+        }
+    )
     def delete(self, request, *args, **kwargs):
+        '''
+        Delete the blastdb
+        '''
         try:
             database_id = str(kwargs['pk'])
             db = BlastDb.objects.get(id = database_id)
         except BlastDb.DoesNotExist:
             return Response(f"Resource does not exist", status = status.HTTP_404_NOT_FOUND)
-
-        local_db_folder = os.path.abspath(f'./fishdb/{database_id}/')
-        if len(database_id) > 0 and os.path.exists(local_db_folder):
-            shutil.rmtree(local_db_folder, ignore_errors=True)
+    
+        try:
+            local_db_folder = os.path.abspath(f'./fishdb/{database_id}/')
+            if len(database_id) > 0 and os.path.exists(local_db_folder):
+                shutil.rmtree(local_db_folder, ignore_errors=True)
+        except BaseException:
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         return self.destroy(request, *args, **kwargs)
 
-'''
-List all blast runs
-'''
 class BlastRunList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.GenericAPIView):
+    '''
+    List all blast runs
+    '''
 
     queryset = BlastRun.objects.all()
     serializer_class = BlastRunSerializer
     permission_classes = [IsAdminUser]
 
-    '''
-    List all blast databases
-    '''
+    @swagger_auto_schema(
+        operation_summary='List all runs.',
+        operation_description='Return a list of runs/jobs/queries saved by the API, including queued, running, and completed jobs.',
+        responses={
+            '200': openapi.Response(
+                description='A list of all jobs saved.',
+                schema = BlastRunSerializer(many=True)
+            )
+        }
+    )
     def get(self, request, *args, **kwargs):
+        '''
+        List all blast databases
+        '''
         return self.list(request, *args, **kwargs)
 
-'''
-Run a blast query
-'''
-class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
+class BlastRunRun(generics.CreateAPIView):
+    '''
+    Run a blast query
+    '''
     serializer_class = BlastRunRunSerializer
     permission_classes = [AllowAny]
+    queryset = BlastRun.objects.all()
     parser_classes = [JSONParser, FormParser, MultiPartParser]
     
-    '''
-    Run blast query
-    '''
+    @swagger_auto_schema(
+        operation_summary='Submit a run.',
+        operation_description='Submit query sequence(s) and associated data to begin a run. Sequences can be supplied as either raw text in "query_sequence" or in an uploaded file named "query_file". Unless the submission is erroneous, the response will contain a unique run ID used to keep track of the status (the run is run asynchronously) and look up results when complete.\n\nA run will perform a BLASTN query of each query sequence against the sequences found within the BLAST database. Based on the values of the "create_hit_tree" and "create_db_tree" parameters, then up to 2 multiple alignment jobs will be performed using the query sequences and sequences from the hits or entire database, respectively.',
+        responses={
+            '400': openapi.Response(
+                description='Bad request parameters. An accompanying message may specify the error with the request.',
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'message': openapi.Schema(
+                            type=openapi.TYPE_STRING,
+                            description='Helper message clarifying the cause of the error.'
+                        )
+                    }
+                )),
+            '404': 'The BLAST database specified by the ID does not exist.',
+            '201': 'Run was successfully added to queue and a new unique run identifier is returned. Users should now use the given ID to continually check the status of the run to check whether it has completed.',
+            '500': 'Unexpected error. No new run was created.'
+        }
+    )
     def post(self, request, *args, **kwargs):      
+        '''
+        Run blast query
+        '''
 
         db_used = kwargs['pk']
 
@@ -480,7 +622,7 @@ class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
                     return Response({
                         'message': "Server errored making the database.",
                         'error_type': type(base_exception)
-                    })
+                    }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             
             print('Gathering sequences into fasta ...')
             os.mkdir(fishdb_path)
@@ -548,22 +690,30 @@ class BlastRunRun(mixins.CreateModelMixin, generics.GenericAPIView):
             )  # type: ignore
         )      # type: ignore
 
-        # django_rq.enqueue(run_blast_command, blast_root=blast_root, fishdb_path=fishdb_path, query_file=query_file, run_details=run_details, results_path=results_path)
-
         # create response 
         serializer = BlastRunSerializer(run_details)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-'''
-View the results of any given run
-'''
 class BlastRunDetail(mixins.DestroyModelMixin, generics.GenericAPIView):
+    '''
+    View the results of any given run
+    '''
 
     queryset = BlastRun.objects.all()
     serializer_class = BlastRunSerializer
     permission_classes = [IsAdminOrReadOnly]
-    renderer_classes = [JSONRenderer, BrowsableAPIRenderer, BlastRunTxtRenderer]
     
+    @swagger_auto_schema(
+        operation_summary='Get run results.',
+        operation_description='Get run information and results of a BLAST run. The job_status indicates the status of the run. The results returned are complete once the job_status is "FIN" (i.e. run is finished). The run information includes the BLASTN hits and multiple alignment trees.',
+        responses={
+            '200': openapi.Response(
+                description='Run information successfully retrieved.',
+                schema=BlastRunSerializer()
+            ),
+            '404': 'Run with the ID does not exist',
+        }
+    )
     def get(self, request, *args, **kwargs):
         db_primary_key = kwargs['pk']
 
@@ -577,26 +727,26 @@ class BlastRunDetail(mixins.DestroyModelMixin, generics.GenericAPIView):
 
         return response
 
-    '''
-    Delete an accession number from the database
-    '''
-    def delete(self, request, *args, **kwargs):
-        run_id = str(kwargs['pk'])
-        local_run_folder = os.path.abspath(f'./runs/{run_id}/')
-        if len(run_id) > 0 and os.path.exists(local_run_folder):
-            shutil.rmtree(local_run_folder, ignore_errors=True)
-
-        return self.destroy(request, *args, **kwargs)
-
-'''
-Return the sequences submitted to a run as a .fasta file
-'''
 class BlastRunInputDownload(generics.GenericAPIView):
+    '''
+    Return the sequences submitted to a run as a .fasta file
+    '''
     queryset = BlastRun.objects.all()
     serializer_class = BlastRunSerializer
     permission_classes = [IsAdminOrReadOnly]
     renderer_classes = [BlastRunFastaRenderer]
     
+    @swagger_auto_schema(
+        operation_summary='Get query sequence fasta file.',
+        operation_description='Returns the original query sequences from the run submission, formatted as a FASTA file attachment.',
+        responses={
+            '200': openapi.Response(
+                description='Query sequences retrieved successfully and a fasta file attachment is returned.',
+                schema=BlastRunSerializer()
+            ),
+            '404': 'Run data corresponding to the specified ID does not exist'
+        }
+    )
     def get(self, request, *args, **kwargs):
         db_primary_key = kwargs['pk']
 
@@ -617,15 +767,26 @@ class BlastRunInputDownload(generics.GenericAPIView):
             # return 404 error if the query.fasta file does not exist
             return Response(status=status.HTTP_404_NOT_FOUND)
 
-'''
-Download the run results in either .txt or .csv format
-'''
 class BlastRunDetailDownload(generics.GenericAPIView):
+    '''
+    Download the run results in either .txt or .csv format
+    '''
     queryset = BlastRun.objects.all()
     serializer_class = BlastRunSerializer
     permission_classes = [IsAdminOrReadOnly]
     renderer_classes = [BlastRunCSVRenderer, BlastRunTxtRenderer]
     
+    @swagger_auto_schema(
+        operation_summary='Get BLASTN results as a file',
+        operation_description='Returns BLASTN results as a file attachment. The file format is .txt if Accept header specifies text/plain, and .csv if it is text/csv',
+        responses={
+            '200': openapi.Response(
+                description='Results retrieved successfully and a file attachment is returned.',
+                schema = BlastRunSerializer()
+            ),
+            '404': 'Run data corresponding to the specified ID does not exist'
+        },
+    )
     def get(self, request, *args, **kwargs):
         db_primary_key = kwargs['pk']
 
@@ -649,23 +810,23 @@ class BlastRunDetailDownload(generics.GenericAPIView):
         return response
 
 '''
-Access a particular hit
-'''
-class HitDetail(mixins.ListModelMixin, generics.GenericAPIView):
-    queryset = Hit.objects.all()
-    serializer_class = HitSerializer
-    permission_classes = [IsAdminOrReadOnly]
-
-    '''
-    List all accession numbers saved to all databases
-    '''
-    def get(self, request, *args, **kwargs):
-        return self.list(request, *args, **kwargs)
-
-'''
 Check the status of a run
 '''
 class BlastRunStatus(generics.RetrieveAPIView):
     queryset = BlastRun.objects.all()
     serializer_class = BlastRunStatusSerializer
     permission_classes = [IsAdminOrReadOnly]
+
+    @swagger_auto_schema(
+        operation_summary='Get status of run',
+        operation_description='Returns a minimal set of information useful for polling/checking the status of run.\n\nHow to interpret job_status:\n"QUE" (Queued): The run is currently waiting in the queue for its turn to be processed.\n"STA" (Started): The run is currently being processed.\n"FIN" (Finished): The run successfully completed and complete results are now visible.\n"ERR" (Errored): The run encountered an unexpected error and terminated.\n"UNK" (Unknown): The status is unknown, likely because there was an unexpected database or server error. Please submit another run.\n"DEN" (Denied): The run submission was received by the server, but it was denied from being processed.',
+        responses={
+            '200': openapi.Response(
+                description='Results retrieved successfully and a file attachment is returned.',
+                schema=BlastRunStatusSerializer()
+            ),
+            '404': 'Run data corresponding to the specified ID does not exist'
+        },
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)

@@ -7,10 +7,10 @@ from barcode_blastn.models import BlastRun
 
 from barcode_blastn.serializers import BlastDbSequenceEntrySerializer,  BlastRunSerializer, HitSerializer
 
-'''
-Return the entries of blastdb in FASTA format (accession number + sequence)
-'''
 class BlastDbFastaRenderer(BaseRenderer):
+    '''
+    Return the entries of blastdb in FASTA format (accession number + sequence)
+    '''
     media_type = 'text/x-fasta'
     format = 'fasta'
     charset = 'utf-8'
@@ -21,10 +21,10 @@ class BlastDbFastaRenderer(BaseRenderer):
             fasta_file.append(f'>{sequence["accession_number"]}\n{sequence["dna_sequence"]}\n')
         return ''.join(fasta_file).encode(self.charset)
 
-'''
-Return input file of run in FASTA format 
-'''
 class BlastRunFastaRenderer(BaseRenderer):
+    '''
+    Return input file of run in FASTA format 
+    '''
     media_type = 'text/x-fasta'
     format = 'fasta'
     charset = 'utf-8'
@@ -32,10 +32,10 @@ class BlastRunFastaRenderer(BaseRenderer):
     def render(self, data, accepted_media_type=None, renderer_context=None):
         return data
 
-'''
-Return the blastdb in CSV format
-'''
 class BlastDbCSVRenderer(BaseRenderer):
+    '''
+    Return the blastdb in CSV format
+    '''
     media_type = 'text/csv'
     format = 'csv'
     charset = 'utf-8'
@@ -60,10 +60,10 @@ class BlastDbCSVRenderer(BaseRenderer):
 
         return response.getvalue().encode(self.charset)
 
-'''
-Return the blast run results in txt format
-'''
 class BlastRunTxtRenderer(BaseRenderer):
+    '''
+    Return the blast run results in txt format
+    '''
     media_type = 'text/plain'
     format = 'txt'
     charset = 'utf-8'
@@ -109,10 +109,10 @@ class BlastRunTxtRenderer(BaseRenderer):
         return ''.join(out_lines).encode(self.charset)
         
 
-'''
-Return the information of a blast run in CSV format
-'''
 class BlastRunCSVRenderer(BaseRenderer):
+    '''
+    Return the information of a blast run in CSV format
+    '''
     media_type = 'text/csv'
     format = 'csv'
     charset = 'utf-8'
@@ -159,6 +159,9 @@ class BlastRunCSVRenderer(BaseRenderer):
         return response.getvalue().encode(self.charset)
 
 class BlastRunHTMLRenderer(BlastRunTxtRenderer):
+    '''
+    Return BLAST text results as an HTML page
+    '''
     media_type = 'text/plain'
     format = 'html'
     charset = 'utf-8'
