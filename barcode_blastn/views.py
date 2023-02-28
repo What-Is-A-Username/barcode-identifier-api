@@ -36,6 +36,13 @@ class NuccoreSequenceList(mixins.ListModelMixin, generics.GenericAPIView):
     @swagger_auto_schema(
         operation_summary='Global view of all sequence database entries.',
         operation_description='Return a list of all accession numbers across all databases.',
+        responses=openapi.Response(
+            description="All sequence entries",
+            schema=NuccoreSequenceAddSerializer(),
+            examples={
+                'application/json': NuccoreSequenceAddSerializer.Meta.example
+            }
+        )
     )
     def get(self, request, *args, **kwargs):
         return self.list(request, *args, **kwargs)
@@ -54,7 +61,10 @@ class NuccoreSequenceBulkAdd(generics.CreateAPIView):
         responses={
             '200': openapi.Response(
                 description='No new sequences added because all already exist in the database.',
-                schema=NuccoreSequenceBulkAddSerializer()
+                schema=NuccoreSequenceSerializer(),
+                examples={
+                    'application/json': NuccoreSequenceSerializer.Meta.example
+                }
             ),
             '201': 'Sequences successfully added to the database.',
             '400': 'Bad parameters in request. Example reasons: list may be empty or too long (>100); accession numbers may be invalid or duplicate.',
@@ -152,6 +162,9 @@ class NuccoreSequenceAdd(generics.CreateAPIView):
             '201': openapi.Response(
                 description='Sequences successfully added to the database.',
                 schema=NuccoreSequenceSerializer(),
+                examples={
+                    'application/json': NuccoreSequenceSerializer.Meta.example
+                }
             ),
             '400': 'Bad parameters in request. Example reasons: accession number was not found on GenBank; an entry with the same accession number already exists in the BLAST database.',
             '404': 'BLAST database matching the specified ID was not found.',
@@ -203,7 +216,6 @@ class NuccoreSequenceAdd(generics.CreateAPIView):
 
         return Response(serializer.errors, status = status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
 class NuccoreSequenceDetail(mixins.DestroyModelMixin, generics.RetrieveAPIView):
     '''
     Get or delete a sequence specified by ID
@@ -218,7 +230,10 @@ class NuccoreSequenceDetail(mixins.DestroyModelMixin, generics.RetrieveAPIView):
         responses={
             '200': openapi.Response(
                 description='Successfully returned sequence information',
-                schema=NuccoreSequenceSerializer()
+                schema=NuccoreSequenceSerializer(),
+                examples={
+                    'application/json': NuccoreSequenceSerializer.Meta.example
+                }
             ),
             '404': 'Sequence does not exist',
             '500': 'Unexpected error.',
@@ -296,7 +311,10 @@ class BlastDbList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.Gener
         responses={
             '200': openapi.Response(
                 description='A list of all accession numbers saved to all databases.',
-                schema=BlastDbCreateSerializer()
+                schema=BlastDbCreateSerializer(),
+                examples={
+                    'application/json': BlastDbCreateSerializer.Meta.example
+                }
             )
         }
     )
@@ -322,7 +340,10 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
         responses={
             '200': openapi.Response(
                 description='Information of the matching BLAST database.',
-                schema=BlastDbSerializer()
+                schema=BlastDbSerializer(),
+                examples={
+                    'application/json': BlastDbSerializer.Meta.example
+                }
             ),
             '404': 'Database with the ID does not exist',
         }
@@ -356,7 +377,10 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
         responses={
             '200': openapi.Response(
                 description='Database updated successfully.',
-                schema=BlastDbSerializer()
+                schema=BlastDbSerializer(),
+                examples={
+                    'application/json': BlastDbSerializer.Meta.example
+                }
             ),
             '400': 'Bad request parameters.',
             '404': 'Database with the ID does not exist',
@@ -419,7 +443,10 @@ class BlastRunList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.Gene
         responses={
             '200': openapi.Response(
                 description='A list of all jobs saved.',
-                schema = BlastRunSerializer(many=True)
+                schema = BlastRunSerializer(many=True),
+                examples={
+                    'application/json': BlastRunSerializer.Meta.example
+                }
             )
         }
     )
@@ -452,7 +479,13 @@ class BlastRunRun(generics.CreateAPIView):
                             description='Helper message clarifying the cause of the error.'
                         )
                     }
-                )),
+                ),
+                examples={
+                    'application/json': {
+                        'message': 'Request did not have raw sequence text or file upload specified to run with.'
+                    }
+                }
+                ),
             '404': 'The BLAST database specified by the ID does not exist.',
             '201': 'Run was successfully added to queue and a new unique run identifier is returned. Users should now use the given ID to continually check the status of the run to check whether it has completed.',
             '500': 'Unexpected error. No new run was created.'
@@ -468,7 +501,7 @@ class BlastRunRun(generics.CreateAPIView):
         # Bad request if no query_sequence is given
         if not 'query_sequence' in request.data and not 'query_file' in request.FILES:
             return Response({
-                'message': 'Request did not have raw sequence text or file upload specified to blast with.'
+                'message': 'Request did not have raw sequence text or file upload specified to run with.'
             }, status = status.HTTP_400_BAD_REQUEST)
 
         # Bad request if database could not be found
@@ -709,7 +742,10 @@ class BlastRunDetail(mixins.DestroyModelMixin, generics.GenericAPIView):
         responses={
             '200': openapi.Response(
                 description='Run information successfully retrieved.',
-                schema=BlastRunSerializer()
+                schema=BlastRunSerializer(),
+                examples={
+                    'application/json': BlastRunSerializer.Meta.example
+                }
             ),
             '404': 'Run with the ID does not exist',
         }
@@ -742,7 +778,10 @@ class BlastRunInputDownload(generics.GenericAPIView):
         responses={
             '200': openapi.Response(
                 description='Query sequences retrieved successfully and a fasta file attachment is returned.',
-                schema=BlastRunSerializer()
+                schema=openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    format='binary'
+                ),
             ),
             '404': 'Run data corresponding to the specified ID does not exist'
         }
@@ -782,7 +821,10 @@ class BlastRunDetailDownload(generics.GenericAPIView):
         responses={
             '200': openapi.Response(
                 description='Results retrieved successfully and a file attachment is returned.',
-                schema = BlastRunSerializer()
+                schema = openapi.Schema(
+                    type= openapi.TYPE_STRING,
+                    format='binary'
+                ),
             ),
             '404': 'Run data corresponding to the specified ID does not exist'
         },
@@ -823,7 +865,10 @@ class BlastRunStatus(generics.RetrieveAPIView):
         responses={
             '200': openapi.Response(
                 description='Results retrieved successfully and a file attachment is returned.',
-                schema=BlastRunStatusSerializer()
+                schema=BlastRunStatusSerializer(),
+                examples={
+                    'application/json': BlastRunStatusSerializer.Meta.example
+                }
             ),
             '404': 'Run data corresponding to the specified ID does not exist'
         },
