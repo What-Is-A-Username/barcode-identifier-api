@@ -36,13 +36,15 @@ class NuccoreSequenceList(mixins.ListModelMixin, generics.GenericAPIView):
     @swagger_auto_schema(
         operation_summary='Global view of all sequence database entries.',
         operation_description='Return a list of all accession numbers across all databases.',
-        responses=openapi.Response(
-            description="All sequence entries",
-            schema=NuccoreSequenceAddSerializer(),
-            examples={
-                'application/json': NuccoreSequenceAddSerializer.Meta.example
-            }
-        )
+        responses={
+            '200': openapi.Response(
+                description="All sequence entries",
+                schema=NuccoreSequenceAddSerializer(),
+                examples={
+                    'application/json': NuccoreSequenceAddSerializer.Meta.example
+                }
+            )
+        }
     )
     def get(self, request, *args, **kwargs):
         return self.list(request, *args, **kwargs)
