@@ -1,21 +1,32 @@
+import json
+import os
 from rest_framework import serializers
 from barcode_blastn.models import BlastQuerySequence, BlastRun, Hit, NuccoreSequence, BlastDb
+
+blast_db_title = 'Blast Database'
+nuccore_title = 'GenBank Accession'
+hit_title = 'BLASTN hit'
+query_title = 'Query Sequence'
+run_title = 'Run'
 
 class BlastDbShortSerializer(serializers.ModelSerializer):
     class Meta:
         model = BlastDb
+        ref_name = blast_db_title
         fields = ['id', 'custom_name', 'description']
         example = {
             "id": "66855f2c-f360-4ad9-8c98-998ecb815ff5",
             "custom_name": "Neotropical electric knifefish",
             "description": "This BLAST database is a collection of barcodes from 167 species of Neotropical electric knifefish (Teleostei: Gymnotiformes) which was presented by Janzen et al. 2022. All sequences and related feature data are updated daily at midnight (UTC) from NCBI's Genbank database."
         }
+        tags = ['DBS']
 
 class NuccoreSequenceSerializer(serializers.ModelSerializer):
     owner_database = BlastDbShortSerializer(many=False, read_only=True)
 
     class Meta:
         model = NuccoreSequence
+        ref_name = nuccore_title
         fields = ['id', 'owner_database', 'accession_number', 'definition', 'organism', 'organelle', 'isolate', 'country', 'specimen_voucher', 'lat_lon', 'dna_sequence', 'translation', 'type_material', 'created']
         example = {
             "id": "5100cbd8-2fda-4b42-8aa1-10ede078448b",
@@ -40,18 +51,20 @@ class NuccoreSequenceAddSerializer(serializers.ModelSerializer):
     '''
     class Meta:
         model = NuccoreSequence
+        ref_name = nuccore_title
         fields = ['accession_number']
-        example = {'accession_number': 'GU701771'}
+        example = {'accession_number': 'ON303341'}
 
 class NuccoreSequenceBulkAddSerializer(serializers.Serializer):
     '''
     Serialize data when receiving a request to bulk add sequences to a database
     '''
     accession_numbers = serializers.ListField(
-        child=NuccoreSequenceAddSerializer()
+        child=serializers.CharField()
     )
 
     class Meta:
+        ref_name = 'List'
         example = {
             "accession_numbers": [
                 "GU701771",
@@ -65,6 +78,7 @@ class BlastDbSequenceEntryShortSerializer(serializers.ModelSerializer):
     '''
     class Meta:
         model = NuccoreSequence
+        ref_name = nuccore_title
         fields = ['accession_number', 'organism', 'country'] 
         example = {
             "accession_number": "GU701771",
@@ -78,8 +92,10 @@ class BlastDbCreateSerializer(serializers.ModelSerializer):
     '''
     class Meta:
         model = BlastDb
+        ref_name = 'Database Details'
         fields = ['id', 'custom_name', 'description']
         example = {
+            "id": "66855f2c-f360-4ad9-8c98-998ecb815ff5",
             "custom_name": "Newly Sequenced Species",
             "description": "A collection of new sequences from several species of interest."
         }
@@ -90,6 +106,7 @@ class BlastDbSequenceEntrySerializer(serializers.ModelSerializer):
     '''
     class Meta:
         model = NuccoreSequence
+        ref_name = nuccore_title
         fields = ['id', 'accession_number', 'definition', 'organism', 'isolate', 'country', 'specimen_voucher', 'lat_lon',  'type_material', 'dna_sequence']
         example = {
             "id": "5100cbd8-2fda-4b42-8aa1-10ede078448b",
@@ -112,6 +129,7 @@ class BlastDbSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = BlastDb
+        ref_name = blast_db_title
         fields = ['id', 'custom_name', 'description', 'locked', 'sequences']
         example = {
             "id": "66855f2c-f360-4ad9-8c98-998ecb815ff5",
@@ -140,6 +158,7 @@ class BlastDbListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = BlastDb
+        ref_name = blast_db_title
         fields = ['id', 'custom_name', 'description', 'locked', 'sequences']
         example = [ BlastDbSerializer.Meta.example ]
 
@@ -151,15 +170,31 @@ class HitSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Hit
+        ref_name = hit_title
         fields = ['db_entry', 'owner_run', 'query_accession_version', 'subject_accession_version', 'percent_identity', 'alignment_length', 'mismatches', 'gap_opens', 'query_start', 'query_end', 'sequence_start', 'sequence_end', 'evalue', 'bit_score']
+        example = {
+            "db_entry": BlastDbSequenceEntrySerializer.Meta.example,
+            "query_accession_version": "MG653404.1",
+            "subject_accession_version": "MG653404",
+            "percent_identity": "100.000",
+            "alignment_length": 490,
+            "mismatches": 0,
+            "gap_opens": 0,
+            "query_start": 1,
+            "query_end": 490,
+            "sequence_start": 1,
+            "sequence_end": 490,
+            "evalue": "0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+            "bit_score": "905.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
         
-
 class NuccoreSequenceHitSerializer(serializers.ModelSerializer):
     '''
     Show a summary of a sequence, when a query registers a hit on it.
     '''
     class Meta:
         model = NuccoreSequence
+        ref_name = nuccore_title
         fields = ['accession_number', 'definition', 'organism', 'isolate', 'country', 'specimen_voucher', 'type_material', 'lat_lon']
         example = {
             "db_entry": {
@@ -174,7 +209,6 @@ class NuccoreSequenceHitSerializer(serializers.ModelSerializer):
             }
         }
 
-
 class HitEntrySerializer(serializers.ModelSerializer):
     '''
     Serialize a hit to be returned with a list of all hits
@@ -183,6 +217,7 @@ class HitEntrySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Hit
+        ref_name = hit_title
         fields = ['db_entry', 'query_accession_version', 'subject_accession_version', 'percent_identity', 'alignment_length', 'mismatches', 'gap_opens', 'query_start', 'query_end', 'sequence_start', 'sequence_end', 'evalue', 'bit_score']
         example = {
             "db_entry": NuccoreSequenceHitSerializer.Meta.example,
@@ -206,6 +241,7 @@ class BlastQuerySequenceSerializer(serializers.ModelSerializer):
     '''
     class Meta:
         model = BlastQuerySequence
+        ref_name = query_title
         fields = ['definition', 'query_sequence']
         example = {
             "definition": "Steatogenys_elegans isolate 8807 cytochrome c oxidase subunit I (COI) gene, partial cds; mitochondrial",
@@ -221,7 +257,17 @@ class BlastRunRunSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = BlastRun
+        ref_name = run_title + ' Parameters'
         fields = ['id', 'job_name', 'query_sequence', 'query_file', 'create_hit_tree', 'create_db_tree']
+
+def load_run_example():
+    '''
+    Load example of run result response from .json file
+    '''
+    f = open(os.path.abspath('./barcode_blastn/run_example.json'))
+    data = json.load(f)
+    f.close()
+    return data
 
 class BlastRunSerializer(serializers.ModelSerializer):
     '''
@@ -233,51 +279,9 @@ class BlastRunSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = BlastRun    
+        ref_name = run_title
         fields = ['id', 'job_name', 'queries', 'db_used', 'runtime', 'job_status', 'job_start_time', 'job_end_time', 'job_error_time', 'hits', 'create_hit_tree', 'hit_tree', 'alignment_job_id', 'create_db_tree', 'db_tree', 'complete_alignment_job_id']
-        example = {
-            "id": "2e5898a3-14da-4e7f-9599-ba1ef35f1e7a",
-            "job_name": "two sequences",
-            "queries": [
-                {
-                    "definition": "MG653404.1 Compsaraia iara isolate SA217 cytochrome c oxidase subunit 1 (COI) gene, partial cds; mitochondrial",
-                    "query_sequence": "CCAACCAGGCGCCCTCCTGGGAGACGACCAAATTTACAATGTGGTCGTTACCGCCCATGCCTTCGTAATAATTTTCTTTATAGTAATGCCAATTATAATCGGAGGCTTTGGCAATTGACTTATCCCCTTAATAATTGCCGCGCCCGATATGGCATTCCCACGAATAAATAATATAAGCTTCTGACTGCTTCCCCCATCATTCTTCCTCCTACTTGCCTCTGCCGGGTTAGAGGCCGGAGTCGGGACAGGCTGAACGCTTTACCCCCCTCTTGCCGGTAATGCAGCACACGCTGGAGCCTCTGTAGACCTAACCATTTTCTCCCTTCACTTGGCCGGTGTCTCATCTATCCTCGGATCTATTAACTTTATCACTACAATTATTAATATGAAACCCCCAACAATATCCCAATACCAGCTTCCATTATTTATTTGATCCTTACTAGTAACCACAGTACTTCTACTACTCTCCCTTCCTGTTCTAGCTGCTGGA"
-                },
-            ],
-            "db_used": {
-                "id": "66855f2c-f360-4ad9-8c98-998ecb815ff5",
-                "custom_name": "Neotropical electric knifefish",
-                "description": "This BLAST database is a collection of barcodes from 167 species of Neotropical electric knifefish (Teleostei: Gymnotiformes) which was presented by Janzen et al. 2022. All sequences and related feature data are updated daily at midnight (UTC) from NCBI's Genbank database."
-            },
-            "runtime": "2023-02-21T03:27:11.323521Z",
-            "job_status": "FIN",
-            "job_start_time": "2023-02-21T03:27:12.427193Z",
-            "job_end_time": "2023-02-21T03:28:02.102346Z",
-            "job_error_time": None,
-            "hits": [{
-                "db_entry": {
-                    "accession_number": "MG653404",
-                    "definition": "Example Compsaraia iaraexampletus isolate SA217 cytochrome c oxidase subunit 1 (COI) gene, partial cds; mitochondrial",
-                    "organism": "Compsaraia iaraexampletus",
-                    "isolate": "SA217",
-                    "country": "Brazil",
-                    "specimen_voucher": "ABC123",
-                    "type_material": "Paratype of Compsaraia iaraexampletus",
-                    "lat_lon": "3.22 S 54.38 W"
-                },
-                "query_accession_version": "MG653404.1",
-                "subject_accession_version": "MG653404",
-                "percent_identity": "100.000",
-                "alignment_length": 490,
-                "mismatches": 0,
-                "gap_opens": 0,
-                "query_start": 1,
-                "query_end": 490,
-                "sequence_start": 1,
-                "sequence_end": 490,
-                "evalue": "0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-                "bit_score": "905.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
-            }]
-        }
+        example = load_run_example()
 
 class BlastRunStatusSerializer(serializers.ModelSerializer):    
     '''
@@ -285,6 +289,7 @@ class BlastRunStatusSerializer(serializers.ModelSerializer):
     '''
     class Meta:
         model = BlastRun    
+        ref_name = run_title + ' Status'
         fields = ['id', 'job_name', 'runtime', 'job_status', 'job_start_time', 'job_end_time', 'job_error_time']
         example = {
             "id": "2e5898a3-14da-4e7f-9599-ba1ef35f1e7a",
