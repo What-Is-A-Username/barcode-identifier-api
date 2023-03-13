@@ -259,7 +259,7 @@ class NuccoreSequenceDetail(mixins.DestroyModelMixin, generics.RetrieveAPIView):
         responses={
             '200': openapi.Response(
                 description='Successfully returned sequence information',
-                schema=NuccoreSequenceSerializer(),
+                schema=NuccoreSequenceSerializer(read_only=True),
                 examples={
                     'application/json': NuccoreSequenceSerializer.Meta.example
                 }
@@ -323,7 +323,7 @@ class BlastDbList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.Gener
         responses={
             '200': openapi.Response(
                 description='A list of all accession numbers saved to all databases.',
-                schema=BlastDbListSerializer(many=True),
+                schema=BlastDbListSerializer(many=True, read_only=True),
                 examples={
                     'application/json': BlastDbListSerializer.Meta.example,
                 }
@@ -340,7 +340,7 @@ class BlastDbList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.Gener
         operation_summary='Create a database.',
         operation_description='Create a new publicly accessible BLAST database available for queries.',
         tags = [tag_admin, tag_blastdbs],
-        request_body=BlastDbCreateSerializer,
+        request_body=BlastDbCreateSerializer(),
         responses={
             '200': openapi.Response(
                 description='Creation was successful.',
@@ -375,8 +375,8 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
         tags = [tag_blastdbs],
         responses={
             '200': openapi.Response(
-                description='Information of the matching BLAST database.',
-                schema=BlastDbSerializer(),
+                description='Information on the BLAST database matching the given ID.',
+                schema=BlastDbSerializer,
                 examples={
                     'application/json': BlastDbSerializer.Meta.example
                 }
@@ -414,7 +414,7 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
         responses={
             '200': openapi.Response(
                 description='Database updated successfully.',
-                schema=BlastDbSerializer(),
+                schema=BlastDbSerializer,
                 examples={
                     'application/json': BlastDbSerializer.Meta.example
                 }
@@ -924,10 +924,10 @@ class BlastRunDetailDownload(generics.GenericAPIView):
 
         return response
 
-'''
-Check the status of a run
-'''
 class BlastRunStatus(generics.RetrieveAPIView):
+    '''
+    Check the status of a run
+    '''
     queryset = BlastRun.objects.all()
     serializer_class = BlastRunStatusSerializer
     permission_classes = [IsAdminOrReadOnly]
