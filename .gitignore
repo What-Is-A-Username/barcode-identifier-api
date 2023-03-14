@@ -74,3 +74,6 @@ runs/
 
 # log files
 barcode_identifier_api.log
+
+# debug folder for docker container
+data/

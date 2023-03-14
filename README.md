@@ -209,7 +209,7 @@ sudo chown 775 runs
 There should also be a separate `runs` folder in `/var/www/`, to allow users to download results files (primarily alignment output).
 ```
 sudo mkdir /var/www/runs
-sudo chown 755 /var/www/runs
+sudo chmod 755 /var/www/runs
 ```
 
 ### Setup the systemd services
@@ -327,11 +327,24 @@ Start nginx.
 sudo /etc/init.d/nginx start
 ```
 
+## Docker
+
+Ensure that docker and docker-compose are installed:
+```
+sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin`
+```
+
+Run the project
+```
+docker-compose run barcode_identifer_api startproject barcode_identifier_api .
+```
+
 ## Downloading database data
 In the event that the database should be dumped/downloaded to a file, run the following in the terminal to create a `db.sql` file which can be transferred.
 ```
 pg_dump -U admin -h 127.0.0.1 barcode_identifier_db > db.sql
 ```
+
 
 ## Troubleshooting
 

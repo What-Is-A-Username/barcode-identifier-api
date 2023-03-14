@@ -4,6 +4,9 @@ from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 from rest_framework.permissions import AllowAny
 
+from django.conf.urls.static import static
+from django.conf import settings
+
 schema_view = get_schema_view(
     openapi.Info(
         title="Barcode Identifier API",
@@ -40,3 +43,10 @@ urlpatterns = [
     path('runs/<uuid:pk>/download/', views.BlastRunDetailDownload.as_view()),
     path('runs/<uuid:pk>/input-download/', views.BlastRunInputDownload.as_view())
 ]
+
+# give access to media files if in debug mode (i.e. when nginx not serving them)
+if settings.DEBUG:
+    urlpatterns += static(
+        settings.MEDIA_URL,
+        document_root=settings.MEDIA_ROOT
+    )
