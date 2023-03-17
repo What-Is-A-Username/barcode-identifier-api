@@ -20,7 +20,7 @@ RUN python -m venv /py && \
 # export scripts and virtualenv to path
 ENV PATH="/scripts:/py/bin:$PATH"
     
-RUN mkdir /barcode_identifier_apip
+RUN mkdir /barcode_identifier_api
 WORKDIR /barcode_identifier_api
 
 RUN addgroup -S appgroup && \
@@ -41,7 +41,11 @@ RUN pip install -r requirements.txt
 
 EXPOSE 8000
 
+COPY ./scripts /scripts
+
+RUN chmod -R +x /scripts
+
 USER appuser
 
-# CMD [ "python", "./manage.py", "runserver", "0.0.0.0:8000"]
+CMD [ "run.sh" ]
 

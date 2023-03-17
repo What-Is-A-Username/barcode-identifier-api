@@ -334,10 +334,40 @@ Ensure that docker and docker-compose are installed:
 sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin`
 ```
 
+### Development server
+
 Run the project
 ```
-docker-compose run barcode_identifer_api startproject barcode_identifier_api .
+docker-compose up --build
 ```
+
+Once it is up, create a superuser with desired username and password. This will be the credentials used for the `/admin` page of the site.
+```
+docker-compose run --rm barcode_identifier_api sh -c "python manage.py createsuperuser"
+```
+
+### Production server
+
+**Read before executing**: If you want to remove old volumes, such as those created by other containers, before building the deployment container, then you can run this to remove them. It will attempt to remove them, and give a warning if they don't exist.
+```
+docker-compose -f docker-compose-deploy.yml down --volumes
+```
+
+Build the deployment containers:
+```
+docker-compose -f docker-compose-deploy.yml build
+```
+
+Start the containers to mimic a deployment environment
+```
+docker-compose -f docker-compose-deploy.yml up
+```
+
+### Important Docker dependency information
+
+**Applicable for using the python image `FROM python:3.8.10-alpine3.13`**
+Ensure that, if backports.zoneinfo is included in [`requirements.txt`](./requirements.txt), then ensure that it conditionally installs based on the python version (i.e.: `backports.zoneinfo==0.2.1;python_version<"3.9"`) because it is unnecessary for python >= 3.9.
+Since the Alpine package does not contain certain timezone-related packages by default, the version of `pytz` installed should be `2022.1` instead of `2022.6` or some later version.
 
 ## Downloading database data
 In the event that the database should be dumped/downloaded to a file, run the following in the terminal to create a `db.sql` file which can be transferred.

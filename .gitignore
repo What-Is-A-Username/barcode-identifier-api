@@ -41,6 +41,16 @@ coverage.xml
 .cache/
 .python-version
 
+# Environments
+.env
+.venv 
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+
 # VirtualEnv
 .venv/
 env_barcode/

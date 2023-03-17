@@ -1,0 +1,38 @@
+version: '3'
+services:
+  db:
+    image: postgres
+    environment:
+      - POSTGRES_USER=admin
+      - POSTGRES_DB=barcode_identifier_db
+      - POSTGRES_PASSWORD=psql27nv123mkhfpq2
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+  barcode_identifier_api:
+    build:
+      context: .
+    environment:
+      - SECRET_KEY=django-insecure-@-1(slvmd97@z722#ow(lffbv%%!#1#vy21&_5a&ku-c=xlh!9
+      - DEBUG=1
+      - DB_NAME=barcode_identifier_db
+      - DB_USER=admin
+      - DB_PASSWORD=psql27nv123mkhfpq2
+      - DB_HOST=db
+      - DB_PORT=5432
+    command: >
+      sh -c "python manage.py wait_for_db &&
+             python manage.py migrate && 
+             python manage.py runserver 0.0.0.0:8000"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ".:/barcode_identifier_api"
+      # only for dev container: link the /data/runs and /var/www/runs folder to see files in local directories
+      - "./data/runs:/var/www/runs/"
+      - "./data/web:/vol/web/"
+    depends_on:
+      - db
+
+volumes:
+  pgdata:
+
