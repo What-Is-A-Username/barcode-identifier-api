@@ -1,7 +1,8 @@
-FROM python:3.8.10-alpine3.13
+FROM python:3.8.10-alpine3.13 AS pyvenv_image
 LABEL Author="new_author here"
 
 ENV PYTHONBUFFERED 1
+
 #TODO: postgresql-client apk needed?
 #TODO: Remove .tmp-deps after install
 RUN apk add --no-cache postgresql-dev \ 
@@ -22,20 +23,6 @@ ENV PATH="/scripts:/py/bin:$PATH"
     
 RUN mkdir /barcode_identifier_api
 WORKDIR /barcode_identifier_api
-
-RUN addgroup -S appgroup && \
-    adduser -S appuser -g appgroup && \
-    mkdir -p /var/www/runs && \ 
-    chown -R appuser:appgroup /var/www/runs && \
-    chmod -R 755 /var/www/runs && \
-    mkdir -p /barcode_identifier_api/runs && \
-    mkdir -p /barcode_identifier_api/scripts && \
-    chmod -R +x /barcode_identifier_api/scripts && \
-    mkdir -p /vol/web/static && \
-    mkdir -p /vol/web/media && \
-    chown -R appuser:appgroup /vol && \
-    chmod -R 755 /vol
-
 COPY requirements.txt /barcode_identifier_api
 RUN pip install -r requirements.txt
 
@@ -43,9 +30,41 @@ EXPOSE 8000
 
 COPY ./scripts /scripts
 
-RUN chmod -R +x /scripts
+RUN chmod -R u+x /scripts && \
+    addgroup -S appgroup && \
+    adduser -S appuser -g appgroup && \
+    chown -R appuser:appgroup /scripts && \
+    mkdir -p /var/www/runs && \ 
+    chmod -R 764 /var/www/runs && \
+    chown -R appuser:appgroup /var/www/runs && \
+    # give access to runs folder to store non-served data
+    mkdir -p /var/data/runs && \
+    chmod -R 764 /var/data && \
+    chown -R appuser:appgroup /var/data && \
+    # give access to fishdb folder to store databases
+    mkdir -p /var/data/fishdb && \
+    chmod -R 764 /var/data/fishdb && \
+    chown -R appuser:appgroup /var/data/fishdb && \
+    # make sure our scripts can run
+    mkdir -p /barcode_identifier_api/scripts && \
+    chmod -R u+x /barcode_identifier_api/scripts && \
+    chown -R appuser:appgroup /barcode_identifier_api/scripts && \
+    # TODO: only allow the appuser to run the ncbi scripts
+    # prepare folders to move static and media content
+    mkdir -p /vol/web/static && \
+    mkdir -p /vol/web/media && \
+    chown -R appuser:appgroup /vol && \
+    chmod -R 755 /vol
 
 USER appuser
 
-CMD [ "run.sh" ]
+# FROM pyvenv_image
+
+
+# WORKDIR /barcode_identifier_api
+
+# # run celery workers as appuser
+# USER appuser
+
+# CMD [ "celery_run.sh" ] 
 

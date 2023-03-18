@@ -301,11 +301,12 @@ class NuccoreSequenceDetail(mixins.DestroyModelMixin, generics.RetrieveAPIView):
             return Response({'message': 'Cannot remove sequences from a locked database.'}, status=status.HTTP_400_BAD_REQUEST)
         return self.destroy(request, *args, **kwargs)
 
-class BlastDbList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.GenericAPIView):
+class BlastDbList(mixins.ListModelMixin, generics.CreateAPIView):
     '''
     Return a list of all blast databases
     '''
     queryset = BlastDb.objects.all()
+    serializer_class = BlastDbCreateSerializer
     permission_classes = [IsAdminOrReadOnly]
 
     def get_serializer_class(self):
@@ -355,7 +356,14 @@ class BlastDbList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.Gener
         '''
         Create a new blast database.
         '''
-        return self.create(request, *args, **kwargs)
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            custom_name = serializer.validated_data['custom_name']  # type: ignore
+            description = serializer.validated_data['description']  # type: ignore
+            blast_db = BlastDb(custom_name=custom_name, description=description)
+            blast_db.save()
+            return Response(BlastDbCreateSerializer(blast_db).data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.DestroyModelMixin, generics.GenericAPIView):
     '''
@@ -376,7 +384,7 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
         responses={
             '200': openapi.Response(
                 description='Information on the BLAST database matching the given ID.',
-                schema=BlastDbSerializer,
+                schema=BlastDbSerializer(),
                 examples={
                     'application/json': BlastDbSerializer.Meta.example
                 }
@@ -395,7 +403,7 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
             db = BlastDb.objects.get(id = db_primary_key)
         except BlastDb.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
-
+        
         response = Response(self.get_serializer_class()(db).data, status=status.HTTP_200_OK, template_name='blastdb.html')
 
         # based on the media type file returned, specify attachment and file name

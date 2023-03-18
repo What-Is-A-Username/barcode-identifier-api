@@ -7,10 +7,22 @@ services:
       - POSTGRES_DB=barcode_identifier_db
       - POSTGRES_PASSWORD=psql27nv123mkhfpq2
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data  
+  pyvenv_image:
+    container_name: pyvenv_image
+    build: .
+    volumes:
+      - ".:/barcode_identifier_api"
+      - "./var/data:/var/data/"
+      - "./var/www/runs:/var/www/runs/"
+      - "./var/web:/vol/web/"
+    depends_on:
+      - db
   barcode_identifier_api:
+    image: pyvenv_image
     build:
-      context: .
+      context: ./compose/barcode_identifier_api
+      dockerfile: Dockerfile
     environment:
       - SECRET_KEY=django-insecure-@-1(slvmd97@z722#ow(lffbv%%!#1#vy21&_5a&ku-c=xlh!9
       - DEBUG=1
@@ -28,11 +40,41 @@ services:
     volumes:
       - ".:/barcode_identifier_api"
       # only for dev container: link the /data/runs and /var/www/runs folder to see files in local directories
-      - "./data/runs:/var/www/runs/"
-      - "./data/web:/vol/web/"
+      - "./var/data:/var/data/"
+      - "./var/www/runs:/var/www/runs/"
+      - "./var/web:/vol/web/"
     depends_on:
       - db
-
+      - celery_worker
+  rabbitmq:
+    image: bitnami/rabbitmq:latest
+    environment:
+      - RABBITMQ_PASSWORD=bitnami
+      - RABBITMQ_USERNAME=user
+  celery_worker:
+    image: pyvenv_image
+    build: 
+      context: ./compose/celery_worker
+      dockerfile: Dockerfile
+    environment:
+      - SECRET_KEY=django-insecure-@-1(slvmd97@z722#ow(lffbv%%!#1#vy21&_5a&ku-c=xlh!9
+      - DEBUG=1
+      - DB_NAME=barcode_identifier_db
+      - DB_USER=admin
+      - DB_PASSWORD=psql27nv123mkhfpq2
+      - DB_HOST=db
+      - DB_PORT=5432
+    volumes:
+      - ".:/barcode_identifier_api"
+      - "./var/data:/var/data/"
+      - "./var/www/runs:/var/www/runs/"
+      - "./var/web:/vol/web/"
+    command: >
+      sh -c "celery_run.sh"
+    depends_on:
+      - rabbitmq
+      - db
+      
 volumes:
   pgdata:
 
