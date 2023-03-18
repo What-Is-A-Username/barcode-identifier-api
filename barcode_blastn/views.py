@@ -2,6 +2,7 @@
 
 import io
 from celery import signature
+from barcode_blastn.file_paths import get_data_fishdb_path, get_data_run_path, get_ncbi_folder, get_static_run_path
 from barcode_identifier_api.celery import app
 from typing import Dict, List
 import uuid
@@ -466,7 +467,7 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
             return Response(f"Resource does not exist", status = status.HTTP_404_NOT_FOUND)
     
         try:
-            local_db_folder = os.path.abspath(f'./fishdb/{database_id}/')
+            local_db_folder = get_data_fishdb_path(database_id)
             if len(database_id) > 0 and os.path.exists(local_db_folder):
                 shutil.rmtree(local_db_folder, ignore_errors=True)
         except BaseException:
@@ -517,57 +518,57 @@ class BlastRunRun(generics.CreateAPIView):
         operation_description='Submit query sequence(s) and associated data to begin a run. Sequences can be supplied as either raw text in "query_sequence" or in an uploaded file named "query_file". Unless the submission is erroneous, the response will contain a unique run ID used to keep track of the status (the run is run asynchronously) and look up results when complete.\n\nA run will perform a BLASTN query of each query sequence against the sequences found within the BLAST database. Based on the values of the "create_hit_tree" and "create_db_tree" parameters, then up to 2 multiple alignment jobs will be performed using the query sequences and sequences from the hits or entire database, respectively.',
         # TODO: Add request / parameter schema
 
-        request_body=openapi.Schema(
-            type=openapi.TYPE_OBJECT,
-            title='Parameters',
-            properties={
-                'job_name': openapi.Schema(
-                    type=openapi.TYPE_STRING,
-                    example='two sequences'
-                ),
-                'query_sequence': openapi.Schema(
-                    type=openapi.TYPE_STRING,
-                    example='>MG653404.1 Compsaraia iara isolate SA217 cytochrome c oxidase subunit 1 (COI) gene, partial cds; mitochondrial\nCCAACCAGGCGCCCTCCTGGGAGACGACCAAATTTACAATGTGGTCGTTACCGCCCATGCCTTCGTAATAATTTTCTTTATAGTAATGCCAATTATAATCGGAGGCTTTGGCAATTGACTTATCCCCTTAATAATTGCCGCGCCCGATATGGCATTCCCACGAATAAATAATATAAGCTTCTGACTGCTTCCCCCATCATTCTTCCTCCTACTTGCCTCTGCCGGGTTAGAGGCCGGAGTCGGGACAGGCTGAACGCTTTACCCCCCTCTTGCCGGTAATGCAGCACACGCTGGAGCCTCTGTAGACCTAACCATTTTCTCCCTTCACTTGGCCGGTGTCTCATCTATCCTCGGATCTATTAACTTTATCACTACAATTATTAATATGAAACCCCCAACAATATCCCAATACCAGCTTCCATTATTTATTTGATCCTTACTAGTAACCACAGTACTTCTACTACTCTCCCTTCCTGTTCTAGCTGCTGGA\n>MK401918.1 Porotergus gymnotus isolate ANSP189647 cytochrome oxidase subunit I (COI) gene, partial cds; mitochondrial\nGGCACACTATACATGGTGTTNGGCGCCTGGGCGGGTATAATTGGTACTGCTCTTANGCTTCTAATCCGGGCCGAGCTAAATCAACCGGGCACCCTCCTAGAAGACGACCAAATTTACAATGTGGCCGTCACTGCCCATGCCTTTGTAATAATTTTCTTTATAGTTATGCCAATCATAATTGGAGGCTTTGGCAATTGGCTTATCCCCCTAATAATTGCCGCGCCAGACATAGCATTCCCACGAATAAATAACATAAGCTTCTGGCTACTCCCCCCATCATTCTTCCTGCTCCTCGCCTCTGCTGGCTTAGAGGCCGGAGTTGGAACAGGTTGGACCCTATACCCCCCTCTTGCCGCTAATGCAGCACACGCCGGAGCTTCCGTAGACCTAACTATCTTCTCCCTTCACTTGGCGGGTGTTTCATCCATCCTCGGCTCCATTAACTTTATTACTACAATTATTAATATAAAACCTCCAACAATATCCCAATACCAACTCCCACTCTTTATCTGGTCCCTGCTGGTTACTACCGTGCTTCTACTACTCTCCCTTCCTGTCCTAGCTGCTGGTATTACCATGCTACTCACAGACCGAAATCTAAACACAGCATTCTTCGACCCAACGGGCGGCGGTGACCCAATTCTGTACCAACACTTGTTCTGGTT'
-                ),
-                'query_file': openapi.Schema(
-                    type=openapi.TYPE_FILE
-                ),
-                'create_hit_tree': openapi.Schema(
-                    type=openapi.TYPE_BOOLEAN,
-                    example=True
-                ),
-                'create_db_tree': openapi.Schema(
-                    type=openapi.TYPE_BOOLEAN,
-                    example=False
-                )
-            }),
-        tags = [tag_runs],
-        responses={
-            '400': openapi.Response(
-                description='Bad request parameters. An accompanying message may specify the error with the request.',
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'message': openapi.Schema(
-                            type=openapi.TYPE_STRING,
-                            description='Helper message clarifying the cause of the error.'
-                        )
-                    }
-                ),
-                examples={
-                    'application/json': {
-                        'message': 'Request did not have raw sequence text or file upload specified to run with.'
-                    }
-                }
-                ),
-            '404': 'The BLAST database specified by the ID does not exist.',
-            '201': openapi.Response(
-                description='Run was successfully added to queue and a new unique run identifier is returned. Users should now use the given ID to continually check the status of the run to check whether it has completed.',
-                schema=BlastRunSerializer(),
-                examples={'application/json': BlastRunSerializer.Meta.example}
-            ),
-            '500': 'Unexpected error. No new run was created.'
-        }
+        # request_body=openapi.Schema(
+        #     type=openapi.TYPE_OBJECT,
+        #     title='Parameters',
+        #     properties={
+        #         'job_name': openapi.Schema(
+        #             type=openapi.TYPE_STRING,
+        #             example='two sequences'
+        #         ),
+        #         'query_sequence': openapi.Schema(
+        #             type=openapi.TYPE_STRING,
+        #             example='>MG653404.1 Compsaraia iara isolate SA217 cytochrome c oxidase subunit 1 (COI) gene, partial cds; mitochondrial\nCCAACCAGGCGCCCTCCTGGGAGACGACCAAATTTACAATGTGGTCGTTACCGCCCATGCCTTCGTAATAATTTTCTTTATAGTAATGCCAATTATAATCGGAGGCTTTGGCAATTGACTTATCCCCTTAATAATTGCCGCGCCCGATATGGCATTCCCACGAATAAATAATATAAGCTTCTGACTGCTTCCCCCATCATTCTTCCTCCTACTTGCCTCTGCCGGGTTAGAGGCCGGAGTCGGGACAGGCTGAACGCTTTACCCCCCTCTTGCCGGTAATGCAGCACACGCTGGAGCCTCTGTAGACCTAACCATTTTCTCCCTTCACTTGGCCGGTGTCTCATCTATCCTCGGATCTATTAACTTTATCACTACAATTATTAATATGAAACCCCCAACAATATCCCAATACCAGCTTCCATTATTTATTTGATCCTTACTAGTAACCACAGTACTTCTACTACTCTCCCTTCCTGTTCTAGCTGCTGGA\n>MK401918.1 Porotergus gymnotus isolate ANSP189647 cytochrome oxidase subunit I (COI) gene, partial cds; mitochondrial\nGGCACACTATACATGGTGTTNGGCGCCTGGGCGGGTATAATTGGTACTGCTCTTANGCTTCTAATCCGGGCCGAGCTAAATCAACCGGGCACCCTCCTAGAAGACGACCAAATTTACAATGTGGCCGTCACTGCCCATGCCTTTGTAATAATTTTCTTTATAGTTATGCCAATCATAATTGGAGGCTTTGGCAATTGGCTTATCCCCCTAATAATTGCCGCGCCAGACATAGCATTCCCACGAATAAATAACATAAGCTTCTGGCTACTCCCCCCATCATTCTTCCTGCTCCTCGCCTCTGCTGGCTTAGAGGCCGGAGTTGGAACAGGTTGGACCCTATACCCCCCTCTTGCCGCTAATGCAGCACACGCCGGAGCTTCCGTAGACCTAACTATCTTCTCCCTTCACTTGGCGGGTGTTTCATCCATCCTCGGCTCCATTAACTTTATTACTACAATTATTAATATAAAACCTCCAACAATATCCCAATACCAACTCCCACTCTTTATCTGGTCCCTGCTGGTTACTACCGTGCTTCTACTACTCTCCCTTCCTGTCCTAGCTGCTGGTATTACCATGCTACTCACAGACCGAAATCTAAACACAGCATTCTTCGACCCAACGGGCGGCGGTGACCCAATTCTGTACCAACACTTGTTCTGGTT'
+        #         ),
+        #         'query_file': openapi.Schema(
+        #             type=openapi.TYPE_FILE
+        #         ),
+        #         'create_hit_tree': openapi.Schema(
+        #             type=openapi.TYPE_BOOLEAN,
+        #             example=True
+        #         ),
+        #         'create_db_tree': openapi.Schema(
+        #             type=openapi.TYPE_BOOLEAN,
+        #             example=False
+        #         )
+        #     }),
+        tags = [tag_runs]
+        # responses={
+        #     '400': openapi.Response(
+        #         description='Bad request parameters. An accompanying message may specify the error with the request.',
+        #         schema=openapi.Schema(
+        #             type=openapi.TYPE_OBJECT,
+        #             properties={
+        #                 'message': openapi.Schema(
+        #                     type=openapi.TYPE_STRING,
+        #                     description='Helper message clarifying the cause of the error.'
+        #                 )
+        #             }
+        #         ),
+        #         examples={
+        #             'application/json': {
+        #                 'message': 'Request did not have raw sequence text or file upload specified to run with.'
+        #             }
+        #         }
+        #         ),
+        #     '404': 'The BLAST database specified by the ID does not exist.',
+        #     '201': openapi.Response(
+        #         description='Run was successfully added to queue and a new unique run identifier is returned. Users should now use the given ID to continually check the status of the run to check whether it has completed.',
+        #         schema=BlastRunSerializer(),
+        #         examples={'application/json': BlastRunSerializer.Meta.example}
+        #     ),
+        #     '500': 'Unexpected error. No new run was created.'
+        # }
     )
     def post(self, request, *args, **kwargs):      
         '''
@@ -575,6 +576,8 @@ class BlastRunRun(generics.CreateAPIView):
         '''
 
         db_used = kwargs['pk']
+
+        print("Beginning run on database", str(db_used))
 
         # Bad request if no query_sequence is given
         if not 'query_sequence' in request.data and not 'query_file' in request.FILES:
@@ -620,6 +623,8 @@ class BlastRunRun(generics.CreateAPIView):
             else:
                 return Response({'message': 'Could not parse parameters for create_db_tree'},
                 status=status.HTTP_400_BAD_REQUEST)
+
+        print("Beginning to parse sequences")
 
         query_sequences : List = []
         # obtain the query sequence, either from raw text or from the file upload
@@ -693,30 +698,28 @@ class BlastRunRun(generics.CreateAPIView):
         # path to parent folder of blast tools and django app
         project_root = os.path.abspath(os.path.dirname('./'))
         # path to ncbi.../bin/
-        ncbi_blast_version = 'ncbi-blast-2.12.0+'
-        blast_root =  f'{project_root}/{ncbi_blast_version}/bin'
+        
+        print("Making folders with user id ", os.getuid())
 
         # path to output the database
-        fishdb_root = project_root + '/fishdb'
-        fishdb_path = fishdb_root + '/' + str(odb.id)
+        fishdb_path = get_data_fishdb_path(str(odb.id))
         if not os.path.exists(fishdb_path):
             os.mkdir(fishdb_path)
 
         # path to output the results
         results_uuid = uuid.uuid4()
-        results_root = project_root + '/runs'
-        results_path = results_root + '/' + str(results_uuid)
+        results_path = get_data_run_path(str(results_uuid))
         if not os.path.exists(results_path):
             os.mkdir(results_path)
             # ensure that celery worker has access to file to write results.txt later
-            shutil.chown(results_path, group='celery') 
+            # shutil.chown(results_path, group='appgroup', user='appuser') 
             os.chmod(results_path, 0o774)
 
         # static path to download results
-        static_path = '/var/www/runs/' + str(results_uuid)
+        static_path = get_static_run_path(run_id=str(results_uuid))
         if not os.path.exists(static_path):
             os.mkdir(static_path)
-            shutil.chown(static_path, group='celery')
+            # shutil.chown(static_path, group='appgroup', user='appuser')
             os.chmod(static_path, 0o775)
 
         print("Run id: " + str(results_uuid))
@@ -731,8 +734,7 @@ class BlastRunRun(generics.CreateAPIView):
                     shutil.rmtree(fishdb_path, ignore_errors = False)
                 except BaseException as base_exception:
                     return Response({
-                        'message': "Server errored making the database.",
-                        'error_type': type(base_exception)
+                        'message': "Server errored making the database."
                     }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             
             print('Gathering sequences into fasta ...')
@@ -747,6 +749,8 @@ class BlastRunRun(generics.CreateAPIView):
             my_file.close()
 
             print('Creating db now ...')
+            ncbi_blast_version = 'ncbi-blast-2.12.0+'
+            blast_root = get_ncbi_folder(ncbi_blast_version=ncbi_blast_version)
             command = '{} -in {} -dbtype nucl -out {} -title {} -parse_seqids'.format(blast_root + '/makeblastdb', fasta_file, fishdb_path + '/database', 'database')
         
             # Lock the database
@@ -770,6 +774,7 @@ class BlastRunRun(generics.CreateAPIView):
         print('Running BLAST search ...')
 
         # TODO: remove query_sequence reference
+        ncbi_blast_version = 'ncbi-blast-2.12.0+'
         run_details = BlastRun(id = results_uuid, db_used = odb, job_name = job_name, blast_version = ncbi_blast_version, errors = '', job_status=BlastRun.JobStatus.QUEUED, job_start_time = None, job_end_time = None, job_error_time = None, create_hit_tree = create_hit_tree, create_db_tree = create_db_tree)
         run_details.save()
 
@@ -801,9 +806,11 @@ class BlastRunRun(generics.CreateAPIView):
             )  # type: ignore
         )      # type: ignore
 
+        return Response(status=status.HTTP_201_CREATED)
+
         # create response 
-        serializer = BlastRunSerializer(run_details)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        # serializer = BlastRunSerializer(run_details)
+        # return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 class BlastRunDetail(mixins.DestroyModelMixin, generics.GenericAPIView):
     '''
@@ -875,7 +882,7 @@ class BlastRunInputDownload(generics.GenericAPIView):
             return Response(status=status.HTTP_404_NOT_FOUND)
         
         file_name = 'query.fasta'
-        query_path = os.path.abspath(f'./runs/{run.id}/{file_name}')
+        query_path = get_data_run_path(str(run.id)) + file_name
         if os.path.exists(query_path) and os.path.isfile(query_path):
             # return file in response
             file_handler = open(query_path, 'r')

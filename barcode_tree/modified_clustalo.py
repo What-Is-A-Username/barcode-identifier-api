@@ -31,6 +31,7 @@ from __future__ import print_function
 
 import sys
 from xmltramp2 import xmltramp
+from barcode_blastn.file_paths import get_data_run_path
 
 from barcode_tree.embl_utils import printDebugMessage, getUserAgent, restRequest, serviceGetResult, serviceGetResultTypes
 
@@ -131,7 +132,7 @@ def getMultipleAlignmentResult(job_id: str, run_id: str):
     # Get available result types
     resultTypes = serviceGetResultTypes(base_url, job_id)
 
-    outfile = f'./runs/{run_id}/{job_id}'
+    outfile = get_data_run_path(run_id=run_id) + '/' + job_id
 
     for resultType in resultTypes:
         # Derive the filename for the result

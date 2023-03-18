@@ -10,6 +10,7 @@ from Bio.Seq import Seq
 from datetime import datetime, timezone
 import subprocess
 from typing import Dict, List
+from barcode_blastn.file_paths import get_data_fishdb_path, get_data_run_path, get_ncbi_folder, get_static_run_path
 from barcode_blastn.helper.modified_clustalo import getMultipleAlignmentResult, submitMultipleAlignmentAsync
 from barcode_blastn.helper.parse_gb import retrieve_gb
 from barcode_blastn.helper.parse_results import parse_results
@@ -54,20 +55,20 @@ def run_blast_command(ncbi_blast_version: str, fishdb_id: str, run_id: str) -> b
     run_details.job_start_time = datetime.now()
     run_details.save()
 
-    blast_root =  f'{project_root}/{ncbi_blast_version}/bin'
+    blast_root = get_ncbi_folder(ncbi_blast_version=ncbi_blast_version)
     command_app = blast_root + '/blastn'
     # check if blast executable are present
     if not os.path.exists(command_app) or not os.path.isfile(command_app):
         raise_error(run_details, f"Critical error: Failed to find blastn executable at {command_app}")
         raise FileNotFoundError('Failed to find blastn executable')
 
-    db_path = project_root + '/fishdb/' + fishdb_id + '/database' 
+    db_path = get_data_fishdb_path(fishdb_id) + '/database'
     # check if the database file exists
     if not os.path.exists(db_path + '.fasta') or not os.path.isfile(db_path + '.fasta'):
         raise_error(run_details, f"Critical error: Failed to find BLAST database at {db_path}")
         raise FileNotFoundError('Failed to find BLAST database')
 
-    run_folder = f'{project_root}/runs/{run_id}'
+    run_folder = get_data_run_path(run_id=run_id)
     results_file = f'{run_folder}/results.txt'
     errors_file = f'{run_folder}/errors.txt'
     query_file = f'{run_folder}/query.fasta'
@@ -99,6 +100,8 @@ def run_blast_command(ncbi_blast_version: str, fishdb_id: str, run_id: str) -> b
     except BaseException as exc:
         raise_error(run_details, f"Errored while retrieving shell output.")
         raise RuntimeError('Errored while retrieving shell output.') from exc
+
+    print(out)
 
     print('Writing results to file ...')
 
@@ -200,7 +203,7 @@ def performAlignment(blast_successful: bool, run_id: str) -> Tuple[str, int]:
         return ('', status.HTTP_200_OK)
 
     # Gather sequences (query sequences + hit sequences) into a single list
-    run_folder = os.path.abspath(f'./runs/{run_id}')
+    run_folder = get_data_run_path(run_id=run_id)
     query_sequences: List[SeqIO.SeqRecord] = list(SeqIO.parse(f'{run_folder}/query.fasta', 'fasta'))
     for i in range(len(query_sequences)):
         query_sequences[i].id += '|query'
@@ -314,8 +317,8 @@ def completeAlignment(sequence_string: str, run_id: str) -> Tuple[str, str, int]
         
         # move files to be downloaded
         try:
-            destination_dir = f'/var/www/runs/{run_id}'
-            parent_folder = os.path.abspath(f'./runs/{run_id}')
+            destination_dir = get_static_run_path(run_id)
+            parent_folder = get_data_run_path(run_id)
             files = os.listdir(parent_folder)
             files_to_transfer = ['.aln-clustal_num.clustal_num', '.phylotree.ph', '.pim.pim', '.sequence.txt']
             for file in files:

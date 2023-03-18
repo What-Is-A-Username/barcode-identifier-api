@@ -309,12 +309,12 @@ class BlastRunRunSerializer(serializers.ModelSerializer):
     Required fields for submitting a blast run
     '''
     query_sequence = serializers.CharField()
-    query_file = serializers.FileField()
+    # query_file = serializers.FileField()
 
     class Meta:
         model = BlastRun
         ref_name = run_title + ' submission'
-        fields = ['id', 'job_name', 'query_sequence', 'query_file', 'create_hit_tree', 'create_db_tree']
+        fields = ['id', 'job_name', 'query_sequence', 'create_hit_tree', 'create_db_tree']
 
 def load_run_example():
     '''

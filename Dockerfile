@@ -1,19 +1,32 @@
-FROM python:3.8.10-alpine3.13 AS pyvenv_image
+FROM python:3.8.10 AS pyvenv_image
 LABEL Author="new_author here"
 
 ENV PYTHONBUFFERED 1
 
 #TODO: postgresql-client apk needed?
 #TODO: Remove .tmp-deps after install
-RUN apk add --no-cache postgresql-dev \ 
-    gcc \
-    musl-dev \
-    curl-dev \
-    openssl-dev \
-    build-base \
+RUN apt-get update && \
+    apt-get install -y gcc \
+    libc6-dev \
+    libcurl4-openssl-dev \
+    libssl-dev \
+    build-essential \
     python3-dev \
-    linux-headers \
-    pcre-dev
+    linux-headers-amd64 \
+    libpcre3-dev \
+    libpq-dev \
+    python3-dev
+# RUN apk add --no-cache postgresql-dev \ 
+#     gcc \
+#     musl-dev \
+#     curl-dev \
+#     openssl-dev \
+#     build-base \
+#     python3-dev \
+#     linux-headers \
+#     pcre-dev \
+#     gcompat
+    # note: gcompat necessary to run our ncbi binaries on an alpine image
 
 RUN python -m venv /py && \
     /py/bin/pip install --upgrade pip
@@ -31,8 +44,8 @@ EXPOSE 8000
 COPY ./scripts /scripts
 
 RUN chmod -R u+x /scripts && \
-    addgroup -S appgroup && \
-    adduser -S appuser -g appgroup && \
+    addgroup --system appgroup && \
+    adduser --ingroup appgroup appuser --disabled-password --gecos "" --no-create-home && \
     chown -R appuser:appgroup /scripts && \
     mkdir -p /var/www/runs && \ 
     chmod -R 764 /var/www/runs && \

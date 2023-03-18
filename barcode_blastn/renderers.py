@@ -3,6 +3,7 @@ import io
 import os
 from django.http.response import HttpResponse
 from rest_framework.renderers import BaseRenderer
+from barcode_blastn.file_paths import get_data_run_path
 from barcode_blastn.models import BlastRun
 
 from barcode_blastn.serializers import BlastDbSequenceEntrySerializer,  BlastRunSerializer, HitSerializer
@@ -90,10 +91,11 @@ class BlastRunTxtRenderer(BaseRenderer):
 
         out_lines.append('\n')
 
-        run_folder = os.path.abspath(f'./runs/{run_id}/')
+        run_folder = get_data_run_path(run_id)
+
         # only print results if run is finished and file exists
         if data['job_status'] == BlastRun.JobStatus.FINISHED:
-            results_file = f'{run_folder}/results.txt'
+            results_file = f'{run_folder}results.txt'
             if os.path.exists(results_file) and os.path.isfile(results_file):
                 with open(results_file, 'r') as results_txt_file:
                     out_lines.extend(results_txt_file.readlines())

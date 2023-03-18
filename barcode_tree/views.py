@@ -1,6 +1,7 @@
 from io import StringIO
 from rest_framework import status, generics, mixins 
 from urllib import request
+from barcode_blastn.file_paths import get_data_run_path, get_static_run_path
 from barcode_blastn.models import BlastRun, Hit
 from barcode_tree.models import ResultTree
 from rest_framework.response import Response
@@ -58,8 +59,8 @@ class ResultTreeDetail(mixins.DestroyModelMixin, generics.GenericAPIView):
                     # TODO: Confirm operation was successful by checking for network error, exceptions
                     
                     # move files to be downloaded
-                    destination_dir = f'/var/www/runs/{run_id}'
-                    parent_folder = os.path.abspath(f'./runs/{run_id}')
+                    destination_dir = get_static_run_path(run_id)
+                    parent_folder = get_data_run_path(run_id)
                     files = os.listdir(parent_folder)
                     files_to_transfer = ['.aln-clustal_num.clustal_num', '.phylotree.ph', '.pim.pim', '.sequence.txt']
                     for file in files:

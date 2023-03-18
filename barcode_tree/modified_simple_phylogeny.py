@@ -32,6 +32,7 @@ from __future__ import print_function
 import os
 # TODO: see if another xml library can be used to replace xmltramp
 from xmltramp2 import xmltramp
+from barcode_blastn.file_paths import get_data_run_path
 
 from barcode_tree.embl_utils import getUserAgent, printDebugMessage, restRequest, serviceGetResult, serviceGetResultTypes
 
@@ -56,7 +57,7 @@ version = u'2022-09-13 12:15'
 
 def submitSimplePhylogenyAsync(run_id: str):
     # python simple_phylogeny.py --tree=phylip --clustering=Neighbour-joining runs/0ebab7ef-f7a8-456a-923c-a57b6e3e47ba/clustalo-R20230207-024801-0870-6020700-p1m.aln-clustal_num.clustal_num --email william.huang1212@gmail.com --asyncjob
-    run_folder = os.path.abspath(f'./runs/{run_id}')
+    run_folder = get_data_run_path(run_id=run_id)
     run_contents = os.listdir(run_folder)
     try:
         alignment_file = [r for r in run_contents if r.endswith('.clustal_num')][0]
@@ -122,7 +123,7 @@ def getSimplePhylogenyOutput(jobId, run_id):
 
     # Get available result types
     resultTypes = serviceGetResultTypes(base_url=baseUrl, jobId=jobId)
-    outfile = f'./runs/{run_id}/{jobId}'
+    outfile = get_data_run_path(run_id=run_id) + jobId
 
     for resultType in resultTypes:
         # Derive the filename for the result
@@ -165,7 +166,7 @@ def readTreeFromFile(run_id: str) -> str:
     '''
         Return the tree as a string by reading it from file
     '''
-    run_folder = os.path.abspath(f'./runs/{run_id}')
+    run_folder = get_data_run_path(run_id=run_id)
     run_files = os.listdir(run_folder)
     try:
         phylip_file = [r for r in run_files if r.endswith(".phylotree.ph")][0]

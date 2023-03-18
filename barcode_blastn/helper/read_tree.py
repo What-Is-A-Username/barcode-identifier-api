@@ -1,4 +1,5 @@
 import os
+from barcode_blastn.file_paths import get_static_run_path
 from barcode_blastn.models import BlastRun
 
 def readHitTreeFromFile(run: BlastRun) -> str:
@@ -16,7 +17,7 @@ def readDbTreeFromFile(run: BlastRun) -> str:
 def readTreeFromFile(run_id: str, job_id: str) -> str:
     '''Return the tree as a string by reading it from file.
     '''
-    run_folder = os.path.abspath(f'./runs/{run_id}')
+    run_folder = get_static_run_path(run_id)
     run_files = os.listdir(run_folder)
     try:
         phylip_file = [r for r in run_files if r == f"{job_id}.phylotree.ph"][0]

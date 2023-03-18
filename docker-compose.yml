@@ -11,11 +11,6 @@ services:
   pyvenv_image:
     container_name: pyvenv_image
     build: .
-    volumes:
-      - ".:/barcode_identifier_api"
-      - "./var/data:/var/data/"
-      - "./var/www/runs:/var/www/runs/"
-      - "./var/web:/vol/web/"
     depends_on:
       - db
   barcode_identifier_api:
@@ -41,8 +36,7 @@ services:
       - ".:/barcode_identifier_api"
       # only for dev container: link the /data/runs and /var/www/runs folder to see files in local directories
       - "./var/data:/var/data/"
-      - "./var/www/runs:/var/www/runs/"
-      - "./var/web:/vol/web/"
+      - "./var/web:/vol/static"
     depends_on:
       - db
       - celery_worker
@@ -67,8 +61,7 @@ services:
     volumes:
       - ".:/barcode_identifier_api"
       - "./var/data:/var/data/"
-      - "./var/www/runs:/var/www/runs/"
-      - "./var/web:/vol/web/"
+      - "./var/web:/vol/static"
     command: >
       sh -c "celery_run.sh"
     depends_on:
