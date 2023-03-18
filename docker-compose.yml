@@ -61,7 +61,7 @@ services:
     volumes:
       - ".:/barcode_identifier_api"
       - "./var/data:/var/data/"
-      - "./var/web:/vol/static"
+      - "./var/web:/vol/static/"
     command: >
       sh -c "celery_run.sh"
     depends_on:

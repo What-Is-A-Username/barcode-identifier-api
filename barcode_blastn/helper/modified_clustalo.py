@@ -149,7 +149,7 @@ def getMultipleAlignmentResult(job_id: str, run_id: str):
     # Get available result types
     resultTypes = serviceGetResultTypes(base_url, job_id)
 
-    outfile = get_data_run_path(run_id=run_id) + job_id
+    outfile = get_data_run_path(run_id=run_id) + '/' + job_id
 
     for resultType in resultTypes:
         # Derive the filename for the result

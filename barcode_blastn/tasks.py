@@ -188,6 +188,8 @@ def performAlignment(blast_successful: bool, run_id: str) -> Tuple[str, int]:
 
     if not blast_successful:
         return ('BLAST returned error code', status.HTTP_500_INTERNAL_SERVER_ERROR)
+    else:
+        print(f"Starting alignment submission for run {run_id}")
 
     # Check that the run exists
     try:

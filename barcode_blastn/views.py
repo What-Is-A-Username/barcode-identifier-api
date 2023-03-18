@@ -791,26 +791,41 @@ class BlastRunRun(generics.CreateAPIView):
 
         run_id_str = str(run_details_id)
 
-        run_blast_command.apply_async(
+        # How to chain for Docker-hosted RabbitMQ 
+        app.send_task('barcode_blastn.tasks.run_blast_command', 
             queue='BarcodeQueue.fifo',
-            **message_properties, 
+            **message_properties,
             kwargs={
-                'ncbi_blast_version': ncbi_blast_version,
-                'fishdb_id': str(odb.id),
-                'run_id': run_id_str
-            }, 
-            link=signature('barcode_blastn.tasks.performAlignment', 
+                    'ncbi_blast_version': ncbi_blast_version,
+                    'fishdb_id': str(odb.id),
+                    'run_id': run_id_str
+        },
+        chain=[signature('barcode_blastn.tasks.performAlignment', 
+            queue='BarcodeQueue.fifo',
                 kwargs={
                     'run_id': run_id_str
                 }
-            )  # type: ignore
-        )      # type: ignore
+            )])
 
-        return Response(status=status.HTTP_201_CREATED)
+        # How to chain for Amazon SQS
+        # run_blast_command.apply_async(
+        #     queue='BarcodeQueue.fifo',
+        #     **message_properties, 
+        #     kwargs={
+        #         'ncbi_blast_version': ncbi_blast_version,
+        #         'fishdb_id': str(odb.id),
+        #         'run_id': run_id_str
+        #     }, 
+        #     link=signature('barcode_blastn.tasks.performAlignment', 
+        #         kwargs={
+        #             'run_id': run_id_str
+        #         }
+        #     )  # type: ignore
+        # )      # type: ignore
 
         # create response 
-        # serializer = BlastRunSerializer(run_details)
-        # return Response(serializer.data, status=status.HTTP_201_CREATED)
+        serializer = BlastRunSerializer(run_details)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 class BlastRunDetail(mixins.DestroyModelMixin, generics.GenericAPIView):
     '''
@@ -882,7 +897,7 @@ class BlastRunInputDownload(generics.GenericAPIView):
             return Response(status=status.HTTP_404_NOT_FOUND)
         
         file_name = 'query.fasta'
-        query_path = get_data_run_path(str(run.id)) + file_name
+        query_path = get_data_run_path(str(run.id)) + '/' + file_name
         if os.path.exists(query_path) and os.path.isfile(query_path):
             # return file in response
             file_handler = open(query_path, 'r')
