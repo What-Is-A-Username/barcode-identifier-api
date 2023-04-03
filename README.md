@@ -212,6 +212,15 @@ sudo mkdir /var/www/runs
 sudo chown 755 /var/www/runs
 ```
 
+### Collect static files
+
+If not already done so, static files (.js, .css, files needed for certain pages) should be collected in the ./static folder in the project folder. 
+```
+cd ~/barcode_identifier_api/
+python manage.py collectstatic
+```
+If the above step prompted about overwriting the static folder, allow the folder and its files to be overwritten.
+
 ### Setup the systemd services
 
 We will be using `systemd` in order to run uWSGI and Celery to run in the background. Copy the files for these two services to the correct directory:
