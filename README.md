@@ -320,13 +320,21 @@ celery -A barcode_identifier_api worker --loglevel=INFO -Q BarcodeQueue.fifo -B 
 
 ### Option 3: Development on a localhost 
 
-The following allows you to directly run the app and worker, without the need to interact with nginx or any web server configurations. Note that this does not allow for access to media/ and HTTPS.
+The following allows you to directly run the app and worker, without the need to interact with nginx or any web server configurations. 
 
 ```
 uwsgi --socket u.sock --module barcode_identifier_api.wsgi --chmod-socket=666
 ```
 
-To stop the app or the worker, press `Ctrl-C` in the appropriate terminal.
+Open another terminal and run the worker queue used to perform the BLAST searches. 
+```
+celery -A barcode_identifier_api worker --loglevel=INFO -Q BarcodeQueue.fifo -B -s /var/log/celery/celerybeat-schedule -c 1
+```
+
+Start nginx.
+```
+sudo /etc/init.d/nginx start
+```
 
 ## Downloading database data
 In the event that the database should be dumped/downloaded to a file, run the following in the terminal to create a `db.sql` file which can be transferred.

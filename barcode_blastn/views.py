@@ -19,11 +19,17 @@ from rest_framework.parsers import JSONParser, FormParser, MultiPartParser
 from rest_framework.permissions import IsAdminUser, AllowAny
 from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer, TemplateHTMLRenderer
 from rest_framework.response import Response
+from rest_framework.serializers import Serializer
 from urllib.error import HTTPError
 from barcode_blastn.tasks import run_blast_command
 
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
+
+tag_runs = 'Runs/Jobs'
+tag_blastdbs = 'BLAST Databases'
+tag_sequences = 'GenBank Accessions'
+tag_admin = 'Admin Tools'
 
 class NuccoreSequenceList(mixins.ListModelMixin, generics.GenericAPIView):
     '''
@@ -36,12 +42,14 @@ class NuccoreSequenceList(mixins.ListModelMixin, generics.GenericAPIView):
     @swagger_auto_schema(
         operation_summary='Global view of all sequence database entries.',
         operation_description='Return a list of all accession numbers across all databases.',
+        tags = [tag_admin],
         responses={
             '200': openapi.Response(
                 description="All sequence entries",
-                schema=NuccoreSequenceAddSerializer(),
+                # TODO: Schema and example should be an array
+                schema=NuccoreSequenceSerializer(many=True),
                 examples={
-                    'application/json': NuccoreSequenceAddSerializer.Meta.example
+                    'application/json': [NuccoreSequenceSerializer.Meta.example]
                 }
             )
         }
@@ -60,12 +68,28 @@ class NuccoreSequenceBulkAdd(generics.CreateAPIView):
     @swagger_auto_schema(
         operation_summary='Bulk-add accessions.',
         operation_description='From a list of accession numbers, bulk add them to an existing database. List must contain between 1-100 accession numbers inclusive.',
+        tags = [tag_blastdbs, tag_sequences],
+        # TODO: Add request schema and example
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'accession_numbers': openapi.Schema(
+                    type=openapi.TYPE_ARRAY, 
+                    description='List of GenBank accession numbers to add',
+                    items=openapi.Schema(
+                        type=openapi.TYPE_STRING,
+                        example='GU701771',
+                        description='GenBank accession number'
+                    )
+                ),
+            }
+        ),
         responses={
             '200': openapi.Response(
                 description='No new sequences added because all already exist in the database.',
-                schema=NuccoreSequenceSerializer(),
+                schema=NuccoreSequenceSerializer(many=True),
                 examples={
-                    'application/json': NuccoreSequenceSerializer.Meta.example
+                    'application/json': [ NuccoreSequenceSerializer.Meta.example ]
                 }
             ),
             '201': 'Sequences successfully added to the database.',
@@ -160,6 +184,8 @@ class NuccoreSequenceAdd(generics.CreateAPIView):
     @swagger_auto_schema(
         operation_summary='Add a sequence entry.',
         operation_description='Add a sequence to a BLAST database, using GenBank accession data corresponding to the accession number given.',
+        request_body=NuccoreSequenceAddSerializer,
+        tags = [tag_blastdbs, tag_sequences],
         responses={
             '201': openapi.Response(
                 description='Sequences successfully added to the database.',
@@ -229,10 +255,11 @@ class NuccoreSequenceDetail(mixins.DestroyModelMixin, generics.RetrieveAPIView):
     @swagger_auto_schema(
         operation_summary='Get information about a sequence entry.',
         operation_description='Get information about a sequence entry.',
+        tags = [tag_sequences],
         responses={
             '200': openapi.Response(
                 description='Successfully returned sequence information',
-                schema=NuccoreSequenceSerializer(),
+                schema=NuccoreSequenceSerializer(read_only=True),
                 examples={
                     'application/json': NuccoreSequenceSerializer.Meta.example
                 }
@@ -255,6 +282,7 @@ class NuccoreSequenceDetail(mixins.DestroyModelMixin, generics.RetrieveAPIView):
     @swagger_auto_schema(
         operation_summary='Delete a sequence entry.',
         operation_description='Delete a sequence entry from a BLAST database.',
+        tags = [tag_blastdbs, tag_sequences],
         responses={
             '204': 'Deletion successful.',
             '400': 'Deletion failed because entry belongs to a database that is locked for editing.',
@@ -291,10 +319,11 @@ class BlastDbList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.Gener
     @swagger_auto_schema(
         operation_summary='Get all databases.',
         operation_description='Return a list of all BLAST databases publicly available for queries.',
+        tags = [tag_blastdbs],
         responses={
             '200': openapi.Response(
                 description='A list of all accession numbers saved to all databases.',
-                schema=BlastDbListSerializer(),
+                schema=BlastDbListSerializer(many=True, read_only=True),
                 examples={
                     'application/json': BlastDbListSerializer.Meta.example,
                 }
@@ -310,9 +339,11 @@ class BlastDbList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.Gener
     @swagger_auto_schema(
         operation_summary='Create a database.',
         operation_description='Create a new publicly accessible BLAST database available for queries.',
+        tags = [tag_admin, tag_blastdbs],
+        request_body=BlastDbCreateSerializer(),
         responses={
             '200': openapi.Response(
-                description='A list of all accession numbers saved to all databases.',
+                description='Creation was successful.',
                 schema=BlastDbCreateSerializer(),
                 examples={
                     'application/json': BlastDbCreateSerializer.Meta.example
@@ -326,7 +357,6 @@ class BlastDbList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.Gener
         '''
         return self.create(request, *args, **kwargs)
 
-
 class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.DestroyModelMixin, generics.GenericAPIView):
     '''
     Retrieve the details of a given blast database
@@ -336,13 +366,17 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
     permission_classes = [IsAdminOrReadOnly]
     renderer_classes = [JSONRenderer, BrowsableAPIRenderer, TemplateHTMLRenderer, BlastDbCSVRenderer, BlastDbFastaRenderer]
 
+    def get_serializer_class(self):
+        return super().get_serializer_class()
+
     @swagger_auto_schema(
         operation_summary='Get information about a BLAST database.',
         operation_description='Return all available information of the BLAST database specified by the ID given.',
+        tags = [tag_blastdbs],
         responses={
             '200': openapi.Response(
-                description='Information of the matching BLAST database.',
-                schema=BlastDbSerializer(),
+                description='Information on the BLAST database matching the given ID.',
+                schema=BlastDbSerializer,
                 examples={
                     'application/json': BlastDbSerializer.Meta.example
                 }
@@ -376,10 +410,11 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
     @swagger_auto_schema(
         operation_summary='Update information of a BLAST database.',
         operation_description='Edit information of a BLAST database. This method does not allow adding/removing/editing of the sequence entries within.',
+        tags = [tag_blastdbs],
         responses={
             '200': openapi.Response(
                 description='Database updated successfully.',
-                schema=BlastDbSerializer(),
+                schema=BlastDbSerializer,
                 examples={
                     'application/json': BlastDbSerializer.Meta.example
                 }
@@ -405,6 +440,7 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
     @swagger_auto_schema(
         operation_summary='Delete a BLAST database.',
         operation_description='Delete the BLAST database specified by the given ID.',
+        tags = [tag_blastdbs],
         responses={
             '204': 'Deletion successful.',
             '404': 'BLAST database with the given ID does not exist',
@@ -442,12 +478,13 @@ class BlastRunList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.Gene
     @swagger_auto_schema(
         operation_summary='List all runs.',
         operation_description='Return a list of runs/jobs/queries saved by the API, including queued, running, and completed jobs.',
+        tags = [tag_admin],
         responses={
             '200': openapi.Response(
                 description='A list of all jobs saved.',
                 schema = BlastRunSerializer(many=True),
                 examples={
-                    'application/json': BlastRunSerializer.Meta.example
+                    'application/json': [ BlastRunSerializer.Meta.example ]
                 }
             )
         }
@@ -470,6 +507,33 @@ class BlastRunRun(generics.CreateAPIView):
     @swagger_auto_schema(
         operation_summary='Submit a run.',
         operation_description='Submit query sequence(s) and associated data to begin a run. Sequences can be supplied as either raw text in "query_sequence" or in an uploaded file named "query_file". Unless the submission is erroneous, the response will contain a unique run ID used to keep track of the status (the run is run asynchronously) and look up results when complete.\n\nA run will perform a BLASTN query of each query sequence against the sequences found within the BLAST database. Based on the values of the "create_hit_tree" and "create_db_tree" parameters, then up to 2 multiple alignment jobs will be performed using the query sequences and sequences from the hits or entire database, respectively.',
+        # TODO: Add request / parameter schema
+
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            title='Parameters',
+            properties={
+                'job_name': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    example='two sequences'
+                ),
+                'query_sequence': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    example='>MG653404.1 Compsaraia iara isolate SA217 cytochrome c oxidase subunit 1 (COI) gene, partial cds; mitochondrial\nCCAACCAGGCGCCCTCCTGGGAGACGACCAAATTTACAATGTGGTCGTTACCGCCCATGCCTTCGTAATAATTTTCTTTATAGTAATGCCAATTATAATCGGAGGCTTTGGCAATTGACTTATCCCCTTAATAATTGCCGCGCCCGATATGGCATTCCCACGAATAAATAATATAAGCTTCTGACTGCTTCCCCCATCATTCTTCCTCCTACTTGCCTCTGCCGGGTTAGAGGCCGGAGTCGGGACAGGCTGAACGCTTTACCCCCCTCTTGCCGGTAATGCAGCACACGCTGGAGCCTCTGTAGACCTAACCATTTTCTCCCTTCACTTGGCCGGTGTCTCATCTATCCTCGGATCTATTAACTTTATCACTACAATTATTAATATGAAACCCCCAACAATATCCCAATACCAGCTTCCATTATTTATTTGATCCTTACTAGTAACCACAGTACTTCTACTACTCTCCCTTCCTGTTCTAGCTGCTGGA\n>MK401918.1 Porotergus gymnotus isolate ANSP189647 cytochrome oxidase subunit I (COI) gene, partial cds; mitochondrial\nGGCACACTATACATGGTGTTNGGCGCCTGGGCGGGTATAATTGGTACTGCTCTTANGCTTCTAATCCGGGCCGAGCTAAATCAACCGGGCACCCTCCTAGAAGACGACCAAATTTACAATGTGGCCGTCACTGCCCATGCCTTTGTAATAATTTTCTTTATAGTTATGCCAATCATAATTGGAGGCTTTGGCAATTGGCTTATCCCCCTAATAATTGCCGCGCCAGACATAGCATTCCCACGAATAAATAACATAAGCTTCTGGCTACTCCCCCCATCATTCTTCCTGCTCCTCGCCTCTGCTGGCTTAGAGGCCGGAGTTGGAACAGGTTGGACCCTATACCCCCCTCTTGCCGCTAATGCAGCACACGCCGGAGCTTCCGTAGACCTAACTATCTTCTCCCTTCACTTGGCGGGTGTTTCATCCATCCTCGGCTCCATTAACTTTATTACTACAATTATTAATATAAAACCTCCAACAATATCCCAATACCAACTCCCACTCTTTATCTGGTCCCTGCTGGTTACTACCGTGCTTCTACTACTCTCCCTTCCTGTCCTAGCTGCTGGTATTACCATGCTACTCACAGACCGAAATCTAAACACAGCATTCTTCGACCCAACGGGCGGCGGTGACCCAATTCTGTACCAACACTTGTTCTGGTT'
+                ),
+                'query_file': openapi.Schema(
+                    type=openapi.TYPE_FILE
+                ),
+                'create_hit_tree': openapi.Schema(
+                    type=openapi.TYPE_BOOLEAN,
+                    example=True
+                ),
+                'create_db_tree': openapi.Schema(
+                    type=openapi.TYPE_BOOLEAN,
+                    example=False
+                )
+            }),
+        tags = [tag_runs],
         responses={
             '400': openapi.Response(
                 description='Bad request parameters. An accompanying message may specify the error with the request.',
@@ -489,7 +553,11 @@ class BlastRunRun(generics.CreateAPIView):
                 }
                 ),
             '404': 'The BLAST database specified by the ID does not exist.',
-            '201': 'Run was successfully added to queue and a new unique run identifier is returned. Users should now use the given ID to continually check the status of the run to check whether it has completed.',
+            '201': openapi.Response(
+                description='Run was successfully added to queue and a new unique run identifier is returned. Users should now use the given ID to continually check the status of the run to check whether it has completed.',
+                schema=BlastRunSerializer(),
+                examples={'application/json': BlastRunSerializer.Meta.example}
+            ),
             '500': 'Unexpected error. No new run was created.'
         }
     )
@@ -741,6 +809,7 @@ class BlastRunDetail(mixins.DestroyModelMixin, generics.GenericAPIView):
     @swagger_auto_schema(
         operation_summary='Get run results.',
         operation_description='Get run information and results of a BLAST run. The job_status indicates the status of the run. The results returned are complete once the job_status is "FIN" (i.e. run is finished). The run information includes the BLASTN hits and multiple alignment trees.',
+        tags = [tag_runs],
         responses={
             '200': openapi.Response(
                 description='Run information successfully retrieved.',
@@ -777,6 +846,7 @@ class BlastRunInputDownload(generics.GenericAPIView):
     @swagger_auto_schema(
         operation_summary='Get query sequence fasta file.',
         operation_description='Returns the original query sequences from the run submission, formatted as a FASTA file attachment.',
+        tags = [tag_runs],
         responses={
             '200': openapi.Response(
                 description='Query sequences retrieved successfully and a fasta file attachment is returned.',
@@ -820,6 +890,7 @@ class BlastRunDetailDownload(generics.GenericAPIView):
     @swagger_auto_schema(
         operation_summary='Get BLASTN results as a file',
         operation_description='Returns BLASTN results as a file attachment. The file format is .txt if Accept header specifies text/plain, and .csv if it is text/csv',
+        tags = [tag_runs],
         responses={
             '200': openapi.Response(
                 description='Results retrieved successfully and a file attachment is returned.',
@@ -853,10 +924,10 @@ class BlastRunDetailDownload(generics.GenericAPIView):
 
         return response
 
-'''
-Check the status of a run
-'''
 class BlastRunStatus(generics.RetrieveAPIView):
+    '''
+    Check the status of a run
+    '''
     queryset = BlastRun.objects.all()
     serializer_class = BlastRunStatusSerializer
     permission_classes = [IsAdminOrReadOnly]
@@ -864,6 +935,7 @@ class BlastRunStatus(generics.RetrieveAPIView):
     @swagger_auto_schema(
         operation_summary='Get status of run',
         operation_description='Returns a minimal set of information useful for polling/checking the status of run.\n\nHow to interpret job_status:\n"QUE" (Queued): The run is currently waiting in the queue for its turn to be processed.\n"STA" (Started): The run is currently being processed.\n"FIN" (Finished): The run successfully completed and complete results are now visible.\n"ERR" (Errored): The run encountered an unexpected error and terminated.\n"UNK" (Unknown): The status is unknown, likely because there was an unexpected database or server error. Please submit another run.\n"DEN" (Denied): The run submission was received by the server, but it was denied from being processed.',
+        tags = [tag_runs],
         responses={
             '200': openapi.Response(
                 description='Results retrieved successfully and a file attachment is returned.',

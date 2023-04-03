@@ -12,12 +12,15 @@ schema_view = get_schema_view(
         # TODO: Add terms of service?
         # terms_of_service="https://www.google.com/policies/terms/",
         # TODO: Contact required?
-        # contact=openapi.Contact(email="contact@email.com"),
+        contact=openapi.Contact(
+            name="Contact",
+            url="https://google.com",
+            email="email@domain.com"),
         # TODO: Is licence required?
         # license=openapi.License(name='MIT License")
     ),
     public=True,
-    permission_classes=[AllowAny]
+    permission_classes=[AllowAny],
 )
 
 urlpatterns = [
