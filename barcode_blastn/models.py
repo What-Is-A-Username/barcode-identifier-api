@@ -16,8 +16,13 @@ class BlastDb(models.Model):
     # Short description of the database
     description = models.CharField(max_length=1024, blank=True, default='', help_text='Description of BLAST database')
 
+    def __str__(self) -> str:
+        return f'"{self.custom_name}" Database ({str(self.id)})'
+
     class Meta:
         ordering = ['custom_name']
+        verbose_name = 'BLAST Database'
+        verbose_name_plural = 'BLAST Databases'
 
 class NuccoreSequence(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, help_text='Unique identifier of this sequence entry')
@@ -39,8 +44,13 @@ class NuccoreSequence(models.Model):
     lat_lon = models.CharField(max_length=64, blank=True, default='', help_text='Latitude and longitude from which specimen originated')
     type_material = models.CharField(max_length=255, blank=True, default='', help_text='Specimen type of the source')
 
+    def __str__(self) -> str:
+        return f'{self.accession_number}, {str(self.organism)} ({str(self.id)})'
+
     class Meta:
         ordering = ['accession_number']
+        verbose_name = 'GenBank Accession'
+        verbose_name_plural = 'GenBank Accessions'
 
 class BlastRun(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, help_text='Unique identifier of the run')
@@ -98,10 +108,22 @@ class BlastRun(models.Model):
     # Error for internal debugging
     errors = models.TextField(max_length=10000, blank=True, default='', help_text='Error message text')
 
+    def __str__(self) -> str:
+        return f'Run {self.id}'
+
+    class Meta:
+        ordering = ['runtime']
+        verbose_name = 'BLASTN Run'
+        verbose_name_plural = 'BLASTN Runs'
+
 class BlastQuerySequence(models.Model):
     owner_run = models.ForeignKey(BlastRun, related_name='queries', on_delete=models.CASCADE, help_text='Job/run in which this query entry appeared')
     definition = models.CharField(max_length=255, help_text='Definition line')
     query_sequence = models.CharField(max_length=10000, help_text='Sequence text')
+
+    class Meta:
+        verbose_name = 'BLASTN Query Sequence'
+        verbose_name_plural = 'BLASTN Query Sequences'
 
 class Hit(models.Model):
     owner_run = models.ForeignKey(BlastRun, related_name='hits', on_delete=models.CASCADE, help_text='Run in which this hit appeared')
@@ -119,3 +141,8 @@ class Hit(models.Model):
     sequence_end = models.IntegerField(help_text='End of alignment in subject')
     evalue = models.DecimalField(max_digits=110, decimal_places=100, help_text='Expect value')
     bit_score = models.DecimalField(max_digits=110, decimal_places=100, help_text='Bit score')
+
+    class Meta:
+        ordering = ['percent_identity']
+        verbose_name = 'BLASTN Run Hit'
+        verbose_name_plural = 'BLASTN Run Hits'

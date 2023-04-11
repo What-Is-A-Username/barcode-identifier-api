@@ -11,8 +11,8 @@ run_title = 'Run'
 
 class BlastDbShortSerializer(serializers.ModelSerializer):
 
-    def __init__(self, instance=None, data=..., **kwargs):
-        super().__init__(instance, data, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         for name in self.Meta.fields:
             self.fields[name].required = False
 
@@ -36,8 +36,8 @@ class NuccoreSequenceSerializer(serializers.ModelSerializer):
     """
     owner_database = BlastDbShortSerializer(many=False, read_only=True)
 
-    def __init__(self, instance=None, data=..., **kwargs):
-        super().__init__(instance, data, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         for name in self.Meta.fields:
             self.fields[name].required = False
 
@@ -92,8 +92,8 @@ class NuccoreSequenceBulkAddSerializer(serializers.Serializer):
 class BlastDbSequenceEntryShortSerializer(serializers.ModelSerializer):
     f'''Information about a {nuccore_title} when included in a list of {blast_db_title} contents.'''
 
-    def __init__(self, instance=None, data=..., **kwargs):
-        super().__init__(instance, data, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         for name in self.Meta.fields:
             self.fields[name].required = True 
             self.fields[name].read_only = True 
@@ -114,8 +114,8 @@ class BlastDbSequenceEntryShortSerializer(serializers.ModelSerializer):
 class BlastDbCreateSerializer(serializers.ModelSerializer):
     f"""Information required when creating a {blast_db_title}"""
 
-    def __init__(self, instance=None, data=..., **kwargs):
-        super().__init__(instance, data, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         for name in [ "custom_name", "description" ]:
             self.fields[name].required = True
         self.fields['id'].required = True
@@ -139,8 +139,8 @@ class BlastDbSequenceEntrySerializer(serializers.ModelSerializer):
     Show a summary of a {nuccore_title}, to be shown when its corresponding {blast_db_title} or {hit_title} is shown.
     '''
 
-    def __init__(self, instance=None, data=..., **kwargs):
-        super().__init__(instance, data, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         for name in self.Meta.fields:
             self.fields[name].required = True
             self.fields[name].read_only = True
@@ -167,26 +167,15 @@ class BlastDbSerializer(serializers.ModelSerializer):
     Show detailed information about a specific {blast_db_title}
     '''
 
-    # def __init__(self, instance=None, data=..., **kwargs):
-    #     super().__init__(instance, data, **kwargs)
-    #     read_only_fields = ['id', 'sequences']
-        
-    #     for name in ['id', 'custom_name', 'description', 'locked', 'sequences']:
-    #         self.fields[name].description = 'none'
-    #     #     self.fields[name].required = True
-    #     # for name in read_only_fields:
-    #     #     self.fields[name].read_only = True
-
     sequences = BlastDbSequenceEntrySerializer(many=True, read_only=True)
 
-    def get_fields(self):
-        fields = super().get_fields()
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         read_only_fields = ['id', 'sequences']
         for name in read_only_fields:
             self.fields[name].read_only = True
         for name in ['id', 'custom_name', 'description', 'locked', 'sequences']:
             self.fields[name].required = True
-        return fields
 
     class Meta:
         model = BlastDb
@@ -218,8 +207,8 @@ class BlastDbListSerializer(serializers.ModelSerializer):
     
     sequences = BlastDbSequenceEntryShortSerializer(many=True, read_only=True)
 
-    def __init__(self, instance=None, data=..., **kwargs):
-        super().__init__(instance, data, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         for name in self.Meta.fields:
             self.fields[name].required = False
             self.fields[name].read_only = True
