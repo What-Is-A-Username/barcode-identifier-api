@@ -125,10 +125,10 @@ def clientPoll(jobId):
     time.sleep(1)
     printDebugMessage(u'clientPoll', u'Begin', 1)
     result = u'PENDING'
-    while result == u'RUNNING' or result == u'PENDING':
+    while result == 'QUEUED' or result == u'RUNNING' or result == u'PENDING':
         result = serviceGetStatus(jobId)
         print("polling: ", result)
-        if result == u'RUNNING' or result == u'PENDING':
+        if result == 'QUEUED' or result == u'RUNNING' or result == u'PENDING':
             time.sleep(pollFreq)
     printDebugMessage(u'clientPoll', u'End', 1)
 

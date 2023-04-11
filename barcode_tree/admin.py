@@ -1,5 +1,5 @@
-from django.contrib import admin
+# from django.contrib import admin
 
-from barcode_tree.models import ResultTree
+# from barcode_tree.models import ResultTree
 
-admin.site.register(ResultTree)
+# admin.site.register(ResultTree)

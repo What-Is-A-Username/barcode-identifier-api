@@ -3,7 +3,7 @@ import os
 from rest_framework import serializers
 from barcode_blastn.models import BlastQuerySequence, BlastRun, Hit, NuccoreSequence, BlastDb
 
-blast_db_title = 'Blast Database'
+blast_db_title = 'BLAST Database'
 nuccore_title = 'GenBank Accession'
 hit_title = 'BLASTN hit'
 query_title = 'Query Sequence'
