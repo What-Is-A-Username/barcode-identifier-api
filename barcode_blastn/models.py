@@ -1,10 +1,61 @@
 from datetime import datetime
+from email.policy import default
+from typing import List, Union
 from unittest.util import _MAX_LENGTH
 from django.db import models
 from django.utils.translation import gettext_lazy as _
+from django.contrib.auth.models import User
 import uuid
 
+# class BlastDbSeries(models.Model):
+#     # The user-customized title
+#     series_name = models.CharField(max_length=255, help_text='Name of BLAST database series')
+
+#     # Short description of the database
+#     description = models.CharField(max_length=1024, blank=True, default='', help_text='Description of BLAST database series')
+
+class DatabasePermissions(models.TextChoices): 
+    '''
+    Levels of permissions to access, edit and run the database. These permissions hold regardless of whether the database is public or not.
+        - CAN_EDIT_DB:      Allow user to edit database
+
+        - CAN_RUN_DB:       Allow user to run BLAST on database 
+
+        - CAN_VIEW_DB:      Allow user to view database data
+
+    A user marked with DENY_ACCESS will be denied access to all actions, regardless of the permissions specified above. 
+
+    An unauthenticated user without any DatabasePermissions can only have view access, provided that the database is public. 
+
+    An authenticated user without any DatabasePermissions can only have view and run access, contingent that the database is public.
+    
+    '''
+
+    # Explicitly prevent database from being viewed under any circumstances. Overrides 'public'
+    DENY_ACCESS = 'deny_access'
+    # Allow user to run BLAST on database 
+    CAN_RUN_DB = 'can_run_db'
+    # Allow user to view database. Overrides 'public'
+    CAN_VIEW_DB = 'can_view_db'
+    # Allow user to edit database data. Overrides 'public'
+    CAN_EDIT_DB = 'can_edit_db'
+
 class BlastDb(models.Model):
+    # Original creator of the database
+    owner = models.ForeignKey(User, on_delete=models.CASCADE)
+
+    # Is the database accessible to the public for viewing and running?
+    public = models.BooleanField(default=False, help_text='Is this database accessible to the public?')
+    
+    shares = models.ManyToManyField(User, related_name='projects_shared', through='DatabaseShare')
+
+    # # Series that the blast db falls under 
+    # series = models.ForeignKey(BlastDbSeries, on_delete=models.CASCADE)
+
+    # # User-customized version name for the database
+    # version = models.CharField(max_length=128, help_text='Named version of BlastDb')
+
+    # Unique identifier for the BLAST database
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, help_text='Unique identifier of this BLAST database')
 
     # The creation datetime of this database
@@ -23,7 +74,58 @@ class BlastDb(models.Model):
         ordering = ['custom_name']
         verbose_name = 'BLAST Database'
         verbose_name_plural = 'BLAST Databases'
+        
+class DatabaseShare(models.Model):
+    # The database these permissions apply to
+    database = models.ForeignKey(BlastDb, on_delete=models.CASCADE, help_text='The database these permissions apply to.')
+    # User that the permissions apply to
+    grantee = models.ForeignKey(User, on_delete=models.CASCADE, help_text='User that the permissions apply to.')
+    # Permission level given to this relationship 
+    perms = models.CharField(max_length=16, choices=DatabasePermissions.choices, default=DatabasePermissions.DENY_ACCESS, help_text='Access permissions')
 
+    @staticmethod 
+    def has_permission(user: User, database: BlastDb, necessary_permissions: List[str]):
+        storedperms : DatabaseShare
+        try:
+            storedperms = DatabaseShare.objects.get(database=database, user=user)
+        except DatabaseShare.DoesNotExist:
+            return database.public # if no perms specified, access must be public 
+        if storedperms == DatabasePermissions.DENY_ACCESS:
+            return False 
+        return storedperms in necessary_permissions
+
+    @staticmethod
+    def has_run_permission(user: Union[User, None], database: BlastDb):
+        if not user or not user.is_authenticated:
+            return database.public
+        else:
+            if user == database.owner or user.is_staff or user.is_superuser:
+                return True 
+            return DatabaseShare.has_permission(user, database, [DatabasePermissions.CAN_RUN_DB, DatabasePermissions.CAN_EDIT_DB]) # check if user has these permissions
+
+    @staticmethod
+    def has_view_permission(user: Union[User, None], database: BlastDb):
+        if not user or not user.is_authenticated:
+            return database.public
+        else:
+            if user == database.owner or user.is_staff or user.is_superuser:
+                return True 
+            return DatabaseShare.has_permission(user, database, [DatabasePermissions.CAN_VIEW_DB, DatabasePermissions.CAN_EDIT_DB, DatabasePermissions.CAN_RUN_DB]) # check if user has these permissions
+
+    @staticmethod
+    def has_edit_permission(user: Union[User, None], database: BlastDb):
+        if not user or not user.is_authenticated: # user account needed for editing
+            return False 
+        else:
+            if user == database.owner or user.is_staff or user.is_superuser:
+                return True 
+            return DatabaseShare.has_permission(user, database, [DatabasePermissions.CAN_EDIT_DB]) # check if user has these permissions
+
+    @staticmethod
+    def has_delete_permission(user: Union[User, None], database: BlastDb):
+        if not user or not user.is_authenticated: # user account needed for deleting 
+            return False 
+        return database.owner == user
 
 class NuccoreSequence(models.Model):
 

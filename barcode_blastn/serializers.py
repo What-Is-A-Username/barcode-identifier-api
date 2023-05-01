@@ -1,15 +1,26 @@
 import json
 import os
+from typing import Union
+from django.contrib.auth.models import User
 from rest_framework import serializers
-from barcode_blastn.models import BlastQuerySequence, BlastRun, Hit, NuccoreSequence, BlastDb
+from barcode_blastn.models import BlastQuerySequence, BlastRun, DatabaseShare, Hit, NuccoreSequence, BlastDb
 
 blast_db_title = 'BLAST Database'
 nuccore_title = 'GenBank Accession'
 hit_title = 'BLASTN hit'
 query_title = 'Query Sequence'
 run_title = 'Run'
+share_title = 'Share Details'
 
 class BlastDbShortSerializer(serializers.ModelSerializer):
+
+    owner_username = serializers.SerializerMethodField('get_owner_username', help_text='Username of the owner of the database.')
+
+    def get_owner_username(self, obj: Union[BlastDb, None]) -> str:
+        if obj is None:
+            return '<deleted>'
+        else:
+            return obj.owner.get_username()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -22,11 +33,13 @@ class BlastDbShortSerializer(serializers.ModelSerializer):
     class Meta:
         model = BlastDb
         ref_name = blast_db_title + ' summary'
-        fields = ['id', 'custom_name', 'description']
+        fields = ['id', 'custom_name', 'description', 'public', 'owner_username']
         example = {
             "id": "66855f2c-f360-4ad9-8c98-998ecb815ff5",
             "custom_name": "Neotropical electric knifefish",
-            "description": "This BLAST database is a collection of barcodes from 167 species of Neotropical electric knifefish (Teleostei: Gymnotiformes) which was presented by Janzen et al. 2022. All sequences and related feature data are updated daily at midnight (UTC) from NCBI's Genbank database."
+            "description": "This BLAST database is a collection of barcodes from 167 species of Neotropical electric knifefish (Teleostei: Gymnotiformes) which was presented by Janzen et al. 2022. All sequences and related feature data are updated daily at midnight (UTC) from NCBI's Genbank database.",
+            "public": True,
+            "owner_username": "John Doe"
         }
         tags = ['DBS']
 
@@ -116,10 +129,10 @@ class BlastDbCreateSerializer(serializers.ModelSerializer):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        for name in [ "custom_name", "description" ]:
+        for name in [ "custom_name", "description", "id"]:
             self.fields[name].required = True
-        self.fields['id'].required = True
         self.fields['id'].read_only = True
+        self.fields['public'].required = False
 
     '''
     Create a new blastdb
@@ -127,7 +140,7 @@ class BlastDbCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = BlastDb
         ref_name = blast_db_title + ' creation'
-        fields = ['id', 'custom_name', 'description']
+        fields = ['id', 'custom_name', 'description', 'public']
         example = {
             "id": "66855f2c-f360-4ad9-8c98-998ecb815ff5",
             "custom_name": "Newly Sequenced Species",
@@ -172,19 +185,20 @@ class BlastDbSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'sequences']
         for name in read_only_fields:
             self.fields[name].read_only = True
-        for name in ['id', 'custom_name', 'description', 'locked', 'sequences']:
+        for name in ['id', 'custom_name', 'description', 'locked', 'public', 'sequences']:
             self.fields[name].required = True
 
     sequences = BlastDbSequenceEntrySerializer(many=True, read_only=True)
     class Meta:
         model = BlastDb
         ref_name = blast_db_title
-        fields = ['id', 'custom_name', 'description', 'locked', 'sequences']
+        fields = ['id', 'custom_name', 'description', 'locked', 'public', 'sequences']
         example = {
             "id": "66855f2c-f360-4ad9-8c98-998ecb815ff5",
             "custom_name": "Neotropical electric knifefish",
             "description": "This BLAST database is a collection of barcodes from 167 species of Neotropical electric knifefish (Teleostei: Gymnotiformes) which was presented by Janzen et al. 2022. All sequences and related feature data are updated daily at midnight (UTC) from NCBI's Genbank database.",
             "locked": True,
+            "public": True,
             "sequences": [
                 {
                     "accession_number": "GU701771",
@@ -206,6 +220,13 @@ class BlastDbListSerializer(serializers.ModelSerializer):
     
     sequences = BlastDbSequenceEntryShortSerializer(many=True, read_only=True)
 
+    owner_username = serializers.SerializerMethodField('get_owner_username')
+    def get_owner_username(self, obj: Union[BlastDb, None]) -> str:
+        if obj is None:
+            return '<deleted>'
+        else:
+            return obj.owner.get_username()
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         for name in self.Meta.fields:
@@ -215,7 +236,7 @@ class BlastDbListSerializer(serializers.ModelSerializer):
     class Meta:
         model = BlastDb
         ref_name = blast_db_title 
-        fields = ['id', 'custom_name', 'description', 'locked', 'sequences']
+        fields = ['id', 'custom_name', 'description', 'owner_username', 'locked', 'public', 'sequences']
         example = [ BlastDbSerializer.Meta.example ]
 
 class HitSerializer(serializers.ModelSerializer):
@@ -356,5 +377,23 @@ class BlastRunStatusSerializer(serializers.ModelSerializer):
             "job_end_time": "2023-02-21T03:28:02.102346Z",
             "job_error_time": None,
         }
+
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User 
+        fields = ['username']
+
+class DatabaseShareSerializer(serializers.ModelSerializer):
+    '''
+    Show the action of an admin sharing a database with another user.
+    '''
+
+    database = BlastDbShortSerializer(many=False, read_only=True)
+    grantee = UserSerializer(many=False, read_only=True)
+
+    class Meta:
+        model = DatabaseShare
+        ref_name = share_title 
+        fields = ['database', 'grantee']
 
 

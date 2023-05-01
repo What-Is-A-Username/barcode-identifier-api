@@ -1,36 +1,84 @@
 # TODO: Install Python 3.10.6 to match EC2
 
 import io
-from celery import signature
-from barcode_blastn.file_paths import get_data_fishdb_path, get_data_run_path, get_ncbi_folder, get_static_run_path
-from barcode_identifier_api.celery import app
-from typing import Dict, List
-import uuid
 import os
 import shutil
+import uuid
+from typing import Dict, List
+from urllib.error import HTTPError
+
+from barcode_identifier_api.celery import app
 from Bio import SeqIO
-from barcode_blastn.helper.parse_gb import retrieve_gb
-from barcode_blastn.helper.verify_query import verify_dna
-from barcode_blastn.models import BlastQuerySequence, BlastRun, Hit, NuccoreSequence, BlastDb
-from barcode_blastn.permissions import IsAdminOrReadOnly
-from barcode_blastn.renderers import BlastRunCSVRenderer, BlastRunTxtRenderer, BlastDbCSVRenderer, BlastDbFastaRenderer, BlastRunFastaRenderer
-from barcode_blastn.serializers import BlastDbCreateSerializer, BlastRunRunSerializer, BlastRunSerializer, BlastRunStatusSerializer, HitSerializer, NuccoreSequenceAddSerializer, NuccoreSequenceBulkAddSerializer, NuccoreSequenceSerializer, BlastDbSerializer, BlastDbListSerializer
-from rest_framework import status, generics, mixins
-from rest_framework.parsers import JSONParser, FormParser, MultiPartParser
-from rest_framework.permissions import IsAdminUser, AllowAny
-from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer, TemplateHTMLRenderer
+from celery import signature
+from drf_yasg import openapi
+from drf_yasg.utils import swagger_auto_schema
+from rest_framework import generics, mixins, status
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
+from rest_framework.permissions import AllowAny, IsAdminUser
+from rest_framework.renderers import (BrowsableAPIRenderer, JSONRenderer,
+                                      TemplateHTMLRenderer)
 from rest_framework.response import Response
 from rest_framework.serializers import Serializer
-from urllib.error import HTTPError
+
+from django.contrib.auth.decorators import login_required
+from barcode_blastn.file_paths import (get_data_fishdb_path, get_data_run_path,
+                                       get_ncbi_folder, get_static_run_path)
+from barcode_blastn.helper.parse_gb import retrieve_gb
+from barcode_blastn.helper.verify_query import verify_dna
+from barcode_blastn.models import (BlastDb, BlastQuerySequence, BlastRun, Hit,
+                                   NuccoreSequence)
+from barcode_blastn.permissions import BlastDbAccessPermission, IsAdminOrReadOnly
+from barcode_blastn.renderers import (BlastDbCSVRenderer, BlastDbFastaRenderer,
+                                      BlastRunCSVRenderer,
+                                      BlastRunFastaRenderer,
+                                      BlastRunTxtRenderer)
+from barcode_blastn.serializers import (BlastDbCreateSerializer,
+                                        BlastDbListSerializer,
+                                        BlastDbSerializer,
+                                        BlastRunRunSerializer,
+                                        BlastRunSerializer,
+                                        BlastRunStatusSerializer,
+                                        NuccoreSequenceAddSerializer,
+                                        NuccoreSequenceBulkAddSerializer,
+                                        NuccoreSequenceSerializer)
 from barcode_blastn.tasks import run_blast_command
 
-from drf_yasg.utils import swagger_auto_schema
-from drf_yasg import openapi
+from django.contrib.auth import login
+from django.contrib.auth.models import User
+from knox.views import LoginView as KnoxLoginView
+from knox.auth import TokenAuthentication
+from rest_framework.authtoken.serializers import AuthTokenSerializer
 
 tag_runs = 'Runs/Jobs'
 tag_blastdbs = 'BLAST Databases'
 tag_sequences = 'GenBank Accessions'
 tag_admin = 'Admin Tools'
+
+class ExampleView(generics.GenericAPIView):
+    authentication_classes = (TokenAuthentication,)
+    permission_classes = (AllowAny,)
+
+    def get(self, request, format=None):
+        user: User = request.user
+        return Response({
+            'message': 'Successful GET request.',
+            'user': user.username
+        })
+
+
+class LoginView(KnoxLoginView):
+    '''
+    Login view to enable TokenAuthentication
+    '''
+    permission_classes = (AllowAny,)
+
+    def post(self, request, format=None):
+        serializer = AuthTokenSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.validated_data['user']  # type: ignore
+        login(request, user)
+        return super(LoginView, self).post(request, format=None)
+
 
 class NuccoreSequenceList(mixins.ListModelMixin, generics.GenericAPIView):
     '''
@@ -308,7 +356,7 @@ class BlastDbList(mixins.ListModelMixin, generics.CreateAPIView):
     '''
     queryset = BlastDb.objects.all()
     serializer_class = BlastDbCreateSerializer
-    permission_classes = [IsAdminOrReadOnly]
+    permission_classes = [BlastDbAccessPermission]
 
     def get_serializer_class(self):
         if self.request is None:
@@ -338,6 +386,7 @@ class BlastDbList(mixins.ListModelMixin, generics.CreateAPIView):
         '''
         return self.list(request, *args, **kwargs)
 
+    @login_required
     @swagger_auto_schema(
         operation_summary='Create a database.',
         operation_description='Create a new publicly accessible BLAST database available for queries.',
@@ -361,7 +410,7 @@ class BlastDbList(mixins.ListModelMixin, generics.CreateAPIView):
         if serializer.is_valid():
             custom_name = serializer.validated_data['custom_name']  # type: ignore
             description = serializer.validated_data['description']  # type: ignore
-            blast_db = BlastDb(custom_name=custom_name, description=description)
+            blast_db = BlastDb(custom_name=custom_name, description=description, )
             blast_db.save()
             return Response(BlastDbCreateSerializer(blast_db).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -372,7 +421,7 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
     '''
     queryset = BlastDb.objects.all()
     serializer_class = BlastDbSerializer
-    permission_classes = [IsAdminOrReadOnly]
+    permission_classes = [BlastDbAccessPermission]
     renderer_classes = [JSONRenderer, BrowsableAPIRenderer, TemplateHTMLRenderer, BlastDbCSVRenderer, BlastDbFastaRenderer]
 
     def get_serializer_class(self):

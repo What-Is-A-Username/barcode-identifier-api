@@ -336,14 +336,23 @@ sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin 
 
 ### Development server
 
+Build the project
+```
+docker-compose build barcode_identifier_api
+```
+
 Run the project
 ```
-docker-compose up --build
+docker-compose up barcode_identifier_api
 ```
 
 Once it is up, create a superuser with desired username and password. This will be the credentials used for the `/admin` page of the site.
 ```
 docker-compose run --rm barcode_identifier_api sh -c "python manage.py createsuperuser"
+```
+
+To debug, you can first view a list of running projects and view the logs for a given project by specifying a name.
+```
 ```
 
 ### Production server

@@ -15,7 +15,10 @@ RUN apt-get update && \
     linux-headers-amd64 \
     libpcre3-dev \
     libpq-dev \
-    python3-dev
+    python3-dev \
+    libffi-dev
+
+# note: gcompat necessary to run our ncbi binaries on an alpine image
 # RUN apk add --no-cache postgresql-dev \ 
 #     gcc \
 #     musl-dev \
@@ -26,7 +29,7 @@ RUN apt-get update && \
 #     linux-headers \
 #     pcre-dev \
 #     gcompat
-    # note: gcompat necessary to run our ncbi binaries on an alpine image
+
 
 RUN python -m venv /py && \
     /py/bin/pip install --upgrade pip
