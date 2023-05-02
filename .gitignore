@@ -63,11 +63,6 @@ manage.py
 # example database
 drf_example
 
-
-# CUSTOM
-# scripts /
-scripts/
-
 # settings
 barcode_identifier_api/settings.py
 
