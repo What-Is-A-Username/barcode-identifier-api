@@ -3,10 +3,10 @@ from django.contrib import admin
 from django.urls import reverse
 from django.utils.html import format_html
 from barcode_blastn.helper.parse_gb import retrieve_gb
-from barcode_blastn.models import BlastDb, BlastQuerySequence, NuccoreSequence, BlastRun, Hit
+from barcode_blastn.models import BlastDb, BlastQuerySequence, DatabasePermissions, DatabaseShare, NuccoreSequence, BlastRun, Hit
 from django.forms import BaseInlineFormSet
 
-from barcode_blastn.serializers import NuccoreSequenceSerializer
+from barcode_blastn.serializers import BlastDbCreateSerializer, NuccoreSequenceSerializer
 
 @admin.register(Hit)
 class HitAdmin(admin.ModelAdmin):
@@ -198,11 +198,14 @@ class SequenceFormset(BaseInlineFormSet):
         return obj
 
 class NuccoreSequenceInline(admin.TabularInline):
-    model = NuccoreSequence
-    extra = 1
-    formset = SequenceFormset
-    fields = [('accession_number'), ('id', 'created'), ('organism', 'definition', 'organelle'), ('specimen_voucher')]
-    show_change_link = True 
+    model = NuccoreSequence     
+    formset = SequenceFormset   # Specify the form to handle edits and additions
+    show_change_link = True     # Show link to page to edit the sequence
+    classes = ['collapse']      # Allow the entries to be collapsed
+    extra = 0                   # Show one extra row by default
+
+    def get_fields(self, request, obj):
+        return [('accession_number'), ('id', 'created'), ('organism', 'definition', 'organelle'), ('specimen_voucher')]
 
     def get_readonly_fields(self, request, obj: Union[BlastDb, None] = None):
         base = list(set(
@@ -218,25 +221,67 @@ class NuccoreSequenceInline(admin.TabularInline):
 
     def has_add_permission(self, request, obj: Union[BlastDb, None] = None):
         return not obj or obj and not obj.locked
-        
+
+class UserPermissionsInline(admin.TabularInline):
+    model = DatabaseShare
+    extra = 0
+
+    def get_fields(self, request, obj: BlastDb):
+        return ['grantee', 'perms', 'id']
+
+    def get_readonly_fields(self, request, obj: Union[BlastDb, None] = None):
+        return ['id']
+
+    def has_add_permission(self, request, obj: Union[BlastDb, None] = None) -> bool:
+        '''
+        Allow only the creator to add permissions.
+        '''
+        return request.user.is_authenticated and (obj is None or request.user == obj.owner)
+
+    def has_delete_permission(self, request, obj: Union[BlastDb, None] = None) -> bool:
+        '''
+        Allow only the creator to delete permissions.
+        '''
+        return request.user.is_authenticated and (obj is None or request.user == obj.owner)
+
+    def has_change_permission(self, request, obj: Union[BlastDb, None] = None) -> bool:
+        '''
+        Allow only the creator to change permissions.
+        '''
+        return request.user.is_authenticated and (obj is None or request.user == obj.owner)
+
 @admin.register(BlastDb)
 class BlastDbAdmin(admin.ModelAdmin):
     '''
     Admin page for BlastDb instances.
     '''
 
-    inlines = [NuccoreSequenceInline]
+    inlines = [UserPermissionsInline, NuccoreSequenceInline]
     list_display = (
         'custom_name', 'owner', 'id'
     )
+
+    def get_fields(self, request, obj):
+        excluded_fields = ['id']
+        fields = [f for f in BlastDbCreateSerializer.Meta.fields if f not in excluded_fields]
+        fields.extend(['locked', 'owner'])
+        return fields
+
     def get_readonly_fields(self, request, obj: Union[BlastDb, None] = None):
         base = list(set(
             [field.name for field in self.opts.local_fields] +
             [field.name for field in self.opts.local_many_to_many]
         ))
+        # specify which fields are editable
         excluded_fields = ['custom_name', 'description', 'public']
         if not obj or obj and not obj.locked:
             excluded_fields.append('sequences')
         base = [b for b in base if b not in excluded_fields and b != 'locked']
     
         return base
+
+    def save_model(self, request, obj: BlastDb, form, change):
+        # specify the owner as the logged in user
+        obj.owner = request.user
+        model = super().save_model(request, obj, form, change)
+        return model

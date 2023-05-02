@@ -1,4 +1,6 @@
 # TODO: Install Python 3.10.6 to match EC2
+# TODO: Add endpoint to give create, edit and remove DatabaseShare permissions
+# TODO: Guard endpoints to only allow signed in users
 
 import io
 import os
@@ -20,12 +22,13 @@ from rest_framework.renderers import (BrowsableAPIRenderer, JSONRenderer,
 from rest_framework.response import Response
 from rest_framework.serializers import Serializer
 
+from django.db import models
 from django.contrib.auth.decorators import login_required
 from barcode_blastn.file_paths import (get_data_fishdb_path, get_data_run_path,
                                        get_ncbi_folder, get_static_run_path)
 from barcode_blastn.helper.parse_gb import retrieve_gb
 from barcode_blastn.helper.verify_query import verify_dna
-from barcode_blastn.models import (BlastDb, BlastQuerySequence, BlastRun, Hit,
+from barcode_blastn.models import (BlastDb, BlastQuerySequence, BlastRun, DatabasePermissions, Hit,
                                    NuccoreSequence)
 from barcode_blastn.permissions import BlastDbAccessPermission, IsAdminOrReadOnly
 from barcode_blastn.renderers import (BlastDbCSVRenderer, BlastDbFastaRenderer,
@@ -78,33 +81,6 @@ class LoginView(KnoxLoginView):
         user = serializer.validated_data['user']  # type: ignore
         login(request, user)
         return super(LoginView, self).post(request, format=None)
-
-
-class NuccoreSequenceList(mixins.ListModelMixin, generics.GenericAPIView):
-    '''
-    List all the sequences in the server, irrespective of database
-    '''
-    queryset = NuccoreSequence.objects.all()
-    serializer_class = NuccoreSequenceSerializer
-    permission_classes = [IsAdminUser]
-
-    @swagger_auto_schema(
-        operation_summary='Global view of all sequence database entries.',
-        operation_description='Return a list of all accession numbers across all databases.',
-        tags = [tag_admin],
-        responses={
-            '200': openapi.Response(
-                description="All sequence entries",
-                # TODO: Schema and example should be an array
-                schema=NuccoreSequenceSerializer(many=True),
-                examples={
-                    'application/json': [NuccoreSequenceSerializer.Meta.example]
-                }
-            )
-        }
-    )
-    def get(self, request, *args, **kwargs):
-        return self.list(request, *args, **kwargs)
 
 class NuccoreSequenceBulkAdd(generics.CreateAPIView):   
     '''
@@ -355,6 +331,7 @@ class BlastDbList(mixins.ListModelMixin, generics.CreateAPIView):
     Return a list of all blast databases
     '''
     queryset = BlastDb.objects.all()
+    authentication_classes = (TokenAuthentication,)
     serializer_class = BlastDbCreateSerializer
     permission_classes = [BlastDbAccessPermission]
 
@@ -384,9 +361,28 @@ class BlastDbList(mixins.ListModelMixin, generics.CreateAPIView):
         '''
         List all blast databases
         '''
-        return self.list(request, *args, **kwargs)
+        if not request.user.is_authenticated:
+            queryset = self.get_queryset().filter(public=True)
+        else:
+            queryset = BlastDb.objects.filter(
+                ~models.Q(shares__id=request.user.id, databaseshare__perms__startswith=DatabasePermissions.DENY_ACCESS) 
+                & 
+                (
+                    models.Q(public=True) |
+                    models.Q(owner=request.user) |
+                    models.Q(shares__id=request.user.id, databaseshare__perms__in=[DatabasePermissions.CAN_EDIT_DB, DatabasePermissions.CAN_VIEW_DB, DatabasePermissions.CAN_RUN_DB])
+                )
+            )
 
-    @login_required
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+    @login_required()
     @swagger_auto_schema(
         operation_summary='Create a database.',
         operation_description='Create a new publicly accessible BLAST database available for queries.',
@@ -410,7 +406,7 @@ class BlastDbList(mixins.ListModelMixin, generics.CreateAPIView):
         if serializer.is_valid():
             custom_name = serializer.validated_data['custom_name']  # type: ignore
             description = serializer.validated_data['description']  # type: ignore
-            blast_db = BlastDb(custom_name=custom_name, description=description, )
+            blast_db = BlastDb(custom_name=custom_name, description=description, owner=request.user)
             blast_db.save()
             return Response(BlastDbCreateSerializer(blast_db).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

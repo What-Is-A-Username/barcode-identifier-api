@@ -46,7 +46,6 @@ urlpatterns = [
     path('blastdbs/<uuid:pk>/add/', views.NuccoreSequenceAdd.as_view()),
     path('blastdbs/<uuid:pk>/bulk/', views.NuccoreSequenceBulkAdd.as_view()),
     path('blastdbs/<uuid:pk>/run/', views.BlastRunRun.as_view()),
-    path('nuccores/', views.NuccoreSequenceList.as_view()),
     path('nuccores/<uuid:pk>/', views.NuccoreSequenceDetail.as_view()),
     path('runs/', views.BlastRunList.as_view()),
     path('runs/<uuid:pk>/', views.BlastRunDetail.as_view()),

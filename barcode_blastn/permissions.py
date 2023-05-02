@@ -29,7 +29,7 @@ class BlastDbAccessPermission(permissions.BasePermission):
                 return user.is_staff or user.is_superuser
         else:
             if request.method in permissions.SAFE_METHODS:
-                return DatabaseShare.has_view_and_run_permission(request.user, obj)
+                return DatabaseShare.has_view_permission(request.user, obj)
             elif request.method in ['PUT', 'PATCH']:
                 return DatabaseShare.has_edit_permission(request.user, obj)
             else:
