@@ -1,12 +1,49 @@
-from typing import Dict, Union
+from typing import Any, Dict, List, Optional, Union
 from django.contrib import admin
+from django.db import models
+
+from django.db.models.fields.related import ForeignKey
+from django.forms.models import ModelChoiceField
+from django.http.request import HttpRequest
 from django.urls import reverse
+
 from django.utils.html import format_html
+from django.contrib.auth.models import User, AbstractUser, AbstractBaseUser, AnonymousUser
 from barcode_blastn.helper.parse_gb import retrieve_gb
 from barcode_blastn.models import BlastDb, BlastQuerySequence, DatabasePermissions, DatabaseShare, NuccoreSequence, BlastRun, Hit
-from django.forms import BaseInlineFormSet
+from django.forms import BaseInlineFormSet, ModelForm, ValidationError
 
 from barcode_blastn.serializers import BlastDbCreateSerializer, NuccoreSequenceSerializer
+
+def fetch_data(accession_number: str) -> Dict[str, str]: 
+    '''
+    Fetch data from GenBank using the accession_number in obj, relying on function retrieve_gb.
+
+    Raises an ValueError if there was an issue retrieving the data
+
+    Returns a single dictionary of key-value pairs to populate a NuccoreSequence with.
+    '''
+    if accession_number is None:
+        raise ValueError('Error no accession number found')
+    currentData = {}
+    genbank_data: Union[List[Dict], None] = []
+    try:
+        genbank_data = retrieve_gb(accession_numbers = [accession_number])
+    except BaseException:
+        raise ValueError('Error retrieving accession')
+    
+    try:
+        assert(not genbank_data is None)
+        assert(len(genbank_data) <= 1)
+    except AssertionError:
+        raise ValueError('More than one accession was found for this accession number. Differentiating between these accessions is currently not supported')
+    
+    try:
+        assert(len(genbank_data) > 0)
+    except AssertionError:
+        raise ValueError('No data was found for this accession number')
+
+    return genbank_data[0]
 
 @admin.register(Hit)
 class HitAdmin(admin.ModelAdmin):
@@ -30,15 +67,78 @@ class HitAdmin(admin.ModelAdmin):
     def has_add_permission(self, request, obj=None):
         return False 
 
+class NuccoreAdminModifyForm(ModelForm):
+    '''
+    Form for changing and editing accessions.
+    '''
+
+    def clean(self):
+        '''
+        Validate new data in the form before saving it.
+
+        If accession number does not correspond to entry, raise a ValidationError.
+
+        Return nothing if no validation errors.
+        '''
+
+        cleaned_data = super().clean()
+        accession_number: Any = cleaned_data.get("accession_number")
+        # check if the form data contains an accession_number
+        if accession_number is None:
+            raise ValidationError(f'Could not locate an accession number in the submitted form data.')
+
+        owner_database: Union[BlastDb, None] = cleaned_data.get('owner_database')
+
+        # check that the sequence will be assigned to a database
+        if owner_database is None:
+            raise ValidationError(f'Error: no database specified. Try reloading the form')
+
+        # check if the accession already exists in the database
+        duplicate_exists: bool = False
+        if self.instance is None: # if this is an addition
+            duplicate_exists = NuccoreSequence.objects.filter(accession_number = accession_number, owner_database_id = owner_database.id).exists()
+        else: # if this is a modification of an existing entry
+            duplicate_exists = NuccoreSequence.objects.filter(accession_number = accession_number, owner_database_id = owner_database.id).exclude(pk=self.instance.id).exists()
+        
+        if duplicate_exists:
+            raise ValidationError(f'Error: Sequence entry for accession number {accession_number} already exists in the same database.')
+        
+        try:
+            currentData = fetch_data(accession_number=accession_number)
+        except ValueError as err:
+            raise ValidationError('Could not retrieve data for this accession number, either due to server error or accession number not matching with a unique accession. Try again.') from err
+
+        return        
+
 @admin.register(NuccoreSequence)
 class NuccoreAdmin(admin.ModelAdmin):
     '''
     Admin page for showing accession instances.
     '''
     list_display = (
-        'accession_number', 'organism', 'specimen_voucher', 'id', 'owner_database_link'
+        'accession_number', 'organism', 'specimen_voucher', 'id', 
+        'owner_database_link'
     )
     fields_excluded = ['uuid']
+    form = NuccoreAdminModifyForm
+
+    # TODO: Make the owner_database field read_only if database is locked 
+
+    def formfield_for_foreignkey(self, db_field, request: HttpRequest, **kwargs):
+        if db_field.name == 'owner_database':
+            if not request.user is None:
+                if isinstance(request.user, User):
+                    user: User = request.user
+                    # set the available choices of database the accession can belong to
+                    kwargs['queryset'] = BlastDb.objects.filter(
+                        ~models.Q(shares=user, databaseshare__perms__startswith=DatabasePermissions.DENY_ACCESS) # omit databases the user is denied from
+                        & 
+                        (
+                            models.Q(owner=request.user) |
+                            models.Q(shares=user, databaseshare__perms__in=[DatabasePermissions.CAN_EDIT_DB])
+                        ) # add databases the user can edit
+                    )
+        return super().formfield_for_foreignkey(db_field, request, **kwargs) 
 
     def get_fields(self, request, obj=None):
         fields = super(NuccoreAdmin, self).get_fields(request, obj)
@@ -48,18 +148,44 @@ class NuccoreAdmin(admin.ModelAdmin):
             fields.remove('translation')
         return fields
 
+    def get_readonly_fields(self, request, obj=None):
+        fields = [
+            'organism',
+            'definition',
+            'organelle',
+            'specimen_voucher',
+            'id',
+            'isolate',
+            'country',
+            'dna_sequence',
+            'lat_lon',
+            'type_material',
+            'translation'
+        ]
+        return fields
+     
     def owner_database_link(self, obj):
         url = reverse("admin:%s_%s_change" % ('barcode_blastn', 'blastdb'), args=(obj.owner_database.id,))
         return format_html("<a href='{url}'>{obj}</a>", url=url, obj=obj.owner_database)
 
     def has_change_permission(self, request, obj=None):
-        return False
+        return True
 
     def has_delete_permission(self, request, obj=None):
         return False 
 
     def has_add_permission(self, request, obj=None):
-        return False 
+        return request.user.is_staff or request.user.is_superuser 
+    
+    def save_model(self, request: Any, obj: Any, form: Any, change: Any) -> None:
+        accession_number = obj.accession_number
+        
+        currentData = fetch_data(accession_number=accession_number)
+        for key, value in currentData.items():
+            setattr(obj, key, str(value))
+
+        super(NuccoreAdmin, self).save_model(request, obj, form, change)
+
 
 class BlastQuerySequenceInline(admin.StackedInline):
     '''
@@ -110,7 +236,10 @@ class BlastRunAdmin(admin.ModelAdmin):
         'id', 'job_name', 'runtime'
     )
     def has_add_permission(self, request) -> bool:
-        return False 
+        return False
+
+    def has_change_permission(self, request, obj=None) -> bool:
+        return False
 
     def get_readonly_fields(self, request, obj=None):
         return list(set(
@@ -119,29 +248,6 @@ class BlastRunAdmin(admin.ModelAdmin):
         ))
 
 class SequenceFormset(BaseInlineFormSet):
-    def fetch_data(self, obj: NuccoreSequence) -> Dict[str, str]: 
-        '''
-        Fetch data from GenBank using the accession_number in obj, relying on function retrieve_gb.
-
-        Returns a single dictionary of key-value pairs to populate a NuccoreSequence with
-        '''
-        accession_number = obj.accession_number
-        currentData = {}
-        genbank_data = []
-        try:
-            genbank_data = retrieve_gb(accession_numbers = [accession_number])
-            assert len(genbank_data) > 0  
-        except BaseException:
-            obj.organism = f'Error: could not find data for "{accession_number}".'
-
-        try:
-            print(genbank_data)
-            assert len(genbank_data) == 1
-        except AssertionError:
-            return {'organism': f'Error: could not find data for "{accession_number}".'}
-        else:
-            return genbank_data[0]
-
     def save_new(self, form, commit=True):
         '''
         Callback when a new sequence is added through a save button on the admin form.
@@ -156,7 +262,7 @@ class SequenceFormset(BaseInlineFormSet):
             obj.accession_number = f'Error: duplicate for {accession_number}'
             return obj
 
-        currentData = self.fetch_data(obj)
+        currentData = fetch_data(accession_number=accession_number)
 
         try:
             assert not (currentData is None)
@@ -184,7 +290,7 @@ class SequenceFormset(BaseInlineFormSet):
             obj.accession_number = f'Error: duplicate for {accession_number}'
             return obj
         
-        currentData = self.fetch_data(obj)
+        currentData = fetch_data(accession_number=accession_number)
 
         try:
             assert not (currentData is None) # assert that there must be data retrieved
@@ -215,12 +321,23 @@ class NuccoreSequenceInline(admin.TabularInline):
         if not obj or obj and not obj.locked: # if db not locked, exclude accession number
             base = [b for b in base if b != 'accession_number']
         return base
+    
+    def has_view_permission(self, request: HttpRequest, obj: Union[BlastDb, None]=None) -> bool:
+        if obj is None:
+            return True
+        else:
+            return DatabaseShare.has_view_permission(request.user, obj)
+    
+    def has_change_permission(self, request: HttpRequest, obj: Union[BlastDb, None] = None):
+        if obj is None:
+            return False
+        return DatabaseShare.has_edit_permission(request.user, obj)
 
     def has_delete_permission(self, request, obj: Union[BlastDb, None] = None):
-        return obj and not obj.locked
+        return self.has_change_permission(request, obj)
 
     def has_add_permission(self, request, obj: Union[BlastDb, None] = None):
-        return not obj or obj and not obj.locked
+        return self.has_change_permission(request, obj)
 
 class UserPermissionsInline(admin.TabularInline):
     model = DatabaseShare

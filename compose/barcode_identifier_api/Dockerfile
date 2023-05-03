@@ -1,4 +1,4 @@
-FROM barcode_identifier_api_pyvenv_image:latest
+FROM barcode-identifier-api-pyvenv_image:latest
 LABEL Author="new_author here"
 
 ENV PYTHONBUFFERED 1

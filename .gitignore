@@ -63,9 +63,6 @@ manage.py
 # example database
 drf_example
 
-# settings
-barcode_identifier_api/settings.py
-
 # ncbi-blast
 ncbi-blast-*/
 
@@ -82,3 +79,7 @@ barcode_identifier_api.log
 
 # debug folder for docker container
 data/
+
+# migrations
+barcode_blastn/migrations/
+barcode_tree/migrations/

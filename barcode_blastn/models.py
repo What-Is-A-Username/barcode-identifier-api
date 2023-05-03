@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import List, Union
 from django.db import models
 from django.utils.translation import gettext_lazy as _
-from django.contrib.auth.models import User
+from django.contrib.auth.models import User, AbstractBaseUser, AbstractUser, AnonymousUser
 import uuid
 
 class DatabasePermissions(models.TextChoices): 
@@ -77,15 +77,17 @@ class DatabaseShare(models.Model):
     perms = models.CharField(max_length=16, choices=DatabasePermissions.choices, default=DatabasePermissions.DENY_ACCESS, help_text='Access permissions')
 
     @staticmethod 
-    def has_database_permission_given(user: User, database: BlastDb, necessary_permissions: List[str]):
+    def has_database_permission_given(user: AbstractUser, database: BlastDb, necessary_permissions: List[str]):
         storedperms : DatabaseShare
+        if not isinstance(user, User):
+            return True
         try:
-            storedperms = DatabaseShare.objects.get(database=database, user=user)
+            storedperms = DatabaseShare.objects.get(database=database, grantee=user)
         except DatabaseShare.DoesNotExist:
             return False    # deny if no explicit permission given 
         if storedperms == DatabasePermissions.DENY_ACCESS:
             return False    # deny access if explicitly prohibited
-        return storedperms in necessary_permissions # return true if the current permission matches with any of those given
+        return storedperms.perms in necessary_permissions # return true if the current permission matches with any of those given
 
     @staticmethod
     def has_run_permission(user: Union[User, None], database: BlastDb):
@@ -99,28 +101,32 @@ class DatabaseShare(models.Model):
             return DatabaseShare.has_database_permission_given(user, database, [DatabasePermissions.CAN_RUN_DB, DatabasePermissions.CAN_EDIT_DB]) # check if user has these permissions
 
     @staticmethod
-    def has_view_permission(user: Union[User, None], database: BlastDb):
+    def has_view_permission(user: Union[AbstractBaseUser, AnonymousUser], database: BlastDb):
         if not user or not user.is_authenticated:
             return database.public
         else:
-            if user == database.owner or user.is_staff or user.is_superuser:
-                return True 
+            if user == database.owner:
+                return True
+            if isinstance(user, AbstractUser) and (user.is_staff or user.is_superuser):
+                return True
             return database.public or DatabaseShare.has_database_permission_given(user, database, [DatabasePermissions.CAN_VIEW_DB, DatabasePermissions.CAN_EDIT_DB, DatabasePermissions.CAN_RUN_DB]) # check if user has these permissions
 
     @staticmethod
-    def has_edit_permission(user: Union[User, None], database: BlastDb):
+    def has_edit_permission(user: Union[AbstractBaseUser, AnonymousUser], database: BlastDb):
         if not user or not user.is_authenticated: # user account needed for editing
             return False 
         else:
-            if user == database.owner or user.is_staff or user.is_superuser:
+            if user == database.owner:
+                return True
+            if isinstance(user, AbstractUser) and user.is_superuser:
                 return True 
             return DatabaseShare.has_database_permission_given(user, database, [DatabasePermissions.CAN_EDIT_DB]) # check if user has these permissions
 
     @staticmethod
-    def has_delete_permission(user: Union[User, None], database: BlastDb):
+    def has_delete_permission(user: Union[AbstractBaseUser, AnonymousUser], database: BlastDb):
         if not user or not user.is_authenticated: # user account needed for deleting 
             return False 
-        return database.owner == user or user.is_staff or user.is_superuser # only allow owner and admins to edit permissions
+        return database.owner == user or (isinstance(user, AbstractUser) and (user.is_staff or user.is_superuser)) # only allow owner and admins to edit permissions
 
     class Meta:
         verbose_name = 'BLAST Database Access Permission'
