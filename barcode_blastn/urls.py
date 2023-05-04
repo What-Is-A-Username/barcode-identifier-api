@@ -33,13 +33,11 @@ urlpatterns = [
     re_path(r'^swagger/$', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
     re_path(r'^redoc/$', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
     # Django-Rest-Knox Authentication
-
     path(r'login/', views.LoginView.as_view(), name='knox_login'),
     path(r'logout/', knox_views.LogoutView.as_view(), name='knox_logout'),
     path(r'logoutall/', knox_views.LogoutAllView.as_view(), name='knox_logoutall'),
-
     # Token Authentication Testing 
-    path('example/', views.ExampleView.as_view()),
+    path('users/', views.UserDetailView.as_view()),
 
     path('blastdbs/', views.BlastDbList.as_view()),
     path('blastdbs/<uuid:pk>/', views.BlastDbDetail.as_view()),

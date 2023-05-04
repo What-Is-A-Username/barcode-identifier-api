@@ -1,6 +1,7 @@
 from typing import Any, Callable, Dict, List, Optional, Union
 from django.contrib import admin
 from django.db import models
+from django.db.models.query import QuerySet
 
 from django.http.request import HttpRequest
 from django.urls import reverse
@@ -174,6 +175,12 @@ class BlastDbAdmin(admin.ModelAdmin):
         'custom_name', 'owner', 'id'
     )
 
+    def get_queryset(self, request: HttpRequest) -> QuerySet[Any]:
+        if not isinstance(request.user, User) or not request.user.is_authenticated:
+            return BlastDb.objects.none()
+        else:
+            return BlastDb.objects.viewable(request.user)
+
     def has_module_permission(self, request: HttpRequest) -> bool:
         super().has_module_permission
         return DatabaseSharePermissions.has_module_permission(request.user)
@@ -271,6 +278,12 @@ class NuccoreAdmin(admin.ModelAdmin):
     form = NuccoreAdminModifyForm
 
     # TODO: Make the owner_database field read_only if database is locked 
+
+    def get_queryset(self, request: HttpRequest) -> QuerySet[Any]:
+        if not isinstance(request.user, User) or not request.user.is_authenticated:
+            return NuccoreSequence.objects.none()
+        else:
+            return NuccoreSequence.objects.viewable(request.user)
 
     def formfield_for_foreignkey(self, db_field, request: HttpRequest, **kwargs):
         if db_field.name == 'owner_database':
@@ -392,6 +405,14 @@ class BlastRunAdmin(admin.ModelAdmin):
         'id', 'job_name', 'runtime'
     )
     
+    def get_queryset(self, request: HttpRequest) -> QuerySet[Any]:
+        if not request.user.is_authenticated:
+            return BlastRun.objects.none()
+        elif isinstance(request.user, User):
+            return BlastRun.objects.viewable(request.user)
+        else:
+            return BlastRun.objects.none()
+
     def owner_run_link(self, obj):
         url = reverse("admin:%s_%s_change" % ('barcode_blastn', 'blastrun'), args=(obj.owner_run.id,))
         return format_html("<a href='{url}'>{obj}</a>", url=url, obj=obj.owner_run)

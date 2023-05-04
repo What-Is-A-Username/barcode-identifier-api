@@ -1,8 +1,7 @@
 from datetime import datetime
-from typing import List, Union
 from django.db import models
 from django.utils.translation import gettext_lazy as _
-from django.contrib.auth.models import User, AbstractBaseUser, AbstractUser, AnonymousUser
+from django.contrib.auth.models import User
 import uuid
 
 from barcode_blastn.database_permissions import DatabasePermissions
@@ -60,7 +59,20 @@ class DatabaseShare(models.Model):
         verbose_name = 'BLAST Database Access Permission'
         verbose_name_plural = 'BLAST Database Access Permissions'
 
+class NuccoreSequenceManager(models.Manager):
+    def viewable(self, user: User):
+        '''
+        Return a queryset of GenBank accessions that are viewable
+        by the given user (i.e. accessions located in databases
+        that the user can view)
+        '''
+
+        db_qs = BlastDb.objects.viewable(user)
+        return self.get_queryset().filter(owner_database__in=db_qs)
+
 class NuccoreSequence(models.Model):
+
+    objects = NuccoreSequenceManager()
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, help_text='Unique identifier of this sequence entry')
 
@@ -89,7 +101,22 @@ class NuccoreSequence(models.Model):
         verbose_name = 'GenBank Accession'
         verbose_name_plural = 'GenBank Accessions'
 
+class BlastRunManager(models.Manager):
+    def viewable(self, user: User):
+        '''
+        Return a queryset of BlastRun objects that are explicitly 
+        viewable by the given user (i.e. runs on databases they can edit).
+
+        So, although blast runs are public, this will not necessary 
+        return all blast runs within the database.
+        '''
+        
+        db_qs = BlastDb.objects.editable(user)
+        return self.get_queryset().filter(db_used__in=db_qs)
+
 class BlastRun(models.Model):
+    objects = BlastRunManager()
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, help_text='Unique identifier of the run')
 
     # Reference to the database used

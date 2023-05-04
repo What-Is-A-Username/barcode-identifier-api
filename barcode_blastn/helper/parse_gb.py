@@ -1,14 +1,11 @@
 from typing import Dict, Generator, List
-from warnings import warn
 from Bio import Entrez 
 from Bio import SeqIO
 from Bio.SeqIO import SeqRecord
 from Bio.SeqFeature import SeqFeature
-from urllib.error import HTTPError
 from ratelimit import limits
 from ratelimit.decorators import sleep_and_retry
 from datetime import datetime
-from urllib.error import HTTPError
 
 # NCBI Rate limit without an API key is 3 requests per second
 PERIOD = 1 # Time between calls, in number of seconds
@@ -20,7 +17,7 @@ class InvalidAccessionNumberError(Exception):
 
 @sleep_and_retry
 @limits(calls = 1, period = PERIOD)
-def retrieve_gb(accession_numbers: List[str]) -> List[Dict]: 
+def retrieve_gb(accession_numbers: List[str]) -> List[Dict[str, str]]: 
     """
         Retrieve from GenBank the nucleotide entries for the given accession numbers.
         
@@ -50,7 +47,7 @@ def retrieve_gb(accession_numbers: List[str]) -> List[Dict]:
     print(f'{response_time_str} | Response received from GenBank for accessions {accessions}')
     seq_records : Generator = SeqIO.parse(handle, "genbank")
 
-    all_data = []
+    all_data: List[Dict[str, str]]= []
 
     seq_record : SeqRecord
     for seq_record in seq_records:
