@@ -5,33 +5,13 @@ from django.utils.translation import gettext_lazy as _
 from django.contrib.auth.models import User, AbstractBaseUser, AbstractUser, AnonymousUser
 import uuid
 
-class DatabasePermissions(models.TextChoices): 
-    '''
-    Levels of permissions to access, edit and run the database. These permissions hold regardless of whether the database is public or not.
-        - CAN_EDIT_DB:      Allow user to edit database
+from barcode_blastn.database_permissions import DatabasePermissions
 
-        - CAN_RUN_DB:       Allow user to run BLAST on database 
-
-        - CAN_VIEW_DB:      Allow user to view database data
-
-    A user marked with DENY_ACCESS will be denied access to all actions, regardless of the permissions specified above. 
-
-    An unauthenticated user without any DatabasePermissions can only have view access, provided that the database is public. 
-
-    An authenticated user without any DatabasePermissions can only have view and run access, contingent that the database is public.
-    
-    '''
-
-    # Explicitly prevent database from being viewed under any circumstances. Overrides 'public'
-    DENY_ACCESS = 'deny_access'
-    # Allow user to run BLAST on database 
-    CAN_RUN_DB = 'can_run_db'
-    # Allow user to view database. Overrides 'public'
-    CAN_VIEW_DB = 'can_view_db'
-    # Allow user to edit database data. Overrides 'public'
-    CAN_EDIT_DB = 'can_edit_db'
+from barcode_blastn.managers import BlastDbManager
 
 class BlastDb(models.Model):
+    objects = BlastDbManager()
+
     # Original creator of the database
     owner = models.ForeignKey(User, on_delete=models.CASCADE)
 
@@ -65,7 +45,7 @@ class BlastDb(models.Model):
         ordering = ['custom_name']
         verbose_name = 'BLAST Database'
         verbose_name_plural = 'BLAST Databases'
-        
+
 class DatabaseShare(models.Model):
     # The database these permissions apply to
     database = models.ForeignKey(BlastDb, on_delete=models.CASCADE, help_text='The database these permissions apply to.')
@@ -75,58 +55,6 @@ class DatabaseShare(models.Model):
 
     # Permission level given to this relationship 
     perms = models.CharField(max_length=16, choices=DatabasePermissions.choices, default=DatabasePermissions.DENY_ACCESS, help_text='Access permissions')
-
-    @staticmethod 
-    def has_database_permission_given(user: AbstractUser, database: BlastDb, necessary_permissions: List[str]):
-        storedperms : DatabaseShare
-        if not isinstance(user, User):
-            return True
-        try:
-            storedperms = DatabaseShare.objects.get(database=database, grantee=user)
-        except DatabaseShare.DoesNotExist:
-            return False    # deny if no explicit permission given 
-        if storedperms == DatabasePermissions.DENY_ACCESS:
-            return False    # deny access if explicitly prohibited
-        return storedperms.perms in necessary_permissions # return true if the current permission matches with any of those given
-
-    @staticmethod
-    def has_run_permission(user: Union[User, None], database: BlastDb):
-        if not user or not user.is_authenticated:
-            return database.public
-        else:
-            if user == database.owner or user.is_staff or user.is_superuser:
-                return True 
-            if database.public:
-                return True 
-            return DatabaseShare.has_database_permission_given(user, database, [DatabasePermissions.CAN_RUN_DB, DatabasePermissions.CAN_EDIT_DB]) # check if user has these permissions
-
-    @staticmethod
-    def has_view_permission(user: Union[AbstractBaseUser, AnonymousUser], database: BlastDb):
-        if not user or not user.is_authenticated:
-            return database.public
-        else:
-            if user == database.owner:
-                return True
-            if isinstance(user, AbstractUser) and (user.is_staff or user.is_superuser):
-                return True
-            return database.public or DatabaseShare.has_database_permission_given(user, database, [DatabasePermissions.CAN_VIEW_DB, DatabasePermissions.CAN_EDIT_DB, DatabasePermissions.CAN_RUN_DB]) # check if user has these permissions
-
-    @staticmethod
-    def has_edit_permission(user: Union[AbstractBaseUser, AnonymousUser], database: BlastDb):
-        if not user or not user.is_authenticated: # user account needed for editing
-            return False 
-        else:
-            if user == database.owner:
-                return True
-            if isinstance(user, AbstractUser) and user.is_superuser:
-                return True 
-            return DatabaseShare.has_database_permission_given(user, database, [DatabasePermissions.CAN_EDIT_DB]) # check if user has these permissions
-
-    @staticmethod
-    def has_delete_permission(user: Union[AbstractBaseUser, AnonymousUser], database: BlastDb):
-        if not user or not user.is_authenticated: # user account needed for deleting 
-            return False 
-        return database.owner == user or (isinstance(user, AbstractUser) and (user.is_staff or user.is_superuser)) # only allow owner and admins to edit permissions
 
     class Meta:
         verbose_name = 'BLAST Database Access Permission'

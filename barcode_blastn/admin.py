@@ -1,17 +1,17 @@
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 from django.contrib import admin
 from django.db import models
 
-from django.db.models.fields.related import ForeignKey
-from django.forms.models import ModelChoiceField
 from django.http.request import HttpRequest
 from django.urls import reverse
 
 from django.utils.html import format_html
 from django.contrib.auth.models import User, AbstractUser, AbstractBaseUser, AnonymousUser
 from barcode_blastn.helper.parse_gb import retrieve_gb
-from barcode_blastn.models import BlastDb, BlastQuerySequence, DatabasePermissions, DatabaseShare, NuccoreSequence, BlastRun, Hit
+from barcode_blastn.models import BlastDb, BlastQuerySequence, DatabaseShare, NuccoreSequence, BlastRun, Hit
 from django.forms import BaseInlineFormSet, ModelForm, ValidationError
+from barcode_blastn.database_permissions import DatabasePermissions
+from barcode_blastn.permissions import DatabaseSharePermissions, HitSharePermission, NuccoreSharePermission, RunSharePermissions
 
 from barcode_blastn.serializers import BlastDbCreateSerializer, NuccoreSequenceSerializer
 
@@ -45,27 +45,175 @@ def fetch_data(accession_number: str) -> Dict[str, str]:
 
     return genbank_data[0]
 
-@admin.register(Hit)
-class HitAdmin(admin.ModelAdmin):
+class SequenceFormset(BaseInlineFormSet):
+    def save_new(self, form, commit=True):
+        '''
+        Callback when a new sequence is added through a save button on the admin form.
+        '''
+        obj = super(SequenceFormset, self).save_new(form, commit=False)
+        accession_number = obj.accession_number
+        try:
+            duplicate = NuccoreSequence.objects.get(accession_number = accession_number, owner_database_id = obj.owner_database.id)
+        except NuccoreSequence.DoesNotExist:
+            pass
+        else:
+            obj.accession_number = f'Error: duplicate for {accession_number}'
+            return obj
+
+        currentData = fetch_data(accession_number=accession_number)
+
+        try:
+            assert not (currentData is None)
+            serializer = NuccoreSequenceSerializer(data = currentData)
+            if serializer.is_valid():
+                saved = serializer.save(owner_database = obj.owner_database)
+                return saved
+        except AssertionError:
+            obj.accession_number = f'Error: no data for {accession_number}'
+        if commit:
+            obj.save()
+        return obj
+
+    def save_existing(self, form, instance, commit=True):
+        '''
+        Callback when a sequence is edited through a save button in the admin form.
+        '''
+        obj = super(SequenceFormset, self).save_new(form, commit=False)
+        accession_number = obj.accession_number
+        try:
+            duplicate = NuccoreSequence.objects.get(accession_number = accession_number, owner_database_id = obj.owner_database.id)
+        except NuccoreSequence.DoesNotExist:
+            pass
+        else:
+            obj.accession_number = f'Error: duplicate for {accession_number}'
+            return obj
+        
+        currentData = fetch_data(accession_number=accession_number)
+
+        try:
+            assert not (currentData is None) # assert that there must be data retrieved
+            for key, value in currentData.items():
+                setattr(obj, key, str(value))
+        except AssertionError:
+            obj.accession_number = f'Error: no data for {accession_number}'
+        if commit:
+            obj.save()
+
+        return obj
+
+class NuccoreSequenceInline(admin.TabularInline):
+    model = NuccoreSequence     
+    formset = SequenceFormset   # Specify the form to handle edits and additions
+    show_change_link = True     # Show link to page to edit the sequence
+    classes = ['collapse']      # Allow the entries to be collapsed
+    extra = 0                   # Show one extra row by default
+
+    def get_fields(self, request: HttpRequest, obj: Union[BlastDb, None]):
+        return [('accession_number'), ('id', 'created'), ('organism', 'definition', 'organelle'), ('specimen_voucher')]
+
+    def get_readonly_fields(self, request: HttpRequest, obj: Union[BlastDb, None] = None):
+        base = list(set(
+            [field.name for field in self.opts.local_fields] +  
+            [field.name for field in self.opts.local_many_to_many]
+        ))
+        if not obj or obj and not obj.locked: # if db not locked, exclude accession number
+            base = [b for b in base if b != 'accession_number']
+        return base
+    
+    def has_view_permission(self, request: HttpRequest, obj: Union[BlastDb, None]=None) -> bool:
+        return DatabaseSharePermissions.has_view_permission(request.user, obj)
+    
+    def has_change_permission(self, request: HttpRequest, obj: Union[BlastDb, None] = None) -> bool:
+        return DatabaseSharePermissions.has_change_permission(request.user, obj)
+
+    def has_delete_permission(self, request, obj: Union[BlastDb, None] = None) -> bool:
+        return self.has_change_permission(request, obj)
+
+    def has_add_permission(self, request, obj: Union[BlastDb, None] = None) -> bool:
+        return self.has_change_permission(request, obj)
+
+class UserPermissionsInline(admin.TabularInline):
+    model = DatabaseShare
+    extra = 0
+
+    def get_fields(self, request, obj: BlastDb):
+        return ['grantee', 'perms', 'id']
+
+    def get_readonly_fields(self, request, obj: Union[BlastDb, None] = None):
+        return ['id']
+
+    def has_view_permission(self, request: HttpRequest, obj: Union[BlastDb, None] = None) -> bool:
+        return DatabaseSharePermissions.has_view_permission(request.user, obj) 
+
+    def has_add_permission(self, request, obj: Union[BlastDb, None] = None) -> bool:
+        '''
+        Allow only the creator to add permissions.
+        '''
+        return DatabaseSharePermissions.has_delete_permission(request.user, obj)
+
+    def has_delete_permission(self, request, obj: Union[BlastDb, None] = None) -> bool:
+        '''
+        Allow only the creator to delete permissions.
+        '''
+        return DatabaseSharePermissions.has_delete_permission(request.user, obj)
+
+    def has_change_permission(self, request, obj: Union[BlastDb, None] = None) -> bool:
+        '''
+        Allow only the creator to change permissions.
+        '''
+        return DatabaseSharePermissions.has_delete_permission(request.user, obj)
+
+@admin.register(BlastDb)
+class BlastDbAdmin(admin.ModelAdmin):
     '''
-    Admin page for showing Hit instances.
+    Admin page for BlastDb instances.
     '''
+
+    inlines = [UserPermissionsInline, NuccoreSequenceInline]
     list_display = (
-        'db_entry', 'id', 'owner_run_link'
+        'custom_name', 'owner', 'id'
     )
 
-    def owner_run_link(self, obj):
-        url = reverse("admin:%s_%s_change" % ('barcode_blastn', 'blastrun'), args=(obj.owner_run.id,))
-        return format_html("<a href='{url}'>{obj}</a>", url=url, obj=obj.owner_run)
+    def has_module_permission(self, request: HttpRequest) -> bool:
+        super().has_module_permission
+        return DatabaseSharePermissions.has_module_permission(request.user)
 
-    def has_change_permission(self, request, obj=None):
-        return False
+    def has_view_permission(self, request: HttpRequest, obj: Union[BlastDb, None] = None) -> bool:
+        return DatabaseSharePermissions.has_view_permission(request.user, obj)
 
-    def has_delete_permission(self, request, obj=None):
-        return False 
+    def has_add_permission(self, request: HttpRequest) -> bool:
+        return DatabaseSharePermissions.has_add_permission(request.user, None)
 
-    def has_add_permission(self, request, obj=None):
-        return False 
+    def has_delete_permission(self, request: HttpRequest, obj: Union[BlastDb, None] = None) -> bool:
+        return DatabaseSharePermissions.has_delete_permission(request.user, obj)
+
+    def has_change_permission(self, request: HttpRequest, obj: Union[BlastDb, None] = None) -> bool:
+        return DatabaseSharePermissions.has_change_permission(request.user, obj)
+
+    def get_fields(self, request, obj):
+        excluded_fields = ['id']
+        fields = [f for f in BlastDbCreateSerializer.Meta.fields if f not in excluded_fields]
+        fields.extend(['locked', 'owner'])
+        return fields
+
+    def get_readonly_fields(self, request, obj: Union[BlastDb, None] = None):
+        base = list(set(
+            [field.name for field in self.opts.local_fields] +
+            [field.name for field in self.opts.local_many_to_many]
+        ))
+        # specify which fields are editable
+        excluded_fields = ['custom_name', 'description', 'public']
+        if not obj or obj and not obj.locked:
+            excluded_fields.append('sequences')
+        base = [b for b in base if b not in excluded_fields and b != 'locked']
+    
+        return base
+
+    def save_model(self, request, obj: BlastDb, form, change):
+        # specify the owner as the logged in user
+        obj.owner = request.user
+        model = super().save_model(request, obj, form, change)
+        return model
 
 class NuccoreAdminModifyForm(ModelForm):
     '''
@@ -91,7 +239,7 @@ class NuccoreAdminModifyForm(ModelForm):
 
         # check that the sequence will be assigned to a database
         if owner_database is None:
-            raise ValidationError(f'Error: no database specified. Try reloading the form')
+            raise ValidationError(f'No owner database specified. Sequence must be associated with a database when being created. If no databases are selectable, contact a superuser to give you edit permission to a database.')
 
         # check if the accession already exists in the database
         duplicate_exists: bool = False
@@ -168,14 +316,22 @@ class NuccoreAdmin(admin.ModelAdmin):
         url = reverse("admin:%s_%s_change" % ('barcode_blastn', 'blastdb'), args=(obj.owner_database.id,))
         return format_html("<a href='{url}'>{obj}</a>", url=url, obj=obj.owner_database)
 
-    def has_change_permission(self, request, obj=None):
-        return True
+    def has_module_permission(self, request: HttpRequest) -> bool:
+        # allow module access if they can access databases
+        return NuccoreSharePermission.has_module_permission(request.user)
 
-    def has_delete_permission(self, request, obj=None):
-        return False 
+    def has_view_permission(self, request: HttpRequest, obj: Union[NuccoreSequence, None]=None) -> bool:
+        return NuccoreSharePermission.has_view_permission(request.user, obj)
 
-    def has_add_permission(self, request, obj=None):
-        return request.user.is_staff or request.user.is_superuser 
+    def has_change_permission(self, request, obj: Union[NuccoreSequence, None]=None):
+        return NuccoreSharePermission.has_change_permission(request.user, obj)
+
+    def has_delete_permission(self, request, obj: Union[NuccoreSequence, None]=None):
+        return NuccoreSharePermission.has_delete_permission(request.user, obj)
+
+    def has_add_permission(self, request, obj: Union[NuccoreSequence, None]=None):
+        # sequences can only be added if the user can edit the database
+        return NuccoreSharePermission.has_add_permission(request.user, obj)
     
     def save_model(self, request: Any, obj: Any, form: Any, change: Any) -> None:
         accession_number = obj.accession_number
@@ -185,7 +341,6 @@ class NuccoreAdmin(admin.ModelAdmin):
             setattr(obj, key, str(value))
 
         super(NuccoreAdmin, self).save_model(request, obj, form, change)
-
 
 class BlastQuerySequenceInline(admin.StackedInline):
     '''
@@ -218,6 +373,7 @@ class HitInline(admin.TabularInline):
         return '%.4E' % obj.bit_score
 
     extra = 0
+
     def has_change_permission(self, request, obj=None):
         return False
     def has_add_permission(self, request, obj=None) -> bool:
@@ -235,11 +391,26 @@ class BlastRunAdmin(admin.ModelAdmin):
     list_display = (
         'id', 'job_name', 'runtime'
     )
-    def has_add_permission(self, request) -> bool:
-        return False
+    
+    def owner_run_link(self, obj):
+        url = reverse("admin:%s_%s_change" % ('barcode_blastn', 'blastrun'), args=(obj.owner_run.id,))
+        return format_html("<a href='{url}'>{obj}</a>", url=url, obj=obj.owner_run)
 
-    def has_change_permission(self, request, obj=None) -> bool:
-        return False
+    def has_module_permission(self, request: HttpRequest) -> bool:
+        # allow module access if they can access databases
+        return RunSharePermissions.has_module_permission(request.user)
+
+    def has_view_permission(self, request: HttpRequest, obj: Union[BlastRun, None]=None) -> bool:
+        return RunSharePermissions.has_view_permission(request.user, obj)
+
+    def has_change_permission(self, request, obj: Union[BlastRun, None]=None):
+        return RunSharePermissions.has_change_permission(request.user, obj) 
+
+    def has_delete_permission(self, request, obj: Union[BlastRun, None]=None):
+        return RunSharePermissions.has_delete_permission(request.user, obj) 
+
+    def has_add_permission(self, request):
+        return RunSharePermissions.has_add_permission(request.user, None) 
 
     def get_readonly_fields(self, request, obj=None):
         return list(set(
@@ -247,158 +418,31 @@ class BlastRunAdmin(admin.ModelAdmin):
             [field.name for field in self.opts.local_many_to_many]
         ))
 
-class SequenceFormset(BaseInlineFormSet):
-    def save_new(self, form, commit=True):
-        '''
-        Callback when a new sequence is added through a save button on the admin form.
-        '''
-        obj = super(SequenceFormset, self).save_new(form, commit=False)
-        accession_number = obj.accession_number
-        try:
-            duplicate = NuccoreSequence.objects.get(accession_number = accession_number, owner_database_id = obj.owner_database.id)
-        except NuccoreSequence.DoesNotExist:
-            pass
-        else:
-            obj.accession_number = f'Error: duplicate for {accession_number}'
-            return obj
-
-        currentData = fetch_data(accession_number=accession_number)
-
-        try:
-            assert not (currentData is None)
-            serializer = NuccoreSequenceSerializer(data = currentData)
-            if serializer.is_valid():
-                saved = serializer.save(owner_database = obj.owner_database)
-                return saved
-        except AssertionError:
-            obj.accession_number = f'Error: no data for {accession_number}'
-        if commit:
-            obj.save()
-        return obj
-
-    def save_existing(self, form, instance, commit=True):
-        '''
-        Callback when a sequence is edited through a save button in the admin form.
-        '''
-        obj = super(SequenceFormset, self).save_new(form, commit=False)
-        accession_number = obj.accession_number
-        try:
-            duplicate = NuccoreSequence.objects.get(accession_number = accession_number, owner_database_id = obj.owner_database.id)
-        except NuccoreSequence.DoesNotExist:
-            pass
-        else:
-            obj.accession_number = f'Error: duplicate for {accession_number}'
-            return obj
-        
-        currentData = fetch_data(accession_number=accession_number)
-
-        try:
-            assert not (currentData is None) # assert that there must be data retrieved
-            for key, value in currentData.items():
-                setattr(obj, key, str(value))
-        except AssertionError:
-            obj.accession_number = f'Error: no data for {accession_number}'
-        if commit:
-            obj.save()
-
-        return obj
-
-class NuccoreSequenceInline(admin.TabularInline):
-    model = NuccoreSequence     
-    formset = SequenceFormset   # Specify the form to handle edits and additions
-    show_change_link = True     # Show link to page to edit the sequence
-    classes = ['collapse']      # Allow the entries to be collapsed
-    extra = 0                   # Show one extra row by default
-
-    def get_fields(self, request, obj):
-        return [('accession_number'), ('id', 'created'), ('organism', 'definition', 'organelle'), ('specimen_voucher')]
-
-    def get_readonly_fields(self, request, obj: Union[BlastDb, None] = None):
-        base = list(set(
-            [field.name for field in self.opts.local_fields] +  
-            [field.name for field in self.opts.local_many_to_many]
-        ))
-        if not obj or obj and not obj.locked: # if db not locked, exclude accession number
-            base = [b for b in base if b != 'accession_number']
-        return base
-    
-    def has_view_permission(self, request: HttpRequest, obj: Union[BlastDb, None]=None) -> bool:
-        if obj is None:
-            return True
-        else:
-            return DatabaseShare.has_view_permission(request.user, obj)
-    
-    def has_change_permission(self, request: HttpRequest, obj: Union[BlastDb, None] = None):
-        if obj is None:
-            return False
-        return DatabaseShare.has_edit_permission(request.user, obj)
-
-    def has_delete_permission(self, request, obj: Union[BlastDb, None] = None):
-        return self.has_change_permission(request, obj)
-
-    def has_add_permission(self, request, obj: Union[BlastDb, None] = None):
-        return self.has_change_permission(request, obj)
-
-class UserPermissionsInline(admin.TabularInline):
-    model = DatabaseShare
-    extra = 0
-
-    def get_fields(self, request, obj: BlastDb):
-        return ['grantee', 'perms', 'id']
-
-    def get_readonly_fields(self, request, obj: Union[BlastDb, None] = None):
-        return ['id']
-
-    def has_add_permission(self, request, obj: Union[BlastDb, None] = None) -> bool:
-        '''
-        Allow only the creator to add permissions.
-        '''
-        return request.user.is_authenticated and (obj is None or request.user == obj.owner)
-
-    def has_delete_permission(self, request, obj: Union[BlastDb, None] = None) -> bool:
-        '''
-        Allow only the creator to delete permissions.
-        '''
-        return request.user.is_authenticated and (obj is None or request.user == obj.owner)
-
-    def has_change_permission(self, request, obj: Union[BlastDb, None] = None) -> bool:
-        '''
-        Allow only the creator to change permissions.
-        '''
-        return request.user.is_authenticated and (obj is None or request.user == obj.owner)
-
-@admin.register(BlastDb)
-class BlastDbAdmin(admin.ModelAdmin):
+@admin.register(Hit)
+class HitAdmin(BlastRunAdmin):
     '''
-    Admin page for BlastDb instances.
+    Admin page for showing Hit instances.
     '''
-
-    inlines = [UserPermissionsInline, NuccoreSequenceInline]
+    inlines = []
     list_display = (
-        'custom_name', 'owner', 'id'
+        'db_entry', 'id', 'owner_run_link'
     )
 
-    def get_fields(self, request, obj):
-        excluded_fields = ['id']
-        fields = [f for f in BlastDbCreateSerializer.Meta.fields if f not in excluded_fields]
-        fields.extend(['locked', 'owner'])
-        return fields
+    def has_module_permission(self, request: HttpRequest) -> bool:
+        # allow module access if they can access databases
+        return HitSharePermission.has_module_permission(request.user)
 
-    def get_readonly_fields(self, request, obj: Union[BlastDb, None] = None):
-        base = list(set(
-            [field.name for field in self.opts.local_fields] +
-            [field.name for field in self.opts.local_many_to_many]
-        ))
-        # specify which fields are editable
-        excluded_fields = ['custom_name', 'description', 'public']
-        if not obj or obj and not obj.locked:
-            excluded_fields.append('sequences')
-        base = [b for b in base if b not in excluded_fields and b != 'locked']
-    
-        return base
+    def has_view_permission(self, request: HttpRequest, obj: Union[Hit, None]=None) -> bool:
+        return HitSharePermission.has_view_permission(request.user, obj)
 
-    def save_model(self, request, obj: BlastDb, form, change):
-        # specify the owner as the logged in user
-        obj.owner = request.user
-        model = super().save_model(request, obj, form, change)
-        return model
+    def has_change_permission(self, request, obj: Union[Hit, None]=None):
+        # prohibit runs from being modified through admin panel
+        return HitSharePermission.has_change_permission(request.user, obj) 
+
+    def has_delete_permission(self, request, obj: Union[Hit, None]=None):
+        # runs can only be deleted if the user can delete the run
+        return HitSharePermission.has_delete_permission(request.user, obj) 
+
+    def has_add_permission(self, request, obj: Union[Hit, None]=None):
+        # prohibit runs from being added through admin panel
+        return HitSharePermission.has_add_permission(request.user, obj) 

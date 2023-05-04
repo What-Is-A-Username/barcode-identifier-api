@@ -14,10 +14,11 @@ from pathlib import Path
 from kombu.utils.url import safequote
 
 # Fall back for local development environments where env variables not set from docker compose
-from dotenv import load_dotenv
+
 if os.environ.get("DB_SECRET_KEY", "defaultkey") == "defaultkey":
-     print("Loaded local environment variables from .env")
-     load_dotenv('.env')
+    from dotenv import load_dotenv
+    print("Loaded local environment variables from .env")
+    load_dotenv('.env')
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent

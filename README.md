@@ -244,9 +244,8 @@ Set up the PostGre SQL database:
 sudo service postgresql start
 sudo su - postgres
 psql
-CREATE DATABASE barcode_identifier_api
-CREATE USER admin with PASSWORD '<password>'
-GRANT ALL PRIVILEGES ON DATABASE barcode_identifier_api TO admin
+CREATE USER admin with PASSWORD '<password>';
+CREATE DATABASE barcode_identifier_db OWNER admin;
 \q
 exit
 ```
