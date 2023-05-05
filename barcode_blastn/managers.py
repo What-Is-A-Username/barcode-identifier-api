@@ -20,12 +20,16 @@ class BlastDbManager(models.Manager):
         user
         '''
         if not user.is_authenticated:
+            # public users can never edit a database
             return super().none()
         elif user.is_superuser:
+            # give access to all databases if superuser
             return super().get_queryset().all()
         else:
             return super().get_queryset().filter(
+                # include databases owned by user
                 models.Q(owner=user) |
+                # include those with access explicitly given to 
                 models.Q(shares=user, databaseshare__perms__in=[DatabasePermissions.CAN_EDIT_DB])
             )
         
@@ -34,10 +38,10 @@ class BlastDbManager(models.Manager):
         Retrieve a set of databases that the user can view
         '''
         if not user.is_authenticated:
-            return super().get_queryset().filter(
-                public=True
-            )
+            # only return public databases for public users
+            return super().get_queryset().filter(public=True)
         elif user.is_superuser:
+            # give access to all databases if superuser
             return super().get_queryset().all()
         else:
             return super().get_queryset().exclude(
@@ -46,9 +50,11 @@ class BlastDbManager(models.Manager):
                 models.Q(shares=user, 
                          databaseshare__perms=DatabasePermissions.DENY_ACCESS)
             ).filter(
-                # include databases owned by user or been given view access to 
+                # include databases owned by user
                 models.Q(owner=user) |
+                # include those that are public
                 models.Q(public=True) |
+                # include those with access explicitly given to 
                 models.Q(shares=user,
                          databaseshare__perms__in=[
                             DatabasePermissions.CAN_VIEW_DB, DatabasePermissions.CAN_EDIT_DB, DatabasePermissions.CAN_RUN_DB
@@ -59,36 +65,18 @@ class BlastDbManager(models.Manager):
         '''
         Retrieve a set of databases that the user can run on
         '''
-        if not user.is_authenticated:
-            return super().get_queryset().filter(
-                public=True 
-            )
-        elif user.is_superuser:
-            return super().get_queryset().all()
-        else:
-            return super().get_queryset().exclude(
-                # exclude databases that are public but explicitly denied to user
-                models.Q(public=True) &
-                models.Q(shares=user, 
-                         databaseshare__perms=DatabasePermissions.DENY_ACCESS)
-            ).filter(
-                # include databases owned by user or been given view access to 
-                models.Q(owner=user) |
-                models.Q(owner=True) |
-                models.Q(shares=user,
-                         databaseshare__perms__in=[DatabasePermissions.CAN_EDIT_DB, DatabasePermissions.CAN_RUN_DB
-                         ])
-            )
+        # Currently, if a user can view the database, they can run it
+        return self.viewable(user)
 
     def deletable(self, user: User):
         '''
         Retrieve a database set that is deletable by the user.
         '''
         if not user.is_authenticated:
-            return super().get_queryset().filter(
-                public=True 
-            )
+            # public users cannot delete any databases
+            return super().none()
         elif user.is_superuser:
+            # A superuser can delete any database
             return super().get_queryset().all()
         else:
             return super().get_queryset().filter(owner=user)

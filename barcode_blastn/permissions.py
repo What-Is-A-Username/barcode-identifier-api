@@ -126,9 +126,7 @@ class DatabaseSharePermissions(CustomPermissions[BlastDb]):
 
     @staticmethod 
     def has_module_permission(user: Union[AbstractBaseUser, AnonymousUser]) -> bool:
-        if user.is_authenticated:
-            return True
-        return isinstance(user, AbstractUser) and (user.is_staff or user.is_superuser)  
+        return isinstance(user, AbstractUser) and user.is_staff
 
     @staticmethod
     def has_add_permission(user: Union[AbstractBaseUser, AnonymousUser], obj: Union[BlastDb, None]) -> bool:

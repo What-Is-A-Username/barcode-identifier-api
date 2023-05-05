@@ -53,22 +53,27 @@ class SequenceFormset(BaseInlineFormSet):
         '''
         obj = super(SequenceFormset, self).save_new(form, commit=False)
         accession_number = obj.accession_number
+
+        # check if there is a duplicate
         try:
-            duplicate = NuccoreSequence.objects.get(accession_number = accession_number, owner_database_id = obj.owner_database.id)
+            NuccoreSequence.objects.get(accession_number = accession_number, owner_database_id = obj.owner_database.id)
         except NuccoreSequence.DoesNotExist:
             pass
         else:
             obj.accession_number = f'Error: duplicate for {accession_number}'
             return obj
 
+        # fetch GenBank data
         currentData = fetch_data(accession_number=accession_number)
 
+        # check that the GenBank data is valid
         try:
             assert not (currentData is None)
             serializer = NuccoreSequenceSerializer(data = currentData)
             if serializer.is_valid():
                 saved = serializer.save(owner_database = obj.owner_database)
                 return saved
+                
         except AssertionError:
             obj.accession_number = f'Error: no data for {accession_number}'
         if commit:
@@ -409,7 +414,7 @@ class BlastRunAdmin(admin.ModelAdmin):
         if not request.user.is_authenticated:
             return BlastRun.objects.none()
         elif isinstance(request.user, User):
-            return BlastRun.objects.viewable(request.user)
+            return BlastRun.objects.listable(request.user)
         else:
             return BlastRun.objects.none()
 

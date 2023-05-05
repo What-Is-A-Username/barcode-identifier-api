@@ -102,15 +102,16 @@ class NuccoreSequence(models.Model):
         verbose_name_plural = 'GenBank Accessions'
 
 class BlastRunManager(models.Manager):
-    def viewable(self, user: User):
+    def listable(self, user: User):
         '''
         Return a queryset of BlastRun objects that are explicitly 
-        viewable by the given user (i.e. runs on databases they can edit).
+        viewable in a list for the given user. Primarily,
+        this refers to BLASTN runs performed on databases the user has
+        edit permission in.
 
         So, although blast runs are public, this will not necessary 
         return all blast runs within the database.
         '''
-        
         db_qs = BlastDb.objects.editable(user)
         return self.get_queryset().filter(db_used__in=db_qs)
 

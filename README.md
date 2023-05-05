@@ -337,12 +337,12 @@ sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin 
 
 Build the project
 ```
-docker-compose build barcode_identifier_api
+docker compose build barcode_identifier_api
 ```
 
 Run the project
 ```
-docker-compose up barcode_identifier_api
+docker compose up barcode_identifier_api
 ```
 
 Once it is up, create a superuser with desired username and password. This will be the credentials used for the `/admin` page of the site.

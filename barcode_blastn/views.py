@@ -17,7 +17,7 @@ from django.contrib.auth.models import User
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from knox.auth import TokenAuthentication
-from knox.views import LoginView as KnoxLoginView
+from knox.views import LoginView as KnoxLoginView, LogoutView as KnoxLogoutView
 from rest_framework import generics, mixins, status
 from rest_framework.authtoken.serializers import AuthTokenSerializer
 from rest_framework.exceptions import PermissionDenied
@@ -50,8 +50,7 @@ from barcode_blastn.serializers import (BlastDbCreateSerializer,
                                         BlastRunStatusSerializer,
                                         NuccoreSequenceAddSerializer,
                                         NuccoreSequenceBulkAddSerializer,
-                                        NuccoreSequenceSerializer)
-from barcode_blastn.tasks import run_blast_command
+                                        NuccoreSequenceSerializer, UserSerializer)
 from barcode_identifier_api.celery import app
 
 tag_runs = 'Runs/Jobs'
@@ -59,6 +58,10 @@ tag_blastdbs = 'BLAST Databases'
 tag_sequences = 'GenBank Accessions'
 tag_admin = 'Admin Tools'
 tag_users = 'User Authentication'
+
+ENABLE_COOKIE_AUTH = True
+AUTH_COOKIE_SALT = 'PWkc28Zdxgkqpr23'
+AUTH_COOKIE_KEY = 'knox'
 
 class UserDetailView(generics.GenericAPIView):
     '''
@@ -101,11 +104,7 @@ class UserDetailView(generics.GenericAPIView):
     )
     def get(self, request, format=None):
         user: User = request.user
-        return Response({
-            'username': user.username,
-            'is_staff': user.is_staff,
-            'is_superuser': user.is_superuser
-        })
+        return Response(UserSerializer(request.user).data)
 
 class LoginView(KnoxLoginView):
     '''
@@ -113,12 +112,36 @@ class LoginView(KnoxLoginView):
     '''
     permission_classes = (AllowAny,)
 
+    def get_cookie_salt(self) -> str:
+        return AUTH_COOKIE_SALT
+
+    def get_cookie_key(self) -> str:
+        return AUTH_COOKIE_KEY
+
+    def get_user_serializer_class(self):
+        return UserSerializer
+
     def post(self, request, format=None):
+
         serializer = AuthTokenSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data['user']  # type: ignore
         login(request, user)
-        return super(LoginView, self).post(request, format=None)
+        response = super(LoginView, self).post(request, format=None)
+
+        # set cookie for browsers 
+        if response.data is None:
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        auth_token = response.data['token']
+
+        response.set_signed_cookie(
+            self.get_cookie_key(),
+            auth_token,
+            httponly=True,
+            samesite='strict',
+            salt=self.get_cookie_salt()
+        )
+        return Response(response.data, status=status.HTTP_200_OK)
 
 class NuccoreSequenceBulkAdd(generics.CreateAPIView):   
     '''
@@ -630,7 +653,7 @@ class BlastRunList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.Gene
     
     def get_queryset(self):
         if isinstance(self.request.user, User):
-            return BlastRun.objects.viewable(self.request.user)
+            return BlastRun.objects.listable(self.request.user)
         else:
             return BlastRun.objects.none()
 

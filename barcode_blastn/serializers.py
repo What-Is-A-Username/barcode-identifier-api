@@ -381,7 +381,7 @@ class BlastRunStatusSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User 
-        fields = ['username']
+        fields = ['id', 'username', 'email', 'is_staff', 'is_superuser']
 
 class DatabaseShareSerializer(serializers.ModelSerializer):
     '''
@@ -395,5 +395,4 @@ class DatabaseShareSerializer(serializers.ModelSerializer):
         model = DatabaseShare
         ref_name = share_title 
         fields = ['database', 'grantee']
-
 
