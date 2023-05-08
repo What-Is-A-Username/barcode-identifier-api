@@ -17,12 +17,12 @@ from django.contrib.auth.models import User
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from knox.auth import TokenAuthentication
-from knox.views import LoginView as KnoxLoginView, LogoutView as KnoxLogoutView
+from knox.views import LoginView as KnoxLoginView, LogoutView as KnoxLogoutView, LogoutAllView as KnoxLogoutAllView
 from rest_framework import generics, mixins, status
 from rest_framework.authtoken.serializers import AuthTokenSerializer
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.renderers import (BrowsableAPIRenderer, JSONRenderer,
                                       TemplateHTMLRenderer)
 from rest_framework.response import Response
@@ -69,7 +69,7 @@ class UserDetailView(generics.GenericAPIView):
     user
     '''
     authentication_classes = (TokenAuthentication,)
-    permission_classes = (AllowAny,)
+    permission_classes = (IsAuthenticated,)
 
     @swagger_auto_schema(
         operation_summary='Get user details.',
@@ -77,28 +77,36 @@ class UserDetailView(generics.GenericAPIView):
         tags = [tag_users],
         responses={
             '200': openapi.Response(
-                description='User information',
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'username': openapi.Schema(
-                            type=openapi.TYPE_STRING,
-                            description='Username',
-                            example='JohnSmith'
-                        ),
-                        'is_staff': openapi.Schema(
-                            type=openapi.TYPE_BOOLEAN, 
-                            description='Is the user a staff member in the database?',
-                            example='False'
-                        ),
-                        'is_superuser': openapi.Schema(
-                            type=openapi.TYPE_BOOLEAN, 
-                            description='Is the user a superuser in the database?',
-                            example='False'
-                        ),
-                    }
-                )
+                description='Successfully returned sequence information',
+                schema=UserSerializer(read_only=True),
+                examples={
+                    'application/json': UserSerializer.Meta.example
+                }
             ),
+            
+            # openapi.Response(
+            #     description='User information',
+            #     schema=openapi.Schema(
+            #         type=openapi.TYPE_OBJECT,
+            #         properties={
+            #             'username': openapi.Schema(
+            #                 type=openapi.TYPE_STRING,
+            #                 description='Username',
+            #                 example='JohnSmith'
+            #             ),
+            #             'is_staff': openapi.Schema(
+            #                 type=openapi.TYPE_BOOLEAN, 
+            #                 description='Is the user a staff member in the database?',
+            #                 example='False'
+            #             ),
+            #             'is_superuser': openapi.Schema(
+            #                 type=openapi.TYPE_BOOLEAN, 
+            #                 description='Is the user a superuser in the database?',
+            #                 example='False'
+            #             ),
+            #         }
+            #     )
+            # ),
             '403': 'User could not be authenticated.'
         }
     )
@@ -106,9 +114,29 @@ class UserDetailView(generics.GenericAPIView):
         user: User = request.user
         return Response(UserSerializer(request.user).data)
 
+class LogoutAllView(KnoxLogoutAllView):
+    @swagger_auto_schema(
+        security=[{'Basic': []}, {'Bearer': []}],
+        operation_summary='User logoff all',
+        operation_description='Sign out of the user account by signing out of all tokens corresponding to the user specified by the provided authentication token. The token is provided in the request header with the format `Authorization: Bearer <token>`, where <token> is the full token.',
+        tags = [tag_users],
+    )
+    def post(self, request, format=None):
+        return super().post(request, format)
+
+class LogoutView(KnoxLogoutView):
+    @swagger_auto_schema(
+        security=[{'Basic': []}, {'Bearer': []}],
+        operation_summary='User logoff',
+        operation_description='Sign out of the user account by signing out the provided authentication token. The token is provided in the request header with the format `Authorization: Bearer <token>`, where <token> is the full token.',
+        tags = [tag_users],
+    )
+    def post(self, request, format=None):
+        return super().post(request, format)
+
 class LoginView(KnoxLoginView):
     '''
-    Login view to enable TokenAuthentication
+    Sign in the user and return the authentication token.
     '''
     permission_classes = (AllowAny,)
 
@@ -121,27 +149,26 @@ class LoginView(KnoxLoginView):
     def get_user_serializer_class(self):
         return UserSerializer
 
+    @swagger_auto_schema(
+        operation_summary='User login',
+        operation_description='Sign in with the specified credentials and return the authentication token.',
+        tags = [tag_users],
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'username': openapi.Schema(type=openapi.TYPE_STRING),
+                'password': openapi.Schema(type=openapi.TYPE_STRING),
+            }
+        )
+    )
     def post(self, request, format=None):
-
         serializer = AuthTokenSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data['user']  # type: ignore
         login(request, user)
         response = super(LoginView, self).post(request, format=None)
 
-        # set cookie for browsers 
-        if response.data is None:
-            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        auth_token = response.data['token']
-
-        response.set_signed_cookie(
-            self.get_cookie_key(),
-            auth_token,
-            httponly=True,
-            samesite='strict',
-            salt=self.get_cookie_salt()
-        )
-        return Response(response.data, status=status.HTTP_200_OK)
+        return response
 
 class NuccoreSequenceBulkAdd(generics.CreateAPIView):   
     '''

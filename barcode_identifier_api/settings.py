@@ -33,6 +33,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = bool(int(os.environ.get('DEBUG', 0)))
 
+# TODO: Change when deploying to production
 ALLOWED_HOSTS = [
 '*'
 ]
@@ -64,8 +65,11 @@ AUTHENTICATION_BACKENDS = (
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'knox.auth.TokenAuthentication',
-        # 'rest_framework.authentication.SessionAuthentication'
     ),
+}
+
+REST_KNOX = {
+    'AUTH_HEADER_PREFIX': 'Bearer'
 }
 
 MIDDLEWARE = [
@@ -128,6 +132,8 @@ CORS_ALLOWED_ORIGINS = [
     # Allow static site directly accessible on S3
     'http://barcode-identifier.s3-website.us-east-2.amazonaws.com'
 ]
+
+CORS_ALLOW_CREDENTIALS = True
 
 
 # Password validation
@@ -217,5 +223,12 @@ CELERY_GROUP = "appgroup"
 SWAGGER_SETTINGS = {
     'USE_SESSION_AUTH': True, # hide authentication
     'DEFAULT_MODEL_DEPTH': -1, # hide models widget
-    'DEFAULT_MODEL_RENDERING': 'example' # show examples by default
+    'DEFAULT_MODEL_RENDERING': 'example', # show examples by default
+    'SECURITY_DEFINITIONS': {
+        'Bearer': {
+            'type': 'apiKey',
+            'name': 'Authorization',
+            'in': 'header'
+        }
+    },
 }

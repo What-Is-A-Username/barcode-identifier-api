@@ -175,6 +175,26 @@ class BlastDbSequenceEntrySerializer(serializers.ModelSerializer):
             "dna_sequence": "ATAGTATTTGGTGCATGAGCTGGGATAGTAGGCACAGCCTTAAGCCTCTTAATCCGAGCAGAACTAAGCCAGCCAGGAGCTCTTATGGGCGACGACCAAATTTACAATGTGATTGTTACTGCGCACGCTTTCGTAATAATTTTCTTCATGGTTATGCCCATTATAATCGGCGGGTTCGGCAACTGATTAATTCCCCTAATACTCGGTGCCCCTGACATGGCATTCCCACGAATAAACAACATAAGCTTCTGACTTCTGCCCCCATCATTCCTTCTACTCCTTGCATCCTCTGGGGTCGAAGCGGGAGCCGGAACCGGCTGAACTGTTTACCCCCCTCTCGCTAGCAACCTCGCCCACGCAGGGGCCTCCGTTGATCTAACTATCTTCTCCCTTCACCTTGCTGGGGTTTCTTCCATCCTTGGCTCTATCAACTTCATTACTACCATTATTAACATGAAACCCCCAGCCATATCTCAGTATCAAACCCCTCTATTTATTTGAGCGCTCCTAATTACCACAGTTCTCCTACTGTTATCCCTTCCCGTACTGGCCGCTGGTATCACCATGCTGCTAACAGACCGAAACCTAAATACAACCTTCTTCGACCCCGCAGGAGGAGGGGACCCCGTCCTTTATCAGCACTTA"
         }
 
+class BlastDbOwnerSerializer(serializers.ModelSerializer):
+    f'''
+    Show basic information about the owner of a database
+    '''
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for name in ['username', 'email']:
+            self.fields[name].read_only = True
+
+    class Meta:
+        model = User
+        ref_name = 'Database Owner'
+        fields = ['username', 'email']
+        example = {
+            'username': 'John Doe',
+            'email': 'johndoe@example.com'
+        }
+
+
 class BlastDbSerializer(serializers.ModelSerializer):
     f'''
     Show detailed information about a specific {blast_db_title}
@@ -182,21 +202,25 @@ class BlastDbSerializer(serializers.ModelSerializer):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        read_only_fields = ['id', 'sequences']
+        read_only_fields = ['id', 'sequences', 'owner']
         for name in read_only_fields:
             self.fields[name].read_only = True
-        for name in ['id', 'custom_name', 'description', 'locked', 'public', 'sequences']:
+        for name in ['id', 'custom_name', 'description', 'owner', 'locked', 'public', 'sequences']:
             self.fields[name].required = True
 
     sequences = BlastDbSequenceEntrySerializer(many=True, read_only=True)
+
+    owner = BlastDbOwnerSerializer(many=False, read_only=True)
+
     class Meta:
         model = BlastDb
         ref_name = blast_db_title
-        fields = ['id', 'custom_name', 'description', 'locked', 'public', 'sequences']
+        fields = ['id', 'custom_name', 'description', 'owner', 'locked', 'public', 'sequences']
         example = {
             "id": "66855f2c-f360-4ad9-8c98-998ecb815ff5",
             "custom_name": "Neotropical electric knifefish",
             "description": "This BLAST database is a collection of barcodes from 167 species of Neotropical electric knifefish (Teleostei: Gymnotiformes) which was presented by Janzen et al. 2022. All sequences and related feature data are updated daily at midnight (UTC) from NCBI's Genbank database.",
+            "owner": BlastDbOwnerSerializer.Meta.example,
             "locked": True,
             "public": True,
             "sequences": [
@@ -213,6 +237,7 @@ class BlastDbSerializer(serializers.ModelSerializer):
             ]
         }
 
+
 class BlastDbListSerializer(serializers.ModelSerializer):
     '''
     Show a condensed summary of each blastdb, to list out all blastdbs
@@ -220,12 +245,7 @@ class BlastDbListSerializer(serializers.ModelSerializer):
     
     sequences = BlastDbSequenceEntryShortSerializer(many=True, read_only=True)
 
-    owner_username = serializers.SerializerMethodField('get_owner_username')
-    def get_owner_username(self, obj: Union[BlastDb, None]) -> str:
-        if obj is None:
-            return '<deleted>'
-        else:
-            return obj.owner.get_username()
+    owner = BlastDbOwnerSerializer(many=False, read_only=True)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -236,7 +256,7 @@ class BlastDbListSerializer(serializers.ModelSerializer):
     class Meta:
         model = BlastDb
         ref_name = blast_db_title 
-        fields = ['id', 'custom_name', 'description', 'owner_username', 'locked', 'public', 'sequences']
+        fields = ['id', 'custom_name', 'description', 'owner', 'locked', 'public', 'sequences']
         example = [ BlastDbSerializer.Meta.example ]
 
 class HitSerializer(serializers.ModelSerializer):
@@ -382,6 +402,13 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User 
         fields = ['id', 'username', 'email', 'is_staff', 'is_superuser']
+        example = {
+            "id": 2316,
+            "username": "admin",
+            "username": "JohnSmith",
+            "is_staff": False,
+            "is_superuser": False
+        }
 
 class DatabaseShareSerializer(serializers.ModelSerializer):
     '''
