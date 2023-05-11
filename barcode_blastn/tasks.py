@@ -119,7 +119,7 @@ def run_blast_command(ncbi_blast_version: str, fishdb_id: str, run_id: str) -> b
     try:
         parsed_data = parse_results(out)
         accessions = [hit['subject_accession_version'] for hit in parsed_data]
-        accession_entries = NuccoreSequence.objects.filter(accession_number__in=accessions)
+        accession_entries = NuccoreSequence.objects.filter(accession_number__in=accessions, owner_database=run_details.db_used)
         all_hits = [Hit(**hit, owner_run = run_details, db_entry = accession_entries.get(accession_number=hit['subject_accession_version'])) for hit in parsed_data]
         Hit.objects.bulk_create(all_hits)
     except BaseException as exc:

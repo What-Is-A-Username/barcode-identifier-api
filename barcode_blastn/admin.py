@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Dict, List, Union
 from django.contrib import admin
 from django.db import models
 from django.db.models.query import QuerySet
@@ -7,14 +7,14 @@ from django.http.request import HttpRequest
 from django.urls import reverse
 
 from django.utils.html import format_html
-from django.contrib.auth.models import User, AbstractUser, AbstractBaseUser, AnonymousUser
+from django.contrib.auth.models import User
 from barcode_blastn.helper.parse_gb import retrieve_gb
 from barcode_blastn.models import BlastDb, BlastQuerySequence, DatabaseShare, NuccoreSequence, BlastRun, Hit
 from django.forms import BaseInlineFormSet, ModelForm, ValidationError
 from barcode_blastn.database_permissions import DatabasePermissions
 from barcode_blastn.permissions import DatabaseSharePermissions, HitSharePermission, NuccoreSharePermission, RunSharePermissions
 
-from barcode_blastn.serializers import BlastDbCreateSerializer, NuccoreSequenceSerializer
+from barcode_blastn.serializers import NuccoreSequenceSerializer
 
 def fetch_data(accession_number: str) -> Dict[str, str]: 
     '''
@@ -168,18 +168,22 @@ class UserPermissionsInline(admin.TabularInline):
         Allow only the creator to change permissions.
         '''
         return DatabaseSharePermissions.has_delete_permission(request.user, obj)
-
+        
 @admin.register(BlastDb)
 class BlastDbAdmin(admin.ModelAdmin):
     '''
     Admin page for BlastDb instances.
     '''
+    # form = BlastDbForm
 
     inlines = [UserPermissionsInline, NuccoreSequenceInline]
-    list_display = (
-        'custom_name', 'owner', 'id'
-    )
+    list_display = ('custom_name', 'owner', 'public', 'sequence_count', 'id')
+    fields = ['custom_name', 'description', 'public', 'locked', 'owner']
 
+    def sequence_count(self, obj):
+        num_seqs: int = NuccoreSequence.objects.filter(owner_database=obj).count()
+        return num_seqs
+        
     def get_queryset(self, request: HttpRequest) -> QuerySet[Any]:
         if not isinstance(request.user, User) or not request.user.is_authenticated:
             return BlastDb.objects.none()
@@ -200,13 +204,14 @@ class BlastDbAdmin(admin.ModelAdmin):
         return DatabaseSharePermissions.has_delete_permission(request.user, obj)
 
     def has_change_permission(self, request: HttpRequest, obj: Union[BlastDb, None] = None) -> bool:
-        return DatabaseSharePermissions.has_change_permission(request.user, obj)
+        return DatabaseSharePermissions.has_change_permission(request.user, obj)        
 
-    def get_fields(self, request, obj):
-        excluded_fields = ['id']
-        fields = [f for f in BlastDbCreateSerializer.Meta.fields if f not in excluded_fields]
-        fields.extend(['locked', 'owner'])
-        return fields
+    def save_model(self, request, obj, form, change) -> None:
+        if not(obj and obj.id):
+            # set the owner to the current if the obj is being first created
+            # (i.e. when no id exists)
+            obj.owner = request.user
+        return super().save_model(request, obj, form, change)
 
     def get_readonly_fields(self, request, obj: Union[BlastDb, None] = None):
         base = list(set(
@@ -220,12 +225,6 @@ class BlastDbAdmin(admin.ModelAdmin):
         base = [b for b in base if b not in excluded_fields and b != 'locked']
     
         return base
-
-    def save_model(self, request, obj: BlastDb, form, change):
-        # specify the owner as the logged in user
-        obj.owner = request.user
-        model = super().save_model(request, obj, form, change)
-        return model
 
 class NuccoreAdminModifyForm(ModelForm):
     '''
@@ -416,11 +415,7 @@ class BlastRunAdmin(admin.ModelAdmin):
         elif isinstance(request.user, User):
             return BlastRun.objects.listable(request.user)
         else:
-            return BlastRun.objects.none()
-
-    def owner_run_link(self, obj):
-        url = reverse("admin:%s_%s_change" % ('barcode_blastn', 'blastrun'), args=(obj.owner_run.id,))
-        return format_html("<a href='{url}'>{obj}</a>", url=url, obj=obj.owner_run)
+            return BlastRun.objects.none()        
 
     def has_module_permission(self, request: HttpRequest) -> bool:
         # allow module access if they can access databases
@@ -450,9 +445,22 @@ class HitAdmin(BlastRunAdmin):
     Admin page for showing Hit instances.
     '''
     inlines = []
+    show_change_link = True
     list_display = (
         'db_entry', 'id', 'owner_run_link'
     )
+
+    def owner_run_link(self, obj):
+        url = reverse("admin:%s_%s_change" % ('barcode_blastn', 'blastrun'), args=(obj.owner_run.id,))
+        return format_html("<a href='{url}'>{obj}</a>", url=url, obj=obj.owner_run)
+
+    def get_queryset(self, request: HttpRequest) -> QuerySet[Any]:
+        if not request.user.is_authenticated:
+            return Hit.objects.none()
+        elif isinstance(request.user, User):
+            return Hit.objects.filter(owner_run__in=BlastRun.objects.listable(request.user))
+        else:
+            return Hit.objects.none()
 
     def has_module_permission(self, request: HttpRequest) -> bool:
         # allow module access if they can access databases
@@ -472,3 +480,9 @@ class HitAdmin(BlastRunAdmin):
     def has_add_permission(self, request, obj: Union[Hit, None]=None):
         # prohibit runs from being added through admin panel
         return HitSharePermission.has_add_permission(request.user, obj) 
+
+    def get_readonly_fields(self, request, obj=None):
+        return list(set(
+            [field.name for field in self.opts.local_fields] +
+            [field.name for field in self.opts.local_many_to_many]
+        ))

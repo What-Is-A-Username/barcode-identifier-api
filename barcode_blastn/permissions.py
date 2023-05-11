@@ -126,7 +126,7 @@ class DatabaseSharePermissions(CustomPermissions[BlastDb]):
 
     @staticmethod 
     def has_module_permission(user: Union[AbstractBaseUser, AnonymousUser]) -> bool:
-        return isinstance(user, AbstractUser) and user.is_staff
+        return isinstance(user, AbstractUser) and (user.is_staff or user.is_superuser)
 
     @staticmethod
     def has_add_permission(user: Union[AbstractBaseUser, AnonymousUser], obj: Union[BlastDb, None]) -> bool:
@@ -199,7 +199,7 @@ class DatabaseSharePermissions(CustomPermissions[BlastDb]):
         else:
             if not isinstance(user, User):
                 return False
-            elif database.owner == user:
+            elif database.owner == user or user.is_superuser:
                 return True 
             return DatabaseSharePermissions.has_explicit_permission_given(user, 
                 database, 
@@ -213,10 +213,11 @@ class DatabaseSharePermissions(CustomPermissions[BlastDb]):
         '''
         if not user or not user.is_authenticated: # user account needed for deleting 
             return False 
+        elif not isinstance(user, User):
+            return False
         elif not database is None and database.owner == user: # for generic models, give access by default
-            return isinstance(user, User) and BlastDb.objects.editable(user).exists()
-        else:
-            return isinstance(user, AbstractUser) and (user.is_superuser) # only superuser to edit permissions
+            return BlastDb.objects.editable(user).exists()
+        return user.is_superuser # only superuser to edit permissions
     
 class RunSharePermissions(CustomPermissions[BlastRun]):
     '''
