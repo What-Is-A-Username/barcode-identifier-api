@@ -12,7 +12,6 @@ from urllib.error import HTTPError
 from Bio import SeqIO
 from celery import signature
 from django.contrib.auth import login
-from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
@@ -42,7 +41,7 @@ from barcode_blastn.renderers import (BlastDbCSVRenderer, BlastDbFastaRenderer,
                                       BlastRunCSVRenderer,
                                       BlastRunFastaRenderer,
                                       BlastRunTxtRenderer)
-from barcode_blastn.serializers import (BlastDbCreateSerializer,
+from barcode_blastn.serializers import (BlastDbCreateSerializer, BlastDbEditSerializer,
                                         BlastDbListSerializer,
                                         BlastDbSerializer,
                                         BlastRunRunSerializer,
@@ -182,7 +181,12 @@ class NuccoreSequenceBulkAdd(generics.CreateAPIView):
         operation_summary='Bulk-add accessions.',
         operation_description='From a list of accession numbers, bulk add them to an existing database. List must contain between 1-100 accession numbers inclusive.',
         tags = [tag_blastdbs, tag_sequences],
-        # TODO: Add request schema and example
+        manual_parameters=[openapi.Parameter(
+            name='id',
+            description='Id of BLAST database to add accession number to',
+            in_=openapi.IN_PATH, # TODO: Fix error when submitting ("Required field is not provided"). Likely due to duplicate parameter created, leaving two parameters in the docs 
+            type=openapi.FORMAT_UUID
+        )],
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
             properties={
@@ -207,7 +211,7 @@ class NuccoreSequenceBulkAdd(generics.CreateAPIView):
             ),
             '201': 'Sequences successfully added to the database.',
             '400': 'Bad parameters in request. Example reasons: list may be empty or too long (>100); accession numbers may be invalid or duplicate; database may be locked',
-            '403': 'User is not authenticated or has insufficient permissions.',
+            '403': 'Insufficient permissions.',
             '404': 'BLAST database matching the specified ID was not found.',
             '500': 'Unexpected error.',
             '502': 'Encountered error connecting to GenBank.'
@@ -310,6 +314,12 @@ class NuccoreSequenceAdd(generics.CreateAPIView):
         operation_summary='Add a sequence entry.',
         operation_description='Add a sequence to a BLAST database, using GenBank accession data corresponding to the accession number given.',
         request_body=NuccoreSequenceAddSerializer,
+        manual_parameters=[openapi.Parameter(
+            name='id',
+            description='Id of BLAST database to add accession number to',
+            in_=openapi.IN_PATH, # TODO: Fix error when submitting ("Required field is not provided"). Likely due to duplicate parameter created, leaving two parameters in the docs 
+            type=openapi.FORMAT_UUID
+        )],
         tags = [tag_blastdbs, tag_sequences],
         responses={
             '201': openapi.Response(
@@ -320,6 +330,7 @@ class NuccoreSequenceAdd(generics.CreateAPIView):
                 }
             ),
             '400': 'Bad parameters in request. Example reasons: accession number was not found on GenBank; an entry with the same accession number already exists in the BLAST database.',
+            '403': 'Insufficient permissions.',
             '404': 'BLAST database matching the specified ID was not found.',
             '500': 'Unexpected error.',
             '502': 'Encountered error connecting to GenBank.'
@@ -394,7 +405,8 @@ class NuccoreSequenceDetail(mixins.DestroyModelMixin, generics.RetrieveAPIView):
                     'application/json': NuccoreSequenceSerializer.Meta.example
                 }
             ),
-            '404': 'Sequence does not exist',
+            '403': 'Insufficient permissions.',            
+            '404': 'Sequence does not exist.',
             '500': 'Unexpected error.',
         }
     )
@@ -422,6 +434,7 @@ class NuccoreSequenceDetail(mixins.DestroyModelMixin, generics.RetrieveAPIView):
         responses={
             '204': 'Deletion successful.',
             '400': 'Deletion failed because entry belongs to a database that is locked for editing.',
+            '403': 'Insufficient permissions.',
             '404': 'Sequence does not exist',
             '500': 'Unexpected error.',
         }
@@ -448,6 +461,8 @@ class BlastDbList(mixins.ListModelMixin, generics.CreateAPIView):
     '''
     queryset = BlastDb.objects.all()
     serializer_class = BlastDbCreateSerializer
+    permission_classes = [IsAuthenticated]
+    authentication_classes = (TokenAuthentication,)
 
     def get_serializer_class(self):
         if self.request is None:
@@ -486,12 +501,11 @@ class BlastDbList(mixins.ListModelMixin, generics.CreateAPIView):
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 
-    @login_required()
     @swagger_auto_schema(
         operation_summary='Create a database.',
         operation_description='Create a new publicly accessible BLAST database available for queries.',
         tags = [tag_admin, tag_blastdbs],
-        request_body=BlastDbCreateSerializer(),
+        request_body=BlastDbCreateSerializer,
         responses={
             '200': openapi.Response(
                 description='Creation was successful.',
@@ -499,14 +513,14 @@ class BlastDbList(mixins.ListModelMixin, generics.CreateAPIView):
                 examples={
                     'application/json': BlastDbCreateSerializer.Meta.example
                 }
-            )
+            ),
+            '403': 'Insufficient permissions.',
         }
     )
     def post(self, request, *args, **kwargs):
         '''
         Create a new blast database.
         '''
-
         # Check that user can create a database
         if not DatabaseSharePermissions.has_add_permission(request.user, None):
             return Response(status=status.HTTP_403_FORBIDDEN)
@@ -525,9 +539,16 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
     Retrieve the details of a given blast database
     '''
     queryset = BlastDb.objects.all()
-    serializer_class = BlastDbSerializer
     permission_classes = [BlastDbEndpointPermission]
     renderer_classes = [JSONRenderer, BrowsableAPIRenderer, TemplateHTMLRenderer, BlastDbCSVRenderer, BlastDbFastaRenderer]
+
+    def get_serializer_class(self):
+        if not self.request or self.request.method == 'GET' or self.request.method == 'DELETE':
+            return BlastDbSerializer
+        elif self.request.method == 'POST':
+            return BlastDbEditSerializer
+        else:
+            return BlastDbSerializer
 
     @swagger_auto_schema(
         operation_summary='Get information about a BLAST database.',
@@ -541,6 +562,7 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
                     'application/json': BlastDbSerializer.Meta.example
                 }
             ),
+            '403': 'Insufficient permissions.',
             '404': 'Database with the ID does not exist',
         }
     )
@@ -574,18 +596,20 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
         return response
 
     @swagger_auto_schema(
-        operation_summary='Update information of a BLAST database.',
+        operation_summary='Update information of an existing BLAST database.',
         operation_description='Edit information of a BLAST database. This method does not allow adding/removing/editing of the sequence entries within.',
         tags = [tag_blastdbs],
+        request_body=BlastDbEditSerializer,
         responses={
             '200': openapi.Response(
                 description='Database updated successfully.',
-                schema=BlastDbSerializer,
+                schema=BlastDbEditSerializer(),
                 examples={
-                    'application/json': BlastDbSerializer.Meta.example
+                    'application/json': BlastDbEditSerializer.Meta.example
                 }
             ),
             '400': 'Bad request parameters.',
+            '403': 'Insufficient permissions.',
             '404': 'Database with the ID does not exist',
         }
     )
@@ -603,12 +627,6 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
             self.check_object_permissions(request, db)
         except PermissionDenied:
             return Response(status=status.HTTP_403_FORBIDDEN)
-        
-        # Prohibit sequences from being directly modified here
-        if 'sequences' in request.data:
-            return Response({
-                'message': 'Cannot make changes to sequences this way. Must modify through the sequence ID, not the database.'
-            }, status=status.HTTP_400_BAD_REQUEST)
 
         return self.partial_update(request, *args, **kwargs)
 
@@ -618,6 +636,7 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
         tags = [tag_blastdbs],
         responses={
             '204': 'Deletion successful.',
+            '403': 'Insufficient permissions.',
             '404': 'BLAST database with the given ID does not exist',
             '500': 'Unexpected error.',
         }

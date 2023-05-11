@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Union
+from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 from django.contrib import admin
 from django.db import models
 from django.db.models.query import QuerySet
@@ -14,7 +14,7 @@ from django.forms import BaseInlineFormSet, ModelForm, ValidationError
 from barcode_blastn.database_permissions import DatabasePermissions
 from barcode_blastn.permissions import DatabaseSharePermissions, HitSharePermission, NuccoreSharePermission, RunSharePermissions
 
-from barcode_blastn.serializers import NuccoreSequenceSerializer
+from barcode_blastn.serializers import BlastDbEditSerializer, NuccoreSequenceSerializer
 
 def fetch_data(accession_number: str) -> Dict[str, str]: 
     '''
@@ -178,7 +178,11 @@ class BlastDbAdmin(admin.ModelAdmin):
 
     inlines = [UserPermissionsInline, NuccoreSequenceInline]
     list_display = ('custom_name', 'owner', 'public', 'sequence_count', 'id')
-    fields = ['custom_name', 'description', 'public', 'locked', 'owner']
+    
+    def get_fields(self, request: HttpRequest, obj):
+        f: List[str] = BlastDbEditSerializer.Meta.fields.copy()
+        f.extend(['owner', 'id'])
+        return f
 
     def sequence_count(self, obj):
         num_seqs: int = NuccoreSequence.objects.filter(owner_database=obj).count()
@@ -207,7 +211,7 @@ class BlastDbAdmin(admin.ModelAdmin):
         return DatabaseSharePermissions.has_change_permission(request.user, obj)        
 
     def save_model(self, request, obj, form, change) -> None:
-        if not(obj and obj.id):
+        if not(obj and obj.id): 
             # set the owner to the current if the obj is being first created
             # (i.e. when no id exists)
             obj.owner = request.user
@@ -219,10 +223,10 @@ class BlastDbAdmin(admin.ModelAdmin):
             [field.name for field in self.opts.local_many_to_many]
         ))
         # specify which fields are editable
-        excluded_fields = ['custom_name', 'description', 'public']
+        editable_fields = BlastDbEditSerializer.Meta.fields
         if not obj or obj and not obj.locked:
-            excluded_fields.append('sequences')
-        base = [b for b in base if b not in excluded_fields and b != 'locked']
+            editable_fields.append('sequences')
+        base = [b for b in base if b not in editable_fields and b != 'locked']
     
         return base
 

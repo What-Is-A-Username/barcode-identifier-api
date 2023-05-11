@@ -65,7 +65,7 @@ class NuccoreSequenceSerializer(serializers.ModelSerializer):
             "definition": "Brachyhypopomus arrayae isolate 12586 cytochrome c oxidase subunit I (COX1) gene, partial cds; mitochondrial",
             "organism": "Brachyhypopomus arrayae",
             "organelle": "mitochondrion",
-            "isolate": "12586",
+            "isolate": "12586", 
             "country": "Bolivia",
             "specimen_voucher": "ANSP:197574",
             "lat_lon": "11.03 S 66.09 W",
@@ -144,7 +144,8 @@ class BlastDbCreateSerializer(serializers.ModelSerializer):
         example = {
             "id": "66855f2c-f360-4ad9-8c98-998ecb815ff5",
             "custom_name": "Newly Sequenced Species",
-            "description": "A collection of new sequences from several species of interest."
+            "description": "A collection of new sequences from several species of interest.",
+            "public": True
         }
 
 class BlastDbSequenceEntrySerializer(serializers.ModelSerializer):
@@ -194,6 +195,27 @@ class BlastDbOwnerSerializer(serializers.ModelSerializer):
             'email': 'johndoe@example.com'
         }
 
+class BlastDbEditSerializer(serializers.ModelSerializer):
+    f'''
+    Determine the editable fields for a specific {blast_db_title}.
+    These fields are editable on the admin page and through PATCH requests.
+    '''
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for name in ['custom_name', 'description', 'locked', 'public']:
+            self.fields[name].required = True
+
+    class Meta:
+        model = BlastDb
+        ref_name = 'Editable' + blast_db_title + ' Fields'
+        fields = ['custom_name', 'description', 'locked', 'public']
+        example = {
+            "custom_name": "Neotropical electric knifefish",
+            "description": "This BLAST database is a collection of barcodes from 167 species of Neotropical electric knifefish (Teleostei: Gymnotiformes) which was presented by Janzen et al. 2022. All sequences and related feature data are updated daily at midnight (UTC) from NCBI's Genbank database.",
+            "locked": True,
+            "public": True,
+        }
 
 class BlastDbSerializer(serializers.ModelSerializer):
     f'''
@@ -202,7 +224,7 @@ class BlastDbSerializer(serializers.ModelSerializer):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        read_only_fields = ['id', 'sequences', 'owner']
+        read_only_fields = ['id', 'owner', 'sequences']
         for name in read_only_fields:
             self.fields[name].read_only = True
         for name in ['id', 'custom_name', 'description', 'owner', 'locked', 'public', 'sequences']:
@@ -223,18 +245,6 @@ class BlastDbSerializer(serializers.ModelSerializer):
             "owner": BlastDbOwnerSerializer.Meta.example,
             "locked": True,
             "public": True,
-            "sequences": [
-                {
-                    "accession_number": "GU701771",
-                    "organism": "Gymnotus pantherinus",
-                    "country": "Brazil: Sao Paulo, Upper Parana Basin"
-                },
-                {
-                    "accession_number": "KF533332",
-                    "organism": "Hypopomus artedi",
-                    "country": "Guyana: Mazaruni"
-                }
-            ]
         }
 
 
