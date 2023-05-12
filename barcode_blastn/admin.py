@@ -174,14 +174,12 @@ class BlastDbAdmin(admin.ModelAdmin):
     '''
     Admin page for BlastDb instances.
     '''
-    # form = BlastDbForm
-
     inlines = [UserPermissionsInline, NuccoreSequenceInline]
     list_display = ('custom_name', 'owner', 'public', 'sequence_count', 'id')
     
     def get_fields(self, request: HttpRequest, obj):
         f: List[str] = BlastDbEditSerializer.Meta.fields.copy()
-        f.extend(['owner', 'id'])
+        f.extend(['owner'])
         return f
 
     def sequence_count(self, obj):
@@ -224,11 +222,17 @@ class BlastDbAdmin(admin.ModelAdmin):
         ))
         # specify which fields are editable
         editable_fields = BlastDbEditSerializer.Meta.fields
-        if not obj or obj and not obj.locked:
-            editable_fields.append('sequences')
-        base = [b for b in base if b not in editable_fields and b != 'locked']
-    
+        base = [b for b in base if b not in editable_fields]
         return base
+
+    def changeform_view(self, request: HttpRequest, object_id: Union[str, None], form_url: str, extra_context: Optional[Dict[str, bool]]) -> Any:
+        extra_context = extra_context or {}
+
+        extra_context['show_save_and_continue'] = True # show Save and Continue button
+        extra_context['show_save_and_add_another'] = False # hide Save and Add Another button
+        extra_context['show_save'] = False # hide save button
+        extra_context['show_delete'] = True # show delete button
+        return super().changeform_view(request, object_id, form_url, extra_context)
 
 class NuccoreAdminModifyForm(ModelForm):
     '''
@@ -338,7 +342,6 @@ class NuccoreAdmin(admin.ModelAdmin):
         return format_html("<a href='{url}'>{obj}</a>", url=url, obj=obj.owner_database)
 
     def has_module_permission(self, request: HttpRequest) -> bool:
-        # allow module access if they can access databases
         return NuccoreSharePermission.has_module_permission(request.user)
 
     def has_view_permission(self, request: HttpRequest, obj: Union[NuccoreSequence, None]=None) -> bool:
@@ -351,7 +354,6 @@ class NuccoreAdmin(admin.ModelAdmin):
         return NuccoreSharePermission.has_delete_permission(request.user, obj)
 
     def has_add_permission(self, request, obj: Union[NuccoreSequence, None]=None):
-        # sequences can only be added if the user can edit the database
         return NuccoreSharePermission.has_add_permission(request.user, obj)
     
     def save_model(self, request: Any, obj: Any, form: Any, change: Any) -> None:
@@ -362,6 +364,15 @@ class NuccoreAdmin(admin.ModelAdmin):
             setattr(obj, key, str(value))
 
         super(NuccoreAdmin, self).save_model(request, obj, form, change)
+
+    def changeform_view(self, request: HttpRequest, object_id: Union[str, None], form_url: str, extra_context: Optional[Dict[str, bool]]) -> Any:
+        extra_context = extra_context or {}
+
+        extra_context['show_save_and_continue'] = True # show Save and Continue button
+        extra_context['show_save_and_add_another'] = True # show Save and Add Another button
+        extra_context['show_save'] = True # hide save button
+        extra_context['show_delete'] = True # show delete button
+        return super().changeform_view(request, object_id, form_url, extra_context)
 
 class BlastQuerySequenceInline(admin.StackedInline):
     '''

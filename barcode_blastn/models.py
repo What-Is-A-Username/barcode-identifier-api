@@ -55,6 +55,9 @@ class DatabaseShare(models.Model):
     # Permission level given to this relationship 
     perms = models.CharField(max_length=16, choices=DatabasePermissions.choices, default=DatabasePermissions.DENY_ACCESS, help_text='Access permissions')
 
+    def __str__(self) -> str:
+        return f'"{self.perms}" permission for "{self.grantee.username}" on database "{self.database.custom_name}"'
+
     class Meta:
         verbose_name = 'BLAST Database Access Permission'
         verbose_name_plural = 'BLAST Database Access Permissions'

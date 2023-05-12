@@ -82,30 +82,6 @@ class UserDetailView(generics.GenericAPIView):
                     'application/json': UserSerializer.Meta.example
                 }
             ),
-            
-            # openapi.Response(
-            #     description='User information',
-            #     schema=openapi.Schema(
-            #         type=openapi.TYPE_OBJECT,
-            #         properties={
-            #             'username': openapi.Schema(
-            #                 type=openapi.TYPE_STRING,
-            #                 description='Username',
-            #                 example='JohnSmith'
-            #             ),
-            #             'is_staff': openapi.Schema(
-            #                 type=openapi.TYPE_BOOLEAN, 
-            #                 description='Is the user a staff member in the database?',
-            #                 example='False'
-            #             ),
-            #             'is_superuser': openapi.Schema(
-            #                 type=openapi.TYPE_BOOLEAN, 
-            #                 description='Is the user a superuser in the database?',
-            #                 example='False'
-            #             ),
-            #         }
-            #     )
-            # ),
             '403': 'User could not be authenticated.'
         }
     )
@@ -124,6 +100,9 @@ class LogoutAllView(KnoxLogoutAllView):
         return super().post(request, format)
 
 class LogoutView(KnoxLogoutView):
+    '''
+    Sign out of the signed in user
+    '''
     @swagger_auto_schema(
         security=[{'Basic': []}, {'Bearer': []}],
         operation_summary='User logoff',
@@ -138,12 +117,6 @@ class LoginView(KnoxLoginView):
     Sign in the user and return the authentication token.
     '''
     permission_classes = (AllowAny,)
-
-    def get_cookie_salt(self) -> str:
-        return AUTH_COOKIE_SALT
-
-    def get_cookie_key(self) -> str:
-        return AUTH_COOKIE_KEY
 
     def get_user_serializer_class(self):
         return UserSerializer
@@ -183,9 +156,10 @@ class NuccoreSequenceBulkAdd(generics.CreateAPIView):
         tags = [tag_blastdbs, tag_sequences],
         manual_parameters=[openapi.Parameter(
             name='id',
-            description='Id of BLAST database to add accession number to',
-            in_=openapi.IN_PATH, # TODO: Fix error when submitting ("Required field is not provided"). Likely due to duplicate parameter created, leaving two parameters in the docs 
-            type=openapi.FORMAT_UUID
+            description='Id of BLAST database to add accession numbers to',
+            in_=openapi.IN_PATH, 
+            type=openapi.TYPE_STRING,
+            format=openapi.FORMAT_UUID
         )],
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
@@ -317,8 +291,9 @@ class NuccoreSequenceAdd(generics.CreateAPIView):
         manual_parameters=[openapi.Parameter(
             name='id',
             description='Id of BLAST database to add accession number to',
-            in_=openapi.IN_PATH, # TODO: Fix error when submitting ("Required field is not provided"). Likely due to duplicate parameter created, leaving two parameters in the docs 
-            type=openapi.FORMAT_UUID
+            in_=openapi.IN_PATH,
+            type=openapi.TYPE_STRING,
+            format=openapi.FORMAT_UUID
         )],
         tags = [tag_blastdbs, tag_sequences],
         responses={

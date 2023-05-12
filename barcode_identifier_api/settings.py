@@ -53,7 +53,6 @@ INSTALLED_APPS = [
     'rest_framework',
     'knox',
     'barcode_blastn',
-    'barcode_tree',
     'corsheaders',
     'drf_yasg'
 ]
