@@ -3,8 +3,9 @@ import os
 from typing import Union
 from django.contrib.auth.models import User
 from rest_framework import serializers
-from barcode_blastn.models import BlastQuerySequence, BlastRun, DatabaseShare, Hit, NuccoreSequence, BlastDb
+from barcode_blastn.models import BlastQuerySequence, BlastRun, DatabaseShare, Hit, Library, NuccoreSequence, BlastDb
 
+library_title = 'Reference Library'
 blast_db_title = 'BLAST Database'
 nuccore_title = 'GenBank Accession'
 hit_title = 'BLASTN hit'
@@ -12,34 +13,81 @@ query_title = 'Query Sequence'
 run_title = 'Run'
 share_title = 'Share Details'
 
+class LibraryOwnerSerializer(serializers.ModelSerializer):
+    f'''
+    Show basic information about the owner of a database
+    '''
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for name in ['username', 'email']:
+            self.fields[name].read_only = True
+
+    class Meta:
+        model = User
+        ref_name = f'{library_title} owner'
+        fields = ['username', 'email']
+        example = {
+            'username': 'John Doe',
+            'email': 'johndoe@example.com'
+        }
+
+class LibraryShortSerializer(serializers.ModelSerializer):
+    f'''
+    Used when returning a list of {library_title}
+    '''
+    owner = LibraryOwnerSerializer(many=False, read_only=True)
+
+    def __init__(self, instance=None, data=..., **kwargs):
+        super().__init__(instance, data, **kwargs)
+        for name in self.Meta.fields:
+            self.fields[name].required = False
+            self.fields[name].read_only = False
+        for f in ['id', 'custom_name', 'description', 'public', 'owner']:
+            self.fields[f].read_only = True 
+            self.fields[f].required = False
+
+    class Meta:
+        model = Library
+        ref_name = blast_db_title + ' summary'
+        fields = ['id', 'custom_name', 'description', 'public', 'owner']
+        example = {
+            "id": "66855f2c-f360-4ad9-8c98-998ecb815ff5",
+            "custom_name": "Neotropical electric knifefish",
+            "description": "This BLAST database is a collection of barcodes from 167 species of Neotropical electric knifefish (Teleostei: Gymnotiformes) which was presented by Janzen et al. 2022. All sequences and related feature data are updated daily at midnight (UTC) from NCBI's Genbank database.",
+            "public": True,
+            "owner": LibraryOwnerSerializer.Meta.example
+        }
+        tags = ['DBS']
+
+class BlastDbTinySerializer(serializers.ModelSerializer):
+    f"""
+    Information about a {blast_db_title}, when displayed as a list under its parent reference library."""
+
+    class Meta:
+        model = BlastDb
+        fields = ['id', 'description', 'version_number', 'sequence_count', 'created', 'locked']
+
 class BlastDbShortSerializer(serializers.ModelSerializer):
-
-    owner_username = serializers.SerializerMethodField('get_owner_username', help_text='Username of the owner of the database.')
-
-    def get_owner_username(self, obj: Union[BlastDb, None]) -> str:
-        if obj is None:
-            return '<deleted>'
-        else:
-            return obj.owner.get_username()
+    f"""
+    Information about a {blast_db_title}, when displayed under a {nuccore_title} it includes.
+    """
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         for name in self.Meta.fields:
             self.fields[name].required = False
 
-    f"""
-    Information about a {blast_db_title}, when displayed under a {nuccore_title} it includes.
-    """
+    library = LibraryShortSerializer(many=False, read_only=True)
+
     class Meta:
         model = BlastDb
         ref_name = blast_db_title + ' summary'
-        fields = ['id', 'custom_name', 'description', 'public', 'owner_username']
+        fields = ['id', 'description', 'library']
         example = {
             "id": "66855f2c-f360-4ad9-8c98-998ecb815ff5",
-            "custom_name": "Neotropical electric knifefish",
             "description": "This BLAST database is a collection of barcodes from 167 species of Neotropical electric knifefish (Teleostei: Gymnotiformes) which was presented by Janzen et al. 2022. All sequences and related feature data are updated daily at midnight (UTC) from NCBI's Genbank database.",
-            "public": True,
-            "owner_username": "John Doe"
+            "library": LibraryShortSerializer.Meta.example
         }
         tags = ['DBS']
 
@@ -57,11 +105,12 @@ class NuccoreSequenceSerializer(serializers.ModelSerializer):
     class Meta:
         model = NuccoreSequence
         ref_name = nuccore_title + ' summary'
-        fields = ['id', 'owner_database', 'accession_number', 'definition', 'organism', 'organelle', 'isolate', 'country', 'specimen_voucher', 'lat_lon', 'dna_sequence', 'translation', 'type_material', 'created']
+        fields = ['id', 'owner_database', 'accession_number', 'version', 'definition', 'organism', 'organelle', 'isolate', 'country', 'specimen_voucher', 'lat_lon', 'dna_sequence', 'translation', 'type_material', 'created']
         example = {
             "id": "5100cbd8-2fda-4b42-8aa1-10ede078448b",
             "owner_database": BlastDbShortSerializer.Meta.example,
             "accession_number": "ON303341",
+            "version": "ON303341.1",
             "definition": "Brachyhypopomus arrayae isolate 12586 cytochrome c oxidase subunit I (COX1) gene, partial cds; mitochondrial",
             "organism": "Brachyhypopomus arrayae",
             "organelle": "mitochondrion",
@@ -117,15 +166,18 @@ class BlastDbSequenceEntryShortSerializer(serializers.ModelSerializer):
     class Meta:
         model = NuccoreSequence
         ref_name = nuccore_title + ' item'
-        fields = ['accession_number', 'organism', 'country'] 
+        fields = ['accession_number', 'version', 'organism', 'specimen_voucher', 'country'] 
         example = {
             "accession_number": "GU701771",
+            "version": "ON303341.1",
             "organism": "Gymnotus pantherinus",
+            'specimen_voucher': 'LBP-24532',
             "country": "Brazil: Sao Paulo, Upper Parana Basin"
         }
 
-class BlastDbCreateSerializer(serializers.ModelSerializer):
-    f"""Information required when creating a {blast_db_title}"""
+class LibraryCreateSerializer(serializers.ModelSerializer):
+    f'''
+    Information required for creating a {library_title}'''
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -138,12 +190,12 @@ class BlastDbCreateSerializer(serializers.ModelSerializer):
     Create a new blastdb
     '''
     class Meta:
-        model = BlastDb
-        ref_name = blast_db_title + ' creation'
+        model = Library
+        ref_name = library_title + ' creation'
         fields = ['id', 'custom_name', 'description', 'public']
         example = {
             "id": "66855f2c-f360-4ad9-8c98-998ecb815ff5",
-            "custom_name": "Newly Sequenced Species",
+            "custom_name": "Newly Sequenced Species Reference Library",
             "description": "A collection of new sequences from several species of interest.",
             "public": True
         }
@@ -162,10 +214,11 @@ class BlastDbSequenceEntrySerializer(serializers.ModelSerializer):
     class Meta:
         model = NuccoreSequence
         ref_name = nuccore_title
-        fields = ['id', 'accession_number', 'definition', 'organism', 'isolate', 'country', 'specimen_voucher', 'lat_lon',  'type_material', 'dna_sequence']
+        fields = ['id', 'accession_number', 'version', 'definition', 'organism', 'isolate', 'country', 'specimen_voucher', 'lat_lon',  'type_material', 'dna_sequence']
         example = {
             "id": "5100cbd8-2fda-4b42-8aa1-10ede078448b",
             "accession_number": "ON303341",
+            "version": "ON303341.1",
             "definition": "Brachyhypopomus arrayae isolate 12586 cytochrome c oxidase subunit I (COX1) gene, partial cds; mitochondrial",
             "organism": "Brachyhypopomus arrayae",
             "isolate": "12586",
@@ -176,23 +229,35 @@ class BlastDbSequenceEntrySerializer(serializers.ModelSerializer):
             "dna_sequence": "ATAGTATTTGGTGCATGAGCTGGGATAGTAGGCACAGCCTTAAGCCTCTTAATCCGAGCAGAACTAAGCCAGCCAGGAGCTCTTATGGGCGACGACCAAATTTACAATGTGATTGTTACTGCGCACGCTTTCGTAATAATTTTCTTCATGGTTATGCCCATTATAATCGGCGGGTTCGGCAACTGATTAATTCCCCTAATACTCGGTGCCCCTGACATGGCATTCCCACGAATAAACAACATAAGCTTCTGACTTCTGCCCCCATCATTCCTTCTACTCCTTGCATCCTCTGGGGTCGAAGCGGGAGCCGGAACCGGCTGAACTGTTTACCCCCCTCTCGCTAGCAACCTCGCCCACGCAGGGGCCTCCGTTGATCTAACTATCTTCTCCCTTCACCTTGCTGGGGTTTCTTCCATCCTTGGCTCTATCAACTTCATTACTACCATTATTAACATGAAACCCCCAGCCATATCTCAGTATCAAACCCCTCTATTTATTTGAGCGCTCCTAATTACCACAGTTCTCCTACTGTTATCCCTTCCCGTACTGGCCGCTGGTATCACCATGCTGCTAACAGACCGAAACCTAAATACAACCTTCTTCGACCCCGCAGGAGGAGGGGACCCCGTCCTTTATCAGCACTTA"
         }
 
-class BlastDbOwnerSerializer(serializers.ModelSerializer):
-    f'''
-    Show basic information about the owner of a database
-    '''
+class BlastDbCreateSerializer(serializers.ModelSerializer):
+    f"""Information required when creating a {blast_db_title}"""
+
+    accession_numbers = serializers.ListField(child=serializers.CharField(), required=False)
+    base = serializers.UUIDField()
+    library = LibraryShortSerializer(many=False, read_only=True, required=False)
+    sequences = BlastDbSequenceEntrySerializer(many=True, read_only=True)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        for name in ['username', 'email']:
+        for name in ['id', 'library', 'version_number', 'sequences']:
             self.fields[name].read_only = True
+        for name in ['id', 'version_number', 'description', 'locked', 'sequences']:
+            self.fields[name].required = True
+        for name in ['accession_numbers', 'base']:
+            self.fields[name].required = False
 
+    '''
+    Create a new blastdb
+    '''
     class Meta:
-        model = User
-        ref_name = 'Database Owner'
-        fields = ['username', 'email']
+        model = BlastDb
+        ref_name = blast_db_title + ' creation'
+        fields = ['id', 'library', 'version_number', 'description', 'locked', 'sequences', 'base', 'accession_numbers']
         example = {
-            'username': 'John Doe',
-            'email': 'johndoe@example.com'
+            "id": "66855f2c-f360-4ad9-8c98-998ecb815ff5",
+            "library": LibraryShortSerializer.Meta.example,
+            "description": "A collection of new sequences from several species of interest.",
+            "version_number": '254.2.1',
         }
 
 class BlastDbEditSerializer(serializers.ModelSerializer):
@@ -203,18 +268,16 @@ class BlastDbEditSerializer(serializers.ModelSerializer):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        for name in ['custom_name', 'description', 'locked', 'public']:
+        for name in ['description', 'locked']:
             self.fields[name].required = True
 
     class Meta:
         model = BlastDb
         ref_name = 'Editable' + blast_db_title + ' Fields'
-        fields = ['custom_name', 'description', 'locked', 'public']
+        fields = ['description', 'locked']
         example = {
-            "custom_name": "Neotropical electric knifefish",
             "description": "This BLAST database is a collection of barcodes from 167 species of Neotropical electric knifefish (Teleostei: Gymnotiformes) which was presented by Janzen et al. 2022. All sequences and related feature data are updated daily at midnight (UTC) from NCBI's Genbank database.",
             "locked": True,
-            "public": True,
         }
 
 class BlastDbSerializer(serializers.ModelSerializer):
@@ -224,39 +287,96 @@ class BlastDbSerializer(serializers.ModelSerializer):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        read_only_fields = ['id', 'owner', 'sequences']
+        read_only_fields = ['id', 'library', 'sequences', 'version_number']
         for name in read_only_fields:
             self.fields[name].read_only = True
-        for name in ['id', 'custom_name', 'description', 'owner', 'locked', 'public', 'sequences']:
+        for name in ['id', 'library', 'description', 'locked', 'sequences', 'version_number']:
             self.fields[name].required = True
 
+    library = LibraryShortSerializer(many=False, read_only=True)
     sequences = BlastDbSequenceEntrySerializer(many=True, read_only=True)
-
-    owner = BlastDbOwnerSerializer(many=False, read_only=True)
 
     class Meta:
         model = BlastDb
         ref_name = blast_db_title
-        fields = ['id', 'custom_name', 'description', 'owner', 'locked', 'public', 'sequences']
+        fields = ['id', 'library', 'version_number', 'description', 'locked', 'sequences']
+        example = {
+            "id": "66855f2c-f360-4ad9-8c98-998ecb815ff5",
+            "description": "This BLAST database is a collection of barcodes from 167 species of Neotropical electric knifefish (Teleostei: Gymnotiformes) which was presented by Janzen et al. 2022. All sequences and related feature data are updated daily at midnight (UTC) from NCBI's Genbank database.",
+            "owner": LibraryOwnerSerializer.Meta.example,
+            "locked": True,
+            "sequences": BlastDbSequenceEntrySerializer.Meta.example
+        }
+
+class LibrarySerializer(serializers.ModelSerializer):
+    f'''
+    Show detailed information about a specific {library_title}
+    '''
+    owner = LibraryOwnerSerializer(many=False, read_only=True)
+    blastdb_set = BlastDbTinySerializer(many=True, read_only=True)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        read_only_fields = ['id', 'owner', 'blastdb_set']
+        for name in read_only_fields:
+            self.fields[name].read_only = True
+        for name in ['id', 'custom_name', 'description', 'owner', 'public', 'blastdb_set']:
+            self.fields[name].required = True
+
+    class Meta:
+        model = Library
+        ref_name = library_title
+        fields = ['id', 'custom_name', 'description', 'owner', 'public', 'blastdb_set']
         example = {
             "id": "66855f2c-f360-4ad9-8c98-998ecb815ff5",
             "custom_name": "Neotropical electric knifefish",
             "description": "This BLAST database is a collection of barcodes from 167 species of Neotropical electric knifefish (Teleostei: Gymnotiformes) which was presented by Janzen et al. 2022. All sequences and related feature data are updated daily at midnight (UTC) from NCBI's Genbank database.",
-            "owner": BlastDbOwnerSerializer.Meta.example,
-            "locked": True,
+            "owner": LibraryOwnerSerializer.Meta.example,
+            "blastdb_set": BlastDbSerializer.Meta.example,
             "public": True,
         }
 
+class LibraryEditSerializer(serializers.ModelSerializer):
+    f'''
+    Determine the editable fields for a specific {library_title}.
+    These fields are editable on the admin page and through PATCH requests.
+    '''
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for name in ['custom_name', 'description', 'public']:
+            self.fields[name].required = True
+
+    class Meta:
+        model = Library
+        ref_name = library_title + ' edits'
+        fields = ['custom_name', 'description', 'public']
+        example = {
+            "custom_name": "Neotropical electric knifefish",
+            "description": "This BLAST database is a collection of barcodes from 167 species of Neotropical electric knifefish (Teleostei: Gymnotiformes) which was presented by Janzen et al. 2022. All sequences and related feature data are updated daily at midnight (UTC) from NCBI's Genbank database.",
+            "public": True,
+        }
+
+class LibraryListSerializer(serializers.ModelSerializer):
+    owner = LibraryOwnerSerializer(many=False, read_only=True)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for name in self.Meta.fields:
+            self.fields[name].required = False
+            self.fields[name].read_only = True
+
+    class Meta:
+        model = Library
+        ref_name = library_title 
+        fields = ['id', 'custom_name', 'description', 'owner', 'public']
+        example = [ LibrarySerializer.Meta.example ]
 
 class BlastDbListSerializer(serializers.ModelSerializer):
     '''
     Show a condensed summary of each blastdb, to list out all blastdbs
     '''
     
-    sequences = BlastDbSequenceEntryShortSerializer(many=True, read_only=True)
-
-    owner = BlastDbOwnerSerializer(many=False, read_only=True)
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         for name in self.Meta.fields:
@@ -266,8 +386,13 @@ class BlastDbListSerializer(serializers.ModelSerializer):
     class Meta:
         model = BlastDb
         ref_name = blast_db_title 
-        fields = ['id', 'custom_name', 'description', 'owner', 'locked', 'public', 'sequences']
-        example = [ BlastDbSerializer.Meta.example ]
+        fields = ['id', 'version_number', 'description', 'locked']
+        example = [{
+            "id": "66855f2c-f360-4ad9-8c98-998ecb815ff5",
+            "version_number": '254.2.1',
+            "description": "This BLAST database is a collection of barcodes from 167 species of Neotropical electric knifefish (Teleostei: Gymnotiformes) which was presented by Janzen et al. 2022. All sequences and related feature data are updated daily at midnight (UTC) from NCBI's Genbank database.",
+            "locked": True,
+        }]
 
 class HitSerializer(serializers.ModelSerializer):
     '''
@@ -302,10 +427,11 @@ class NuccoreSequenceHitSerializer(serializers.ModelSerializer):
     class Meta:
         model = NuccoreSequence
         ref_name = nuccore_title + ' summary'
-        fields = ['accession_number', 'definition', 'organism', 'isolate', 'country', 'specimen_voucher', 'type_material', 'lat_lon']
+        fields = ['accession_number', 'version', 'definition', 'organism', 'isolate', 'country', 'specimen_voucher', 'type_material', 'lat_lon']
         example = {
             "db_entry": {
                 "accession_number": "ON303423",
+                "version": "ON303423.1",
                 "definition": "Porotergus duende isolate 2916 cytochrome c oxidase subunit I (COX1) gene, partial cds; mitochondrial",
                 "organism": "Porotergus duende",
                 "isolate": "2916",

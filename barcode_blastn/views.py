@@ -6,7 +6,7 @@ import io
 import os
 import shutil
 import uuid
-from typing import List
+from typing import Any, Dict, List
 from urllib.error import HTTPError
 
 from Bio import SeqIO
@@ -25,16 +25,18 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.renderers import (BrowsableAPIRenderer, JSONRenderer,
                                       TemplateHTMLRenderer)
 from rest_framework.response import Response
+from barcode_blastn.controllers.blastdb_controller import AccessionsAlreadyExist, InsufficientAccessionData, add_sequences_to_database, create_blastdb, delete_blastdb, delete_library, save_blastdb
 
 from barcode_blastn.file_paths import (get_data_fishdb_path, get_data_run_path,
                                        get_ncbi_folder, get_static_run_path)
-from barcode_blastn.helper.parse_gb import retrieve_gb
+from barcode_blastn.helper.parse_gb import MAX_ACCESSIONS_PER_REQUEST, AccessionLimitExceeded, GenBankConnectionError, retrieve_gb
 from barcode_blastn.helper.verify_query import verify_dna
-from barcode_blastn.models import (BlastDb, BlastQuerySequence, BlastRun,
+from barcode_blastn.helper.version import assign_new_version, get_new_version
+from barcode_blastn.models import (BlastDb, BlastQuerySequence, BlastRun, Library,
                                    NuccoreSequence)
 from barcode_blastn.permissions import (BlastDbEndpointPermission,
                                         BlastRunEndpointPermission,
-                                        DatabaseSharePermissions,
+                                        DatabaseSharePermissions, LibraryEndpointPermission, LibrarySharePermissions,
                                         NuccoreSequenceEndpointPermission,
                                         NuccoreSharePermission)
 from barcode_blastn.renderers import (BlastDbCSVRenderer, BlastDbFastaRenderer,
@@ -42,25 +44,22 @@ from barcode_blastn.renderers import (BlastDbCSVRenderer, BlastDbFastaRenderer,
                                       BlastRunFastaRenderer,
                                       BlastRunTxtRenderer)
 from barcode_blastn.serializers import (BlastDbCreateSerializer, BlastDbEditSerializer,
-                                        BlastDbListSerializer,
+                                        BlastDbListSerializer, BlastDbSequenceEntryShortSerializer,
                                         BlastDbSerializer,
                                         BlastRunRunSerializer,
                                         BlastRunSerializer,
-                                        BlastRunStatusSerializer,
+                                        BlastRunStatusSerializer, LibraryCreateSerializer, LibraryEditSerializer, LibraryListSerializer, LibrarySerializer,
                                         NuccoreSequenceAddSerializer,
                                         NuccoreSequenceBulkAddSerializer,
                                         NuccoreSequenceSerializer, UserSerializer)
 from barcode_identifier_api.celery import app
 
+tag_libraries = 'Libraries'
 tag_runs = 'Runs/Jobs'
 tag_blastdbs = 'BLAST Databases'
 tag_sequences = 'GenBank Accessions'
 tag_admin = 'Admin Tools'
 tag_users = 'User Authentication'
-
-ENABLE_COOKIE_AUTH = True
-AUTH_COOKIE_SALT = 'PWkc28Zdxgkqpr23'
-AUTH_COOKIE_KEY = 'knox'
 
 class UserDetailView(generics.GenericAPIView):
     '''
@@ -142,7 +141,7 @@ class LoginView(KnoxLoginView):
 
         return response
 
-class NuccoreSequenceBulkAdd(generics.CreateAPIView):   
+class NuccoreSequenceAdd(generics.CreateAPIView):   
     '''
     Bulk add sequences to a specified database
     '''
@@ -151,8 +150,8 @@ class NuccoreSequenceBulkAdd(generics.CreateAPIView):
     queryset = NuccoreSequence.objects.all()
     
     @swagger_auto_schema(
-        operation_summary='Bulk-add accessions.',
-        operation_description='From a list of accession numbers, bulk add them to an existing database. List must contain between 1-100 accession numbers inclusive.',
+        operation_summary='Add accession numbers to database.',
+        operation_description=f'From a list of accession numbers, add them to an existing database. List must contain between 1-{MAX_ACCESSIONS_PER_REQUEST} accession numbers inclusive.',
         tags = [tag_blastdbs, tag_sequences],
         manual_parameters=[openapi.Parameter(
             name='id',
@@ -161,20 +160,7 @@ class NuccoreSequenceBulkAdd(generics.CreateAPIView):
             type=openapi.TYPE_STRING,
             format=openapi.FORMAT_UUID
         )],
-        request_body=openapi.Schema(
-            type=openapi.TYPE_OBJECT,
-            properties={
-                'accession_numbers': openapi.Schema(
-                    type=openapi.TYPE_ARRAY, 
-                    description='List of GenBank accession numbers to add',
-                    items=openapi.Schema(
-                        type=openapi.TYPE_STRING,
-                        example='GU701771',
-                        description='GenBank accession number'
-                    )
-                ),
-            }
-        ),
+        request_body=NuccoreSequenceBulkAddSerializer,
         responses={
             '200': openapi.Response(
                 description='No new sequences added because all already exist in the database.',
@@ -204,6 +190,8 @@ class NuccoreSequenceBulkAdd(generics.CreateAPIView):
             return Response({'message': 'Database does not exist', 'requested': pk}, status.HTTP_404_NOT_FOUND)
         
         # Check if accession numbers provided
+        if not 'accession_numbers' in request.data:
+            return Response({'message': 'Missing required list of accession numbers to add.', 'accession_numbers': []}, status.HTTP_400_BAD_REQUEST)
         desired_numbers = request.data['accession_numbers']
         if len(desired_numbers) == 0:
             return Response({'message': 'The list of numbers to add cannot be empty.', 'accession_numbers': str(desired_numbers)}, status.HTTP_400_BAD_REQUEST)
@@ -218,147 +206,45 @@ class NuccoreSequenceBulkAdd(generics.CreateAPIView):
         if db.locked:
             return Response({'message': 'The database is locked and its accession numbers cannot be added, edited or removed.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Check what accession numbers are duplicate (i.e. already existing in the datab)
-        existing = NuccoreSequence.objects.filter(
-            owner_database_id = pk
-        ).filter(
-            accession_number__in = desired_numbers
-        )
-            
-        # return an OK status if all the numbers to be added already exist
-        if existing.count() == len(desired_numbers):
-            return Response({'message': "Every accession number specified to be added already exists in the database.", 'accession_numbers': desired_numbers}, status=status.HTTP_200_OK)
-
-        existing_numbers = [dup.accession_number for dup in existing]
-        missing_numbers: List[str] = [number for number in desired_numbers if number not in existing_numbers ]
-
-        # retrieve data
         try:
-            genbank_data = retrieve_gb(accession_numbers=missing_numbers)
-        except ValueError:
+            created_sequences, updated_sequences = add_sequences_to_database(db, desired_numbers)
+        except AccessionsAlreadyExist as exc:
+            return Response({'message': "Every accession number specified to be added already exists in the database.", 'accession_numbers': desired_numbers}, status=status.HTTP_200_OK)
+        except AccessionLimitExceeded as exc:
             return Response({
-                    'message': f"Bulk addition of sequences requires a list of accession numbers and the list length must have 1 to 100 elements (inclusive).", 
+                    'message': f"Bulk addition of sequences requires a list of accession numbers and the list length must have 1 to {exc.max_accessions} elements (inclusive).", 
                     "accession_numbers": desired_numbers 
+                }, 
+                status=status.HTTP_400_BAD_REQUEST)
+        except GenBankConnectionError as exc:
+            return Response({
+                    'message': f"The GenBank database could not be connected to.", 
+                    "accession_numbers": desired_numbers, 
+                    "queried_numbers": exc.queried_accessions
+                }, 
+                status=status.HTTP_502_BAD_GATEWAY)
+        except InsufficientAccessionData as exc:
+            return Response({
+                    'message': f"The GenBank database failed to return some accession numbers so no numbers were added at all.", 
+                    "accession_numbers": desired_numbers,
+                    "missing_accessions": exc.missing_accessions
                 }, 
                 status=status.HTTP_400_BAD_REQUEST)
         except HTTPError:
             return Response({
                     'message': f"The GenBank database could not be connected to.", 
                     "accession_numbers": desired_numbers, 
-                    "queried_numbers": missing_numbers
                 }, 
                 status=status.HTTP_502_BAD_GATEWAY)
         except BaseException:
             return Response({'message': f"Failed to parse GenBank database response when requested for a list of accession numbers", 
                     "accession_numbers": desired_numbers, 
-                    "queried_numbers": missing_numbers
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                
-        # check if we are missing any data
-        failed_queries : List[str]
-        failed_queries = [entry["accession_number"] for entry in genbank_data]
-        # stop execution if data not complete
-        if len(failed_queries) < len(missing_numbers):
-            return Response({
-                    'message': f"The GenBank database failed to return some accession numbers so no numbers were added at all.", 
-                    "accession_numbers": desired_numbers,
-                    "queried_numbers": failed_queries
-                }, 
-                status=status.HTTP_400_BAD_REQUEST)
-        
-        # save the new sequences using a bulk operation
-        all_new_sequences = [NuccoreSequence(owner_database=db, **data) for data in genbank_data]
-        created_sequences = NuccoreSequence.objects.bulk_create(all_new_sequences)
-
-        # serialize the list of created objects so they can be sent back
-        serialized_data = NuccoreSequenceSerializer(created_sequences, many = True).data
-
-        return Response(serialized_data, status = status.HTTP_201_CREATED)
-
-'''
-Add a sequence to a specified database
-'''
-class NuccoreSequenceAdd(generics.CreateAPIView):
-    serializer_class = NuccoreSequenceAddSerializer
-    permission_classes = [NuccoreSequenceEndpointPermission]
-    queryset = NuccoreSequence.objects.all()
-    
-    @swagger_auto_schema(
-        operation_summary='Add a sequence entry.',
-        operation_description='Add a sequence to a BLAST database, using GenBank accession data corresponding to the accession number given.',
-        request_body=NuccoreSequenceAddSerializer,
-        manual_parameters=[openapi.Parameter(
-            name='id',
-            description='Id of BLAST database to add accession number to',
-            in_=openapi.IN_PATH,
-            type=openapi.TYPE_STRING,
-            format=openapi.FORMAT_UUID
-        )],
-        tags = [tag_blastdbs, tag_sequences],
-        responses={
-            '201': openapi.Response(
-                description='Sequences successfully added to the database.',
-                schema=NuccoreSequenceSerializer(),
-                examples={
-                    'application/json': NuccoreSequenceSerializer.Meta.example
-                }
-            ),
-            '400': 'Bad parameters in request. Example reasons: accession number was not found on GenBank; an entry with the same accession number already exists in the BLAST database.',
-            '403': 'Insufficient permissions.',
-            '404': 'BLAST database matching the specified ID was not found.',
-            '500': 'Unexpected error.',
-            '502': 'Encountered error connecting to GenBank.'
-        }
-    )
-    def post(self, request, *args, **kwargs):
-        '''
-        Create a new accession number and add it to an existing database
-        '''
-        accession_number = request.data['accession_number']
-
-        # Check if there actually is an accession number
-        if len(accession_number) == 0:
-            return Response({'message': 'No accession number was provided.'}, status.HTTP_400_BAD_REQUEST)
-
-        pk = kwargs['pk']
-        db: BlastDb
-        # Query for the Blast database
-        try:
-            db = BlastDb.objects.get(id=pk)
-        except BlastDb.DoesNotExist:
-            return Response({'message': 'Database does not exist', 'requested': pk}, status.HTTP_404_NOT_FOUND)
-        
-        # Check if user has permission to add the sequence to the database
-        dummy: NuccoreSequence = NuccoreSequence(owner_database=db, accession_number=accession_number) 
-        try:
-            # check for locking, duplicate, database permission
-            self.check_object_permissions(request, obj=dummy)
-        except PermissionDenied as exc:
-            return Response({'message': exc.detail}, status=status.HTTP_403_FORBIDDEN) 
-
-        currentData = {}
-        try:
-            genbank_data = retrieve_gb(accession_numbers = [accession_number])
-            assert len(genbank_data) > 0  
-        except AssertionError:
-            return Response({'message': f"The GenBank database did not return an entry for the accession number {accession_number}"}, status=status.HTTP_502_BAD_GATEWAY)
-        except HTTPError:
-            return Response({'message': f"The GenBank database does not contain an entry for the accession number {accession_number}"}, status=status.HTTP_400_BAD_REQUEST)
-        except BaseException:
-            return Response({'message': f"Failed to parse retrieved GenBank database entry for the accession number {accession_number}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-        currentData = genbank_data[0]
-        currentData['owner_database'] = db.id
-        all_data = request.POST.copy()
-        all_data.update(currentData)
-
-        serializer = NuccoreSequenceSerializer(data = all_data)
-        if serializer.is_valid():
-            serializer.save(owner_database = db)
-            return Response(serializer.data, status = status.HTTP_201_CREATED)
-
-        return Response(serializer.errors, status = status.HTTP_500_INTERNAL_SERVER_ERROR)
+        else:
+            # serialize the list of created objects so they can be sent back
+            serialized_data = NuccoreSequenceSerializer(created_sequences, many = True).data
+            return Response(serialized_data, status = status.HTTP_201_CREATED)
 
 class NuccoreSequenceDetail(mixins.DestroyModelMixin, generics.RetrieveAPIView):
     '''
@@ -430,14 +316,215 @@ class NuccoreSequenceDetail(mixins.DestroyModelMixin, generics.RetrieveAPIView):
         else:
             return self.destroy(request, *args, **kwargs)
 
+class LibraryListView(mixins.ListModelMixin, generics.CreateAPIView):
+    '''
+    Return a list of all reference libraries.
+    '''
+    queryset = Library.objects.all()
+    serializer_class = LibraryListSerializer
+
+    def get_serializer_class(self):
+        if self.request is None:
+            return LibraryListSerializer
+        elif self.request.method == 'POST':
+            return LibraryCreateSerializer
+        else:
+            return LibraryListSerializer
+
+    @swagger_auto_schema(
+        operation_summary='Get all reference libraries.',
+        operation_description='Return a list of all reference libraries available to the user.',
+        tags = [tag_libraries],
+        responses={
+            '200': openapi.Response(
+                description='A list of all reference libraries viewable and runnable.',
+                schema=LibraryListSerializer(many=True, read_only=True),
+                examples={
+                    'application/json': LibraryListSerializer.Meta.example,
+                }
+            )
+        }
+    )
+    def get(self, request, *args, **kwargs):
+        '''
+        List all reference libraries
+        '''
+
+        # queryset = Library.objects.viewable(request.user)
+        queryset = Library.objects.all()
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+    @swagger_auto_schema(
+        operation_summary='Create a reference library.',
+        operation_description='Create a reference library.',
+        tags = [tag_libraries],
+        request_body=LibraryCreateSerializer,
+        responses={
+            '200': openapi.Response(
+                description='Creation was successful.',
+                schema=LibraryCreateSerializer(),
+                examples={
+                    'application/json': LibraryCreateSerializer.Meta.example
+                }
+            ),
+            '403': 'Insufficient permissions.',
+        }
+    )
+    def post(self, request, *args, **kwargs):
+        '''
+        Create a reference library
+        '''
+        # Check that user can create a reference library
+        if not LibrarySharePermissions.has_add_permission(request.user, None):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            serializer.validated_data['owner'] = request.user
+            library_instance: Library = serializer.save()
+            blast_db: BlastDb = BlastDb(library=library_instance)
+            blast_db.save()
+            blast_db_serializer = BlastDbSerializer(blast_db)
+            return Response(blast_db_serializer.data, status=status.HTTP_201_CREATED) 
+            
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class LibraryDetailView(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.DestroyModelMixin, generics.GenericAPIView):
+    '''
+    Retrieve the details of a given blast database
+    '''
+    queryset = Library.objects.all()
+    permission_classes = [LibraryEndpointPermission]
+    lookup_url_kwarg = 'library' # name of path parameter for primary key lookup
+
+    def get_serializer_class(self):
+        if not self.request or self.request.method == 'GET' or self.request.method == 'DELETE':
+            return LibrarySerializer
+        elif self.request.method == 'PATCH':
+            return LibraryEditSerializer
+        else:
+            return LibrarySerializer
+
+    @swagger_auto_schema(
+        operation_summary='Get information about a reference library.',
+        operation_description='Return data about a reference library.',
+        tags = [tag_blastdbs],
+        responses={
+            '200': openapi.Response(
+                description='Reference library updated successfully.',
+                schema=LibrarySerializer(),
+                examples={
+                    'application/json': LibrarySerializer.Meta.example
+                }
+            ),
+            '400': 'Bad request parameters.',
+            '403': 'Insufficient permissions.',
+            '404': 'Reference library with the given ID does not exist',
+        }
+    )
+    def get(self, request, *args, **kwargs):
+        '''
+        Retrieve data in the reference library.
+        '''
+
+        db_primary_key = kwargs['library']
+
+        try:
+            db = Library.objects.get(id = db_primary_key)
+        except Library.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        # Check if user has access to this database
+        try:
+            self.check_object_permissions(request, db)
+        except PermissionDenied:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        return Response(self.get_serializer_class()(db).data, status=status.HTTP_200_OK)
+
+    @swagger_auto_schema(
+        operation_summary='Update information of an existing reference library.',
+        operation_description='Update an existing reference library with the content in the request.',
+        tags = [tag_libraries],
+        request_body=LibraryEditSerializer,
+        responses={
+            '200': openapi.Response(
+                description='Reference library updated successfully.',
+                schema=LibraryEditSerializer(),
+                examples={
+                    'application/json': LibraryEditSerializer.Meta.example
+                }
+            ),
+            '400': 'Bad request parameters.',
+            '403': 'Insufficient permissions.',
+            '404': 'Reference library with the given ID does not exist.',
+        }
+    )
+    def patch(self, request, *args, **kwargs):
+        '''
+        Partially update this reference library.
+        '''
+        try:
+            db = Library.objects.get(id = kwargs['library'])
+        except Library.DoesNotExist:
+            return Response("Resource does not exist", status = status.HTTP_404_NOT_FOUND)
+        
+        # Check if user has access to this library
+        try:
+            self.check_object_permissions(request, db)
+        except PermissionDenied:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        return self.partial_update(request, *args, **kwargs)
+
+    @swagger_auto_schema(
+        operation_summary='Delete a reference library.',
+        operation_description='Delete the reference library matching the id specified by "library".',
+        tags = [tag_libraries],
+        responses={
+            '204': 'Deletion successful.',
+            '403': 'Insufficient permissions.',
+            '404': 'Reference library with the given ID does not exist.',
+            '500': 'Unexpected error.',
+        }
+    )
+    def delete(self, request, *args, **kwargs):
+        '''
+        Delete the reference library
+        '''
+        # check if database exists
+        try:
+            libraryId = str(kwargs['library'])
+            library: Library = Library.objects.get(id=libraryId)
+        except Library.DoesNotExist:
+            return Response(status = status.HTTP_404_NOT_FOUND)
+        
+        # check if user has delete permissions
+        try:
+            self.check_object_permissions(request, library)
+        except PermissionDenied:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        try: 
+            delete_library(library)
+        except BaseException:
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        else:
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
 class BlastDbList(mixins.ListModelMixin, generics.CreateAPIView):
     '''
-    Return a list of all blast databases
+    Return a list of all blast databases under a library
     '''
     queryset = BlastDb.objects.all()
     serializer_class = BlastDbCreateSerializer
-    permission_classes = [IsAuthenticated]
-    authentication_classes = (TokenAuthentication,)
 
     def get_serializer_class(self):
         if self.request is None:
@@ -466,7 +553,16 @@ class BlastDbList(mixins.ListModelMixin, generics.CreateAPIView):
         List all blast databases
         '''
 
-        queryset = BlastDb.objects.viewable(request.user)
+        library_pk: str = kwargs['library']     
+        try:
+            library: Library = Library.objects.get(id=library_pk)
+        except Library.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        if not LibrarySharePermissions.has_view_permission(request.user, library):
+            return Response(status=status.HTTP_403_FORBIDDEN) 
+
+        queryset = BlastDb.objects.viewable(request.user).filter(library=library_pk)
 
         page = self.paginate_queryset(queryset)
         if page is not None:
@@ -477,50 +573,128 @@ class BlastDbList(mixins.ListModelMixin, generics.CreateAPIView):
         return Response(serializer.data)
 
     @swagger_auto_schema(
-        operation_summary='Create a database.',
-        operation_description='Create a new publicly accessible BLAST database available for queries.',
+        operation_summary='Create a database for this reference library.',
+        operation_description="""
+        Create a new publicly accessible BLAST database available for queries.
+        
+        Accession numbers can be immediately added to the database by specifying the numbers with `accession_numbers` and/or using the `base` parameter to specify the ID of a BLAST database from which to copy accession numbers from. Thus, resulting database with contain accession numbers found in the BLAST database specified by `base` and those found in `accession_numbers`.
+        """,
         tags = [tag_admin, tag_blastdbs],
-        request_body=BlastDbCreateSerializer,
+        # Request body must be manually specified because drf_yasg issues
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'description': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description='Description of the reference library version',
+                    example='Sequences gathered as of January 2022'
+                ),
+                'locked': openapi.Schema(
+                    type=openapi.TYPE_BOOLEAN,
+                    description='Whether the version will be published and thus locked for future edits',
+                    example=False
+                ),
+                'base': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    format=openapi.FORMAT_UUID,
+                    description='The ID of a BLAST database from which to copy accession numbers from into the new database.',
+                    example='123e4567-e89b-12d3-a456-426614174000'
+                ),
+                'accession_numbers': openapi.Schema(
+                    type=openapi.TYPE_ARRAY,
+                    items=openapi.Schema(type=openapi.TYPE_STRING),
+                    description='List of accession numbers to add to the database',
+                    example=['ON303390', 'ON303391']
+                )
+            }
+        ),
         responses={
-            '200': openapi.Response(
+            '201': openapi.Response(
                 description='Creation was successful.',
                 schema=BlastDbCreateSerializer(),
                 examples={
                     'application/json': BlastDbCreateSerializer.Meta.example
                 }
             ),
+            '400': 'Bad request.',
             '403': 'Insufficient permissions.',
+            '500': 'Unspecified error.',
+            '502': 'Error connecting to GenBank.',
         }
     )
     def post(self, request, *args, **kwargs):
         '''
         Create a new blast database.
         '''
-        # Check that user can create a database
-        if not DatabaseSharePermissions.has_add_permission(request.user, None):
+        library_pk: str = kwargs['library']        
+        try:
+            library: Library = Library.objects.get(id=library_pk)
+        except Library.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        # Check that user can create a database in the reference library
+        if not LibrarySharePermissions.has_change_permission(request.user, library):
             return Response(status=status.HTTP_403_FORBIDDEN)
 
-        serializer = self.get_serializer(data=request.data)
+        # TODO: Move logic to blastdb_controller.py
+        updated_data = request.data.copy()
+        updated_data['library'] = library.id
+        serializer = self.get_serializer_class()(data=request.data)
         if serializer.is_valid():
-            custom_name = serializer.validated_data['custom_name']  # type: ignore
-            description = serializer.validated_data['description']  # type: ignore
-            blast_db = BlastDb(custom_name=custom_name, description=description, owner=request.user)
-            blast_db.save()
-            return Response(BlastDbCreateSerializer(blast_db).data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            try:
+                assert isinstance(serializer.validated_data, dict)
+            except AssertionError:
+                return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            # Ensure that accession_numbers and base are parsed in order to be
+            # passed to create_blastdb
+            serializer_data = serializer.validated_data
+            additional_accessions = serializer_data.pop('accession_numbers', [])
+            base = serializer_data.pop('base', None)
+            if not base is None:
+                try:
+                    base = BlastDb.objects.get(id=base)
+                except BlastDb.DoesNotExist:
+                    return Response({'message': f'Database with id {base} does not exist'}, status=status.HTTP_400_BAD_REQUEST)
+
+            try:
+                new_database: BlastDb = create_blastdb(additional_accessions=additional_accessions, base=base, **serializer_data, library=library)
+            except AccessionLimitExceeded as exc:
+                return Response({
+                        'message': f"Bulk addition of sequences requires a list of accession numbers and the list length must have 1 to {exc.max_accessions} elements (inclusive)." 
+                    }, 
+                    status=status.HTTP_400_BAD_REQUEST)
+            except GenBankConnectionError as exc:
+                return Response({
+                        'message': f"The GenBank database could not be connected to.", 
+                        "queried_numbers": exc.queried_accessions
+                    }, 
+                    status=status.HTTP_502_BAD_GATEWAY)
+            except InsufficientAccessionData as exc:
+                return Response({
+                        'message': f"The GenBank database failed to return some accession numbers so no numbers were added at all.", 
+                        "missing_accessions": exc.missing_accessions
+                    }, 
+                    status=status.HTTP_400_BAD_REQUEST)
+            except BaseException as exc:
+                raise exc
+            else:
+                # serialize the list of created objects so they can be sent back
+                return Response(self.get_serializer_class()(BlastDb.objects.get(id=new_database.id)).data, status = status.HTTP_201_CREATED)
 
 class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.DestroyModelMixin, generics.GenericAPIView):
     '''
     Retrieve the details of a given blast database
     '''
     queryset = BlastDb.objects.all()
-    permission_classes = [BlastDbEndpointPermission]
     renderer_classes = [JSONRenderer, BrowsableAPIRenderer, TemplateHTMLRenderer, BlastDbCSVRenderer, BlastDbFastaRenderer]
 
     def get_serializer_class(self):
-        if not self.request or self.request.method == 'GET' or self.request.method == 'DELETE':
+        if not self.request or self.request.method == 'GET':
             return BlastDbSerializer
-        elif self.request.method == 'POST':
+        elif self.request.method == 'PATCH':
+            return BlastDbEditSerializer
+        elif self.request.method == 'DELETE':
             return BlastDbEditSerializer
         else:
             return BlastDbSerializer
@@ -549,7 +723,7 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
         db_primary_key = kwargs['pk']
 
         try:
-            db = BlastDb.objects.get(id = db_primary_key)
+            db: BlastDb = BlastDb.objects.get(id = db_primary_key)
         except BlastDb.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
@@ -562,7 +736,7 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
         response = Response(self.get_serializer_class()(db).data, status=status.HTTP_200_OK, template_name='blastdb.html')
 
         # based on the media type file returned, specify attachment and file name
-        file_name_root = db.custom_name
+        file_name_root = get_data_fishdb_path(str(db.id))
         if request.accepted_media_type.startswith('text/csv'):
             response['Content-Disposition'] = f'attachment; filename={file_name_root}.csv";'
         elif request.accepted_media_type.startswith('text/x-fasta'):
@@ -574,13 +748,13 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
         operation_summary='Update information of an existing BLAST database.',
         operation_description='Edit information of a BLAST database. This method does not allow adding/removing/editing of the sequence entries within.',
         tags = [tag_blastdbs],
-        request_body=BlastDbEditSerializer,
+        request_body=BlastDbEditSerializer(),
         responses={
             '200': openapi.Response(
                 description='Database updated successfully.',
-                schema=BlastDbEditSerializer(),
+                schema=BlastDbSerializer(),
                 examples={
-                    'application/json': BlastDbEditSerializer.Meta.example
+                    'application/json': BlastDbSerializer.Meta.example
                 }
             ),
             '400': 'Bad request parameters.',
@@ -591,19 +765,37 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
     def patch(self, request, *args, **kwargs):
         '''
         Partially update this blastdb.
-        '''
+        '''        
         try:
-            db = BlastDb.objects.get(id = kwargs['pk'])
+            db: BlastDb = BlastDb.objects.get(id = kwargs['pk'])
         except BlastDb.DoesNotExist:
             return Response("Resource does not exist", status = status.HTTP_404_NOT_FOUND)
-        
+
         # Check if user has access to this database
         try:
             self.check_object_permissions(request, db)
         except PermissionDenied:
             return Response(status=status.HTTP_403_FORBIDDEN)
 
-        return self.partial_update(request, *args, **kwargs)
+        updated_data: Dict[str, Any] = request.data.copy()
+        new_lock: bool = False
+        if not db.locked and 'locked' in updated_data:
+            # We want to set 'locked' to false first
+            # so we can lock it later on if needed
+            locked = updated_data.pop('locked', 'False')[0]
+            new_lock = (locked.lower() == 'true')
+            updated_data['locked'] = False
+        
+        serializer = self.get_serializer_class()(db, data=updated_data, partial=True) 
+        if serializer.is_valid():
+            updated = serializer.save()
+        else:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+        if new_lock:
+            # If the request locks the database, we need to save the version
+            updated = save_blastdb(updated, perform_lock=True)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @swagger_auto_schema(
         operation_summary='Delete a BLAST database.',
@@ -631,19 +823,14 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
         try:
             self.check_object_permissions(request, db)
         except PermissionDenied as exc:
-            return Response({
-                'message': exc.detail
-            }, status=status.HTTP_403_FORBIDDEN)
-    
-        # delete the database from the file system
+            return Response({'message': exc.detail}, status=status.HTTP_403_FORBIDDEN)
+        
         try:
-            local_db_folder = get_data_fishdb_path(database_id)
-            if len(database_id) > 0 and os.path.exists(local_db_folder):
-                shutil.rmtree(local_db_folder, ignore_errors=True)
+            delete_blastdb(db)
         except BaseException:
             return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         else:
-            return self.destroy(request, *args, **kwargs)
+            return Response(status=status.HTTP_204_NO_CONTENT)
 
 class BlastRunList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.GenericAPIView):
     '''
@@ -762,7 +949,7 @@ class BlastRunRun(generics.CreateAPIView):
             }, status = status.HTTP_400_BAD_REQUEST)
         
         # Check whether user has permissions to run on this database
-        if not DatabaseSharePermissions.has_run_permission(request.user, database=odb):
+        if not DatabaseSharePermissions.has_run_permission(request.user, obj=odb):
             return Response({
                 'message': 'Insufficient permissions to run BLAST on this database.'
             }, status=status.HTTP_403_FORBIDDEN)

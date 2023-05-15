@@ -6,45 +6,73 @@ from Bio.SeqFeature import SeqFeature
 from ratelimit import limits
 from ratelimit.decorators import sleep_and_retry
 from datetime import datetime
+from urllib.error import URLError, HTTPError
 
 # NCBI Rate limit without an API key is 3 requests per second
 PERIOD = 1 # Time between calls, in number of seconds
 MAX_ACCESSIONS_PER_REQUEST = 300 # Limit each request to only return a max number of accessions
 
-class InvalidAccessionNumberError(Exception):
-    """Raised when accession number cannot be found in the retrieved GenBank XML"""
-    pass
+class InsufficientAccessionData(BaseException):
+    """Raised if the number of accessions returned from GenBank does not equal the number of accessions queried for."""
+    missing_accessions: List[str] = []
+    def __init__(self, missing_accessions: List[str], *args: object) -> None:
+        super().__init__(*args)
+        self.missing_accessions = missing_accessions
+
+class AccessionLimitExceeded(BaseException):
+    """Raised if number of accessions is more than the maximum specified by MAX_ACCESSIONS_PER_REQUEST"""
+    max_accessions: int = MAX_ACCESSIONS_PER_REQUEST
+    def __init__(self, max_accessions: int, *args: object) -> None:
+        super().__init__(*args)
+        self.max_accessions = max_accessions
+
+class GenBankConnectionError(BaseException):
+    """Raised if there was trouble connecting to GenBank"""
+    queried_accessions: List[str] = []
+    def __init__(self, queried_accessions: List[str], *args: object) -> None:
+        super().__init__(*args)
+        self.queried_accessions = queried_accessions
 
 @sleep_and_retry
 @limits(calls = 1, period = PERIOD)
-def retrieve_gb(accession_numbers: List[str]) -> List[Dict[str, str]]: 
+def retrieve_gb(accession_numbers: List[str], raise_if_missing: bool = False) -> List[Dict[str, str]]: 
     """
         Retrieve from GenBank the nucleotide entries for the given accession numbers.
         
     Raises:
-        ValueError: If no accession numbers are provided, or the number of accessions is more than the maximum specified by MAX_ACCESSIONS_PER_REQUEST
-        HTTPError: If there is a network error when retrieving data from GenBank using Bio.Entrez
+        ValueError: If no accession numbers are provided.
+
+        GenBankConnectionError: If there is a network error when retrieving data from GenBank using Bio.Entrez
+
+        AccessionLimitExceeded: If the number of accessions is more than the maximum specified by MAX_ACCESSIONS_PER_REQUEST 
+
+        InsufficientAccessionData: If the number of records sent by GenBank does not match the number of accession numbers requested. This indicates that there are accession numbers that do not match with a GenBank record.
     """
     if accession_numbers is None:
         raise ValueError(f'List of accession numbers to query is None.')
     if len(accession_numbers) == 0:
         raise ValueError(f'List of accession numbers to query is empty.')
+    # TODO: Instead of having a hard limit, do not raise an error and instead implement batch request if the number of accessions in large
     if len(accession_numbers) > MAX_ACCESSIONS_PER_REQUEST:
-        raise ValueError(f'Cannot query the {len(accession_numbers)} found in a single request. Limit per request is {MAX_ACCESSIONS_PER_REQUEST}')
+        raise AccessionLimitExceeded(max_accessions=MAX_ACCESSIONS_PER_REQUEST)
 
-    accessions = ','.join(accession_numbers)
+    desired_numbers = list(set(accession_numbers))
+    accessions_query_string = ','.join(desired_numbers) 
 
     Entrez.email = "william.huang1212@gmail.com"
     Entrez.max_tries = 1
     Entrez.tool = "barcode_identifier"
 
     request_time_str = datetime.now().strftime("%H:%M:%S.%f")
-    print(f'{request_time_str} | Fetching from GenBank for accessions {accessions}')
+    print(f'{request_time_str} | Fetching from GenBank for accessions {accessions_query_string}')
 
-    # Raises HTTPError if there is a network error
-    handle = Entrez.efetch(db="nucleotide", rettype="gb", retmode="text", id=accessions)
+    # Raises URLError if there is a network error
+    try:
+        handle = Entrez.efetch(db="nucleotide", rettype="gb", retmode="text", id=accessions_query_string)
+    except:
+        raise GenBankConnectionError(accession_numbers)
     response_time_str = datetime.now().strftime("%H:%M:%S.%f")
-    print(f'{response_time_str} | Response received from GenBank for accessions {accessions}')
+    print(f'{response_time_str} | Response received from GenBank for accessions {accessions_query_string}')
     seq_records : Generator = SeqIO.parse(handle, "genbank")
 
     all_data: List[Dict[str, str]]= []
@@ -54,7 +82,8 @@ def retrieve_gb(accession_numbers: List[str]) -> List[Dict[str, str]]:
         current_data : Dict = {
             'accession_number': seq_record.name,
             'definition': seq_record.description,
-            'dna_sequence': str(seq_record.seq)
+            'dna_sequence': str(seq_record.seq),
+            'version': seq_record.id,
         }
         features : List[ SeqFeature ] = seq_record.features
         qualifiers_to_extract = ['organism', 'organelle', 'isolate', 'country', 'specimen_voucher', 'type_material', 'lat_lon']
@@ -100,5 +129,15 @@ def retrieve_gb(accession_numbers: List[str]) -> List[Dict[str, str]]:
             all_data.append(current_data)
 
     handle.close()
+
+    # TODO: Return which accessions were missing in the data (to account for accessions being deleted from GenBank)
+    # check if we are missing any data
+    if raise_if_missing:
+        successful_queries : List[str]
+        successful_queries = [entry["accession_number"] for entry in all_data]
+        failed_queries = [d for d in desired_numbers if d not in successful_queries]
+        # stop execution if data not complete
+        if len(failed_queries) > 0:
+            raise InsufficientAccessionData(failed_queries)
 
     return all_data

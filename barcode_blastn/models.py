@@ -3,60 +3,198 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.contrib.auth.models import User
 import uuid
-
+from django.core.validators import MaxValueValidator, MinValueValidator
 from barcode_blastn.database_permissions import DatabasePermissions
 
-from barcode_blastn.managers import BlastDbManager
+class LibraryManager(models.Manager):
+    '''
+    Model manager for the BlastDb class.
+    '''
+    def editable(self, user: User):
+        '''
+        Return a queryset of Reference Libraries that are editable by the given user.
+        Editability is given if:
+        - user is a superuser 
+        - user is owner
+        - user given explicit edit permission
 
-class BlastDb(models.Model):
-    objects = BlastDbManager()
+        Returns an empty queryset if user is not authenticated, the full queryset
+        if user is a superuser, and a queryset of all BlastDbs editable by the
+        user.
+        '''
+        if not user.is_authenticated:
+            # public users can never edit a database
+            return super().none()
+        elif user.is_superuser:
+            # give access to all databases if superuser
+            return super().get_queryset().all()
+        else:
+            return super().get_queryset().filter(
+                # include databases owned by user
+                models.Q(owner=user) |
+                # include those with access explicitly given to 
+                models.Q(shares=user, databaseshare__permission_level__in=[DatabasePermissions.CAN_EDIT_DB])
+            )
+        
+    def viewable(self, user: User):
+        '''
+        Retrieve a set of databases that the user can view. A user can view if:
+        - the reference library is public, and either not explicitly denied or unauthenticated
+        - user is superuser
+        - user is owner
+        - user is given explicit view, run or edit permission
+        '''
+        if not user.is_authenticated:
+            # only return public databases for public users
+            return super().get_queryset().filter(public=True)
+        elif user.is_superuser:
+            # give access to all databases if superuser
+            return super().get_queryset().all()
+        else:
+            return super().get_queryset().exclude(
+                # exclude databases that are public but explicitly denied to user
+                models.Q(public=True) &
+                models.Q(shares=user, 
+                         databaseshare__perms=DatabasePermissions.DENY_ACCESS)
+            ).filter(
+                # include databases owned by user
+                models.Q(owner=user) |
+                # include those that are public
+                models.Q(public=True) |
+                # include those with access explicitly given to 
+                models.Q(shares=user,
+                         databaseshare__permission_level__in=[
+                            DatabasePermissions.CAN_VIEW_DB, DatabasePermissions.CAN_EDIT_DB, DatabasePermissions.CAN_RUN_DB
+                         ])
+            )
+
+    def runnable(self, user: User):
+        '''
+        Retrieve a set of reference libraries that the user can run on. Permission is given if:
+        - the user can view
+        '''
+        # Currently, if a user can view the database, they can run it
+        return self.viewable(user)
+
+    def deletable(self, user: User):
+        '''
+        Retrieve a set of reference libraries that is deletable by the user. 
+        A reference library is deletable if:
+        - user is superuser
+        '''
+        if not user.is_authenticated:
+            # public users cannot delete any databases
+            return super().none()
+        elif user.is_superuser:
+            # A superuser can delete any database
+            return super().get_queryset().all()
+        else:
+            return super().none()
+
+class Library(models.Model):
+
+    objects = LibraryManager()
 
     # Original creator of the database
     owner = models.ForeignKey(User, on_delete=models.CASCADE)
 
     # Is the database accessible to the public for viewing and running?
-    public = models.BooleanField(default=False, help_text='Is this database accessible to the public?')
+    public = models.BooleanField(default=False, help_text='Is this reference library accessible to the public?')
     
-    shares = models.ManyToManyField(User, related_name='projects_shared', through='DatabaseShare')
+    shares = models.ManyToManyField(User, related_name='permission', related_query_name='permissions', through='DatabaseShare')
 
-    # # Series that the blast db falls under 
-    # series = models.ForeignKey(BlastDbSeries, on_delete=models.CASCADE)
-
-    # # User-customized version name for the database
-    # version = models.CharField(max_length=128, help_text='Named version of BlastDb')
+    # Short description of the database
+    description = models.CharField(max_length=1024, blank=True, default='', help_text='Description of contents and usage')
 
     # Unique identifier for the BLAST database
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, help_text='Unique identifier of this BLAST database')
-
-    # The creation datetime of this database
-    created = models.DateTimeField(auto_now_add=True, help_text='Date and time at which database was created')
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, help_text='Unique identifier of this Reference Library')
+    
     # The user-customized title
-    custom_name = models.CharField(max_length=255, help_text='Name of BLAST database')
-    # Locked
-    locked = models.BooleanField(default=False, help_text='Is editing of entry set (adding/removing) in the database locked?')
-    # Short description of the database
-    description = models.CharField(max_length=1024, blank=True, default='', help_text='Description of BLAST database')
+    custom_name = models.CharField(max_length=255, help_text='Name of Reference Library')
 
     def __str__(self) -> str:
-        return f'"{self.custom_name}" Database ({str(self.id)})'
+        return f'"{self.custom_name}" Library ({str(self.id)})'
 
     class Meta:
         ordering = ['custom_name']
-        verbose_name = 'BLAST Database'
-        verbose_name_plural = 'BLAST Databases'
+        verbose_name = 'Reference Library'
+        verbose_name_plural = 'Reference Libraries'
+
+class BlastDbManager(models.Manager):
+    def latest(self, library: Library):
+        '''Retrieve the latest blastdb from a given library'''
+        return BlastDb.objects.filter(library=library, locked=True).last()
+
+    def editable(self, user: User):
+        '''Return a QuerySet of BLAST databases that are editable by the given user. BLAST databases are editable if their reference library are editable by the same user.'''
+        libs: models.QuerySet[Library] = Library.objects.editable(user)
+        return BlastDb.objects.filter(library__in=libs)
+
+    def viewable(self, user: User):
+        '''Return a QuerySet of BLAST databases that are viewable by the given user. BLAST databases are editable if their reference library are viewable by the same user.'''
+        libs: models.QuerySet[Library] = Library.objects.viewable(user)
+        return BlastDb.objects.filter(library__in=libs)
+
+    def runnable(self, user: User):
+        '''Return a QuerySet of BLAST databases that are runnable by the given user. BLAST databases are editable if their reference library are runnable by the same user.'''
+        libs: models.QuerySet[Library] = Library.objects.runnable(user)
+        return BlastDb.objects.filter(library__in=libs)
+
+    def deletable(self, user: User):
+        '''Return a QuerySet of BLAST databases that are deletable by the given user. BLAST databases are editable if their reference library are deletable by the same user.'''
+        libs: models.QuerySet[Library] = Library.objects.deletable(user)
+        return BlastDb.objects.filter(library__in=libs)
+
+class BlastDb(models.Model):
+    objects = BlastDbManager()
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, help_text='Unique identifier of this BLAST database version')
+
+    library = models.ForeignKey(Library, on_delete=models.CASCADE)
+
+    genbank_version = models.SmallIntegerField(default=1, 
+        validators=[MaxValueValidator(32767), MaxValueValidator(1)])
+    major_version = models.SmallIntegerField(default=1, 
+        validators=[MaxValueValidator(32767), MaxValueValidator(1)])
+    minor_version = models.SmallIntegerField(default=1, 
+        validators=[MaxValueValidator(32767), MaxValueValidator(1)])
+
+    def version_number(self) -> str:
+        return f'{self.genbank_version}.{self.major_version}.{self.minor_version}'
+
+    def sequence_count(self) -> int:
+        return NuccoreSequence.objects.filter(owner_database=self).count()
+
+    # The creation datetime of this version
+    created = models.DateTimeField(auto_now_add=True, help_text='Date and time at which database was created')
+    # Short description of the version
+    description = models.CharField(max_length=1024, blank=True, default='', help_text='Description of this version')
+    # Locked
+    locked = models.BooleanField(default=False, help_text='Is editing of entry set (adding/removing) in the database locked?')
+
+    def __str__(self) -> str:
+        if self.locked:
+            return f'"{self.library.custom_name}", Version {self.version_number()} ({self.id})'
+        else:
+            return f'"{self.library.custom_name}", Unpublished ({self.id})'
+
+    class Meta:
+        ordering = ['genbank_version', 'major_version', 'minor_version']
+        verbose_name = 'BLAST Database Version'
+        verbose_name_plural = 'BLAST Database Versions'
 
 class DatabaseShare(models.Model):
     # The database these permissions apply to
-    database = models.ForeignKey(BlastDb, on_delete=models.CASCADE, help_text='The database these permissions apply to.')
+    database = models.ForeignKey(Library, on_delete=models.CASCADE, help_text='The database these permissions apply to.')
 
     # User that the permissions apply to
     grantee = models.ForeignKey(User, on_delete=models.CASCADE, help_text='User that the permissions apply to.')
 
     # Permission level given to this relationship 
-    perms = models.CharField(max_length=16, choices=DatabasePermissions.choices, default=DatabasePermissions.DENY_ACCESS, help_text='Access permissions')
+    permission_level = models.CharField(max_length=16, choices=DatabasePermissions.choices, default=DatabasePermissions.DENY_ACCESS, help_text='Access permissions')
 
     def __str__(self) -> str:
-        return f'"{self.perms}" permission for "{self.grantee.username}" on database "{self.database.custom_name}"'
+        return f'"{self.permission_level}" permission for "{self.grantee.username}" on library "{self.database.custom_name}"'
 
     class Meta:
         verbose_name = 'BLAST Database Access Permission'
@@ -69,7 +207,6 @@ class NuccoreSequenceManager(models.Manager):
         by the given user (i.e. accessions located in databases
         that the user can view)
         '''
-
         db_qs = BlastDb.objects.viewable(user)
         return self.get_queryset().filter(owner_database__in=db_qs)
 
@@ -84,6 +221,7 @@ class NuccoreSequence(models.Model):
 
     created = models.DateTimeField(auto_now_add=True, help_text='Date and time at which record was last updated from GenBank')
     accession_number = models.CharField(max_length=255, help_text='Accession number on GenBank')
+    version = models.CharField(max_length=63, help_text='The accession.version on GenBank')
     uid = models.CharField(max_length=2048, blank=True, default='', help_text='Obselete UUID')
     definition = models.CharField(max_length=255, blank=True, default='', help_text='The definition line')
     organism = models.CharField(max_length=255, blank=True, default='', help_text='Scientific name of source organism')
@@ -115,8 +253,9 @@ class BlastRunManager(models.Manager):
         So, although blast runs are public, this will not necessary 
         return all blast runs within the database.
         '''
-        db_qs = BlastDb.objects.editable(user)
-        return self.get_queryset().filter(db_used__in=db_qs)
+        libraries = Library.objects.editable(user)
+        databases = BlastDb.objects.filter(library__in=libraries)
+        return self.get_queryset().filter(db_used__in=databases)
 
 class BlastRun(models.Model):
     objects = BlastRunManager()

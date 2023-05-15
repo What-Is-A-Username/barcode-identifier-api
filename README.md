@@ -435,6 +435,15 @@ It is possible that dropping the database and deleting the old migrations may ha
 python manage.py createsuperuser
 ```
 
+### How do I drop the database if I am using Docker?
+```
+docker exec -it barcode-identifier-api-db-1 psql -U admin -d postgres -c "DROP DATABASE barcode_identifier_db;"
+```
+Remake the database:
+```
+docker exec -it barcode-identifier-api-db-1 psql -U admin -d postgres -c "CREATE DATABASE barcode_identifier_db WITH OWNER admin;"
+```
+
 ### I started the app as a background daemon. How do I kill the process?
 If the `barcode_identifier_api_uwsgi.ini` file specified the app to run in the background, you cannot kill the app with `Ctrl-C` as usual. Double check that the process is running, then kill it with pkill.
 ```

@@ -39,11 +39,14 @@ urlpatterns = [
     # Token Authentication Testing 
     path('users/', views.UserDetailView.as_view()),
 
-    path('blastdbs/', views.BlastDbList.as_view()),
+    path('libraries/', views.LibraryListView.as_view()),
+    path('libraries/<uuid:library>/versions', views.BlastDbList.as_view()),
+    path('libraries/<uuid:library>', views.LibraryDetailView.as_view()),
+
     path('blastdbs/<uuid:pk>/', views.BlastDbDetail.as_view()),
     path('blastdbs/<uuid:pk>/add/', views.NuccoreSequenceAdd.as_view()),
-    path('blastdbs/<uuid:pk>/bulk/', views.NuccoreSequenceBulkAdd.as_view()),
     path('blastdbs/<uuid:pk>/run/', views.BlastRunRun.as_view()),
+
     path('nuccores/<uuid:pk>/', views.NuccoreSequenceDetail.as_view()),
     path('runs/', views.BlastRunList.as_view()),
     path('runs/<uuid:pk>/', views.BlastRunDetail.as_view()),

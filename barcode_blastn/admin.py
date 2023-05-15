@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict, List, Optional, Sequence, Union
+from typing import Any, Dict, List, Optional, Union
 from django.contrib import admin
 from django.db import models
 from django.db.models.query import QuerySet
@@ -8,43 +8,13 @@ from django.urls import reverse
 
 from django.utils.html import format_html
 from django.contrib.auth.models import User
-from barcode_blastn.helper.parse_gb import retrieve_gb
-from barcode_blastn.models import BlastDb, BlastQuerySequence, DatabaseShare, NuccoreSequence, BlastRun, Hit
+from barcode_blastn.controllers.blastdb_controller import delete_blastdb, delete_library, save_sequence
+from barcode_blastn.helper.parse_gb import GenBankConnectionError, InsufficientAccessionData, retrieve_gb
+from barcode_blastn.models import BlastDb, BlastQuerySequence, DatabaseShare, Library, NuccoreSequence, BlastRun, Hit
 from django.forms import BaseInlineFormSet, ModelForm, ValidationError
-from barcode_blastn.database_permissions import DatabasePermissions
-from barcode_blastn.permissions import DatabaseSharePermissions, HitSharePermission, NuccoreSharePermission, RunSharePermissions
+from barcode_blastn.permissions import DatabaseSharePermissions, HitSharePermission, LibrarySharePermissions, NuccoreSharePermission, RunSharePermissions
 
-from barcode_blastn.serializers import BlastDbEditSerializer, NuccoreSequenceSerializer
-
-def fetch_data(accession_number: str) -> Dict[str, str]: 
-    '''
-    Fetch data from GenBank using the accession_number in obj, relying on function retrieve_gb.
-
-    Raises an ValueError if there was an issue retrieving the data
-
-    Returns a single dictionary of key-value pairs to populate a NuccoreSequence with.
-    '''
-    if accession_number is None:
-        raise ValueError('Error no accession number found')
-    currentData = {}
-    genbank_data: Union[List[Dict], None] = []
-    try:
-        genbank_data = retrieve_gb(accession_numbers = [accession_number])
-    except BaseException:
-        raise ValueError('Error retrieving accession')
-    
-    try:
-        assert(not genbank_data is None)
-        assert(len(genbank_data) <= 1)
-    except AssertionError:
-        raise ValueError('More than one accession was found for this accession number. Differentiating between these accessions is currently not supported')
-    
-    try:
-        assert(len(genbank_data) > 0)
-    except AssertionError:
-        raise ValueError('No data was found for this accession number')
-
-    return genbank_data[0]
+from barcode_blastn.serializers import BlastDbEditSerializer, LibraryEditSerializer, NuccoreSequenceSerializer
 
 class SequenceFormset(BaseInlineFormSet):
     def save_new(self, form, commit=True):
@@ -52,60 +22,14 @@ class SequenceFormset(BaseInlineFormSet):
         Callback when a new sequence is added through a save button on the admin form.
         '''
         obj = super(SequenceFormset, self).save_new(form, commit=False)
-        accession_number = obj.accession_number
-
-        # check if there is a duplicate
-        try:
-            NuccoreSequence.objects.get(accession_number = accession_number, owner_database_id = obj.owner_database.id)
-        except NuccoreSequence.DoesNotExist:
-            pass
-        else:
-            obj.accession_number = f'Error: duplicate for {accession_number}'
-            return obj
-
-        # fetch GenBank data
-        currentData = fetch_data(accession_number=accession_number)
-
-        # check that the GenBank data is valid
-        try:
-            assert not (currentData is None)
-            serializer = NuccoreSequenceSerializer(data = currentData)
-            if serializer.is_valid():
-                saved = serializer.save(owner_database = obj.owner_database)
-                return saved
-                
-        except AssertionError:
-            obj.accession_number = f'Error: no data for {accession_number}'
-        if commit:
-            obj.save()
-        return obj
+        return save_sequence(obj, change=False, commit=commit, raise_if_missing=True) 
 
     def save_existing(self, form, instance, commit=True):
         '''
         Callback when a sequence is edited through a save button in the admin form.
         '''
-        obj = super(SequenceFormset, self).save_new(form, commit=False)
-        accession_number = obj.accession_number
-        try:
-            duplicate = NuccoreSequence.objects.get(accession_number = accession_number, owner_database_id = obj.owner_database.id)
-        except NuccoreSequence.DoesNotExist:
-            pass
-        else:
-            obj.accession_number = f'Error: duplicate for {accession_number}'
-            return obj
-        
-        currentData = fetch_data(accession_number=accession_number)
-
-        try:
-            assert not (currentData is None) # assert that there must be data retrieved
-            for key, value in currentData.items():
-                setattr(obj, key, str(value))
-        except AssertionError:
-            obj.accession_number = f'Error: no data for {accession_number}'
-        if commit:
-            obj.save()
-
-        return obj
+        obj = super(SequenceFormset, self).save_existing(form, instance, commit=False)
+        return save_sequence(obj, change=True, commit=commit, raise_if_missing=True)
 
 class NuccoreSequenceInline(admin.TabularInline):
     model = NuccoreSequence     
@@ -142,49 +66,128 @@ class UserPermissionsInline(admin.TabularInline):
     model = DatabaseShare
     extra = 0
 
-    def get_fields(self, request, obj: BlastDb):
-        return ['grantee', 'perms', 'id']
+    def get_fields(self, request, obj: Library):
+        return ['grantee', 'permission_level', 'id']
 
-    def get_readonly_fields(self, request, obj: Union[BlastDb, None] = None):
+    def get_readonly_fields(self, request, obj: Union[Library, None] = None):
         return ['id']
 
-    def has_view_permission(self, request: HttpRequest, obj: Union[BlastDb, None] = None) -> bool:
-        return DatabaseSharePermissions.has_view_permission(request.user, obj) 
+    def has_view_permission(self, request: HttpRequest, obj: Union[Library, None] = None) -> bool:
+        return LibrarySharePermissions.has_view_permission(request.user, obj) 
 
-    def has_add_permission(self, request, obj: Union[BlastDb, None] = None) -> bool:
+    def has_add_permission(self, request, obj: Union[Library, None] = None) -> bool:
         '''
         Allow only the creator to add permissions.
         '''
-        return DatabaseSharePermissions.has_delete_permission(request.user, obj)
+        return LibrarySharePermissions.has_delete_permission(request.user, obj)
 
-    def has_delete_permission(self, request, obj: Union[BlastDb, None] = None) -> bool:
+    def has_delete_permission(self, request, obj: Union[Library, None] = None) -> bool:
         '''
         Allow only the creator to delete permissions.
         '''
-        return DatabaseSharePermissions.has_delete_permission(request.user, obj)
+        return LibrarySharePermissions.has_delete_permission(request.user, obj)
 
-    def has_change_permission(self, request, obj: Union[BlastDb, None] = None) -> bool:
+    def has_change_permission(self, request, obj: Union[Library, None] = None) -> bool:
         '''
         Allow only the creator to change permissions.
         '''
-        return DatabaseSharePermissions.has_delete_permission(request.user, obj)
+        return LibrarySharePermissions.has_delete_permission(request.user, obj)
         
+class VersionInline(admin.TabularInline):
+    '''
+    Show a version of a BlastDb inline in the Library admin page
+    '''
+    model = BlastDb
+    fields = ['description', 'id', 'version_number', 'sequence_count', 'locked', 'created']
+    readonly_fields = ['id', 'version_number', 'sequence_count', 'locked', 'created']
+    show_change_link = True
+
+    def sequence_count(self, obj: BlastDb) -> int:
+        num_seqs: int = NuccoreSequence.objects.filter(owner_database=obj).count()
+        return num_seqs
+
+    def has_add_permission(self, request, obj: Union[Library, None] = None) -> bool:
+        return False # Allow only the creator to add permissions.
+
+    def has_delete_permission(self, request: HttpRequest, obj: Union[Library, None] = None) -> bool:
+        return False # Disable deletions
+
+@admin.register(Library)
+class LibraryAdmin(admin.ModelAdmin):
+    '''
+    Admin page for Library instances
+    '''
+    inlines = [UserPermissionsInline, VersionInline]
+    list_display = ('custom_name', 'owner', 'public', 'sequence_count', 'id')
+    fields = LibraryEditSerializer.Meta.fields
+
+    def sequence_count(self, obj: Library):
+        blastdb: Union[BlastDb, None] = BlastDb.objects.latest(obj)
+        if blastdb is None:
+            return 0
+        return NuccoreSequence.objects.filter(owner_database=blastdb).count()
+
+    def delete_model(self, request: HttpRequest, obj: Library) -> None:
+        delete_library(obj)
+
 @admin.register(BlastDb)
 class BlastDbAdmin(admin.ModelAdmin):
     '''
     Admin page for BlastDb instances.
     '''
-    inlines = [UserPermissionsInline, NuccoreSequenceInline]
-    list_display = ('custom_name', 'owner', 'public', 'sequence_count', 'id')
+    inlines = [NuccoreSequenceInline]
+    list_display = ('library', 'version_number', 'sequence_count', 'id')
+
+    def delete_model(self, request: HttpRequest, obj: BlastDb) -> None:
+        '''Delete instance of database'''
+        delete_blastdb(obj)
     
-    def get_fields(self, request: HttpRequest, obj):
+    def get_fields(self, request: HttpRequest, obj: Optional[BlastDb]):
         f: List[str] = BlastDbEditSerializer.Meta.fields.copy()
-        f.extend(['owner'])
-        return f
+        additional_fields = ['library']
+        if obj and obj.locked:
+            f.extend(['genbank_version', 'major_version', 'minor_version'])
+        for field in additional_fields:
+            if not field in f:
+                f.append(field)
+        return f 
+
+    def save_model(self, request: Any, obj: BlastDb, form: Any, change: Any) -> None:
+        # TODO: Use logic in blastdb_controller.py
+        raise NotImplementedError()
+
+    def get_readonly_fields(self, request, obj: Union[BlastDb, None] = None):
+        base = list(set(
+            [field.name for field in self.opts.local_fields] +
+            [field.name for field in self.opts.local_many_to_many]
+        ))
+        # specify which fields are editable
+        editable_fields = BlastDbEditSerializer.Meta.fields.copy()
+        base = [b for b in base if b not in editable_fields]
+        # these fields are only readonly when user is modifying an existing page
+        readonly_only_when_changing = ['library']
+        if obj and obj.id:
+            for key in readonly_only_when_changing:
+                if not key in base:
+                    base.append(key)
+        else:
+            for key in readonly_only_when_changing:
+                if key in base:
+                    base.remove(key)
+        return base
 
     def sequence_count(self, obj):
         num_seqs: int = NuccoreSequence.objects.filter(owner_database=obj).count()
         return num_seqs
+
+    def formfield_for_foreignkey(self, db_field: models.ForeignKey[BlastDb], request: HttpRequest, **kwargs):
+        if request is None:
+            return super().formfield_for_foreignkey(db_field, request, **kwargs)
+        if db_field.name == 'library':
+            if isinstance(request.user, User):
+                # restrict choices of library to those that the user can edit
+                kwargs['queryset'] = Library.objects.editable(request.user)
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
         
     def get_queryset(self, request: HttpRequest) -> QuerySet[Any]:
         if not isinstance(request.user, User) or not request.user.is_authenticated:
@@ -208,29 +211,12 @@ class BlastDbAdmin(admin.ModelAdmin):
     def has_change_permission(self, request: HttpRequest, obj: Union[BlastDb, None] = None) -> bool:
         return DatabaseSharePermissions.has_change_permission(request.user, obj)        
 
-    def save_model(self, request, obj, form, change) -> None:
-        if not(obj and obj.id): 
-            # set the owner to the current if the obj is being first created
-            # (i.e. when no id exists)
-            obj.owner = request.user
-        return super().save_model(request, obj, form, change)
-
-    def get_readonly_fields(self, request, obj: Union[BlastDb, None] = None):
-        base = list(set(
-            [field.name for field in self.opts.local_fields] +
-            [field.name for field in self.opts.local_many_to_many]
-        ))
-        # specify which fields are editable
-        editable_fields = BlastDbEditSerializer.Meta.fields
-        base = [b for b in base if b not in editable_fields]
-        return base
-
     def changeform_view(self, request: HttpRequest, object_id: Union[str, None], form_url: str, extra_context: Optional[Dict[str, bool]]) -> Any:
         extra_context = extra_context or {}
 
         extra_context['show_save_and_continue'] = True # show Save and Continue button
-        extra_context['show_save_and_add_another'] = False # hide Save and Add Another button
-        extra_context['show_save'] = False # hide save button
+        extra_context['show_save_and_add_another'] = True # hide Save and Add Another button
+        extra_context['show_save'] = True # hide save button
         extra_context['show_delete'] = True # show delete button
         return super().changeform_view(request, object_id, form_url, extra_context)
 
@@ -259,6 +245,9 @@ class NuccoreAdminModifyForm(ModelForm):
         # check that the sequence will be assigned to a database
         if owner_database is None:
             raise ValidationError(f'No owner database specified. Sequence must be associated with a database when being created. If no databases are selectable, contact a superuser to give you edit permission to a database.')
+        else:
+            if owner_database.locked:
+                raise ValidationError(f'The database {owner_database} ({owner_database.id}) is locked, so changes cannot be made to its sequences and new sequences cannot be added to it.')
 
         # check if the accession already exists in the database
         duplicate_exists: bool = False
@@ -271,11 +260,13 @@ class NuccoreAdminModifyForm(ModelForm):
             raise ValidationError(f'Error: Sequence entry for accession number {accession_number} already exists in the same database.')
         
         try:
-            currentData = fetch_data(accession_number=accession_number)
-        except ValueError as err:
-            raise ValidationError('Could not retrieve data for this accession number, either due to server error or accession number not matching with a unique accession. Try again.') from err
-
-        return        
+            retrieve_gb(accession_numbers=[accession_number], raise_if_missing=True)
+        except GenBankConnectionError as err:
+            raise ValidationError('Encountered connection error while requesting data from GenBank. Please try again.') from err  
+        except InsufficientAccessionData as err:
+            raise ValidationError(f'Could not retrieve a record for {accession_number}, likely due to accession number not matching with an existing and unique record. Check the accession number provided.')  
+        
+        return None
 
 @admin.register(NuccoreSequence)
 class NuccoreAdmin(admin.ModelAdmin):
@@ -283,8 +274,7 @@ class NuccoreAdmin(admin.ModelAdmin):
     Admin page for showing accession instances.
     '''
     list_display = (
-        'accession_number', 'organism', 'specimen_voucher', 'id', 
-        'owner_database_link'
+        'accession_number', 'organism', 'specimen_voucher', 'id', 'owner_database_link'
     )
     fields_excluded = ['uuid']
     form = NuccoreAdminModifyForm
@@ -297,20 +287,14 @@ class NuccoreAdmin(admin.ModelAdmin):
         else:
             return NuccoreSequence.objects.viewable(request.user)
 
-    def formfield_for_foreignkey(self, db_field, request: HttpRequest, **kwargs):
+    def formfield_for_foreignkey(self, db_field, request: Optional[HttpRequest], **kwargs):
+        if request is None:
+            return super().formfield_for_foreignkey(db_field, request, **kwargs)
         if db_field.name == 'owner_database':
             if not request.user is None:
                 if isinstance(request.user, User):
-                    user: User = request.user
                     # set the available choices of database the accession can belong to
-                    kwargs['queryset'] = BlastDb.objects.filter(
-                        ~models.Q(shares=user, databaseshare__perms__startswith=DatabasePermissions.DENY_ACCESS) # omit databases the user is denied from
-                        & 
-                        (
-                            models.Q(owner=request.user) |
-                            models.Q(shares=user, databaseshare__perms__in=[DatabasePermissions.CAN_EDIT_DB])
-                        ) # add databases the user can edit
-                    )
+                    kwargs['queryset'] = BlastDb.objects.editable(request.user)
         return super().formfield_for_foreignkey(db_field, request, **kwargs) 
 
     def get_fields(self, request, obj=None):
@@ -321,7 +305,7 @@ class NuccoreAdmin(admin.ModelAdmin):
             fields.remove('translation')
         return fields
 
-    def get_readonly_fields(self, request, obj=None):
+    def get_readonly_fields(self, request, obj: Optional[NuccoreSequence]=None):
         fields = [
             'organism',
             'definition',
@@ -356,14 +340,8 @@ class NuccoreAdmin(admin.ModelAdmin):
     def has_add_permission(self, request, obj: Union[NuccoreSequence, None]=None):
         return NuccoreSharePermission.has_add_permission(request.user, obj)
     
-    def save_model(self, request: Any, obj: Any, form: Any, change: Any) -> None:
-        accession_number = obj.accession_number
-        
-        currentData = fetch_data(accession_number=accession_number)
-        for key, value in currentData.items():
-            setattr(obj, key, str(value))
-
-        super(NuccoreAdmin, self).save_model(request, obj, form, change)
+    def save_model(self, request: Any, obj: Any, form: Any, change: bool) -> None:
+        save_sequence(obj, change=change, commit=True)
 
     def changeform_view(self, request: HttpRequest, object_id: Union[str, None], form_url: str, extra_context: Optional[Dict[str, bool]]) -> Any:
         extra_context = extra_context or {}

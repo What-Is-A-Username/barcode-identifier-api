@@ -7,7 +7,7 @@ from django.http.request import HttpRequest
 from rest_framework import permissions
 
 from barcode_blastn.models import (BlastDb, BlastRun,
-                                   DatabaseShare, Hit, NuccoreSequence)
+                                   DatabaseShare, Hit, Library, NuccoreSequence)
 
 from barcode_blastn.database_permissions import DatabasePermissions                                   
 
@@ -98,13 +98,13 @@ class CustomPermissions(Generic[T], ABC):
         """
         pass
 
-class DatabaseSharePermissions(CustomPermissions[BlastDb]):
+class LibrarySharePermissions(CustomPermissions[Library]):
     '''
     Given a user, an optionally an object, determine whether an action is permissible.
     '''
 
     @staticmethod 
-    def has_explicit_permission_given(user: AbstractUser, database: BlastDb, acceptable_permissions: List[str], prohibited_permissions: List[str] = [DatabasePermissions.DENY_ACCESS]):
+    def has_explicit_permission_given(user: AbstractUser, database: Library, acceptable_permissions: List[str], prohibited_permissions: List[str] = [DatabasePermissions.DENY_ACCESS]):
         '''
         Check if a user has the required level of permissions.
 
@@ -122,49 +122,49 @@ class DatabaseSharePermissions(CustomPermissions[BlastDb]):
             storedperms = DatabaseShare.objects.get(database=database, grantee=user)
         except DatabaseShare.DoesNotExist:
             return False    # deny if no explicit permission given 
-        return storedperms.perms in acceptable_permissions and not storedperms.perms in prohibited_permissions # return true if the current permission matches with any of those given
+        return storedperms.permission_level in acceptable_permissions and not storedperms.permission_level in prohibited_permissions # return true if the current permission matches with any of those given
 
     @staticmethod 
     def has_module_permission(user: Union[AbstractBaseUser, AnonymousUser]) -> bool:
         return isinstance(user, AbstractUser) and (user.is_staff or user.is_superuser)
 
     @staticmethod
-    def has_add_permission(user: Union[AbstractBaseUser, AnonymousUser], obj: Union[BlastDb, None]) -> bool:
+    def has_add_permission(user: Union[AbstractBaseUser, AnonymousUser], obj: Union[Library, None]) -> bool:
         return isinstance(user, AbstractUser) and user.is_superuser
 
     @staticmethod
-    def has_run_permission(user: Union[AbstractBaseUser, AnonymousUser], database: Union[BlastDb, None]) -> bool:
+    def has_run_permission(user: Union[AbstractBaseUser, AnonymousUser], library: Union[Library, None]) -> bool:
         '''
         Check if the user has permission to run BLAST on the database.
         '''
-        if database is None: # for generic models, give access by default
+        if library is None: # for generic models, give access by default
             return True
         elif not user.is_authenticated:
             # allow all public databases to be run
-            return database.public
+            return library.public
         else:
-            if user == database.owner:
+            if user == library.owner:
                 return True 
             elif not isinstance(user, AbstractUser):
-                return database.public
+                return library.public
             elif user.is_superuser:
                 return True 
-            elif database.public:
+            elif library.public:
                 # signed in users can query public databases so long as they aren't explicitly denied
-                return not DatabaseSharePermissions.has_explicit_permission_given(
+                return not LibrarySharePermissions.has_explicit_permission_given(
                     user,
-                    database,
+                    library,
                     acceptable_permissions=[DatabasePermissions.DENY_ACCESS],
                     prohibited_permissions=[]
                 ) 
-            return DatabaseSharePermissions.has_explicit_permission_given(
+            return LibrarySharePermissions.has_explicit_permission_given(
                 user, 
-                database, 
+                library, 
                 acceptable_permissions=[DatabasePermissions.CAN_RUN_DB, DatabasePermissions.CAN_EDIT_DB],
                 prohibited_permissions=[DatabasePermissions.DENY_ACCESS]) # check if user has these permissions
 
     @staticmethod
-    def has_view_permission(user: Union[AbstractBaseUser, AnonymousUser], database: Union[BlastDb, None]) -> bool:
+    def has_view_permission(user: Union[AbstractBaseUser, AnonymousUser], database: Union[Library, None]) -> bool:
         if database is None: # for generic models, give access by default
             return True
         elif not user or not user.is_authenticated:
@@ -175,7 +175,7 @@ class DatabaseSharePermissions(CustomPermissions[BlastDb]):
             elif not isinstance(user, AbstractUser):
                 return False
             elif database.public:
-                return not DatabaseSharePermissions.has_explicit_permission_given(
+                return not LibrarySharePermissions.has_explicit_permission_given(
                     user,
                     database,
                     acceptable_permissions=[DatabasePermissions.DENY_ACCESS],
@@ -184,41 +184,80 @@ class DatabaseSharePermissions(CustomPermissions[BlastDb]):
             elif (user.is_superuser):
                 return True 
             else:
-                return DatabaseSharePermissions.has_explicit_permission_given(
+                return LibrarySharePermissions.has_explicit_permission_given(
                     user, 
                     database, 
                     acceptable_permissions=[DatabasePermissions.CAN_VIEW_DB, DatabasePermissions.CAN_EDIT_DB, DatabasePermissions.CAN_RUN_DB],
                     prohibited_permissions=[DatabasePermissions.DENY_ACCESS]) # check if user has these permissions
 
     @staticmethod
-    def has_change_permission(user: Union[AbstractBaseUser, AnonymousUser], database: Union[BlastDb, None]) -> bool:
+    def has_change_permission(user: Union[AbstractBaseUser, AnonymousUser], database: Union[Library, None]) -> bool:
         if not user.is_authenticated: # user account needed for editing
             return False 
         elif database is None: # for generic models, give access so long as there is a deletable database
-            return isinstance(user, User) and BlastDb.objects.editable(user).exists()
+            return isinstance(user, User) and Library.objects.editable(user).exists()
         else:
             if not isinstance(user, User):
                 return False
             elif database.owner == user or user.is_superuser:
                 return True 
-            return DatabaseSharePermissions.has_explicit_permission_given(user, 
+            return LibrarySharePermissions.has_explicit_permission_given(user, 
                 database, 
                 acceptable_permissions=[DatabasePermissions.CAN_EDIT_DB],
                 prohibited_permissions=[DatabasePermissions.DENY_ACCESS]) # check if user has these permissions
 
     @staticmethod
-    def has_delete_permission(user: Union[AbstractBaseUser, AnonymousUser], database: Union[BlastDb, None]) -> bool:
+    def has_delete_permission(user: Union[AbstractBaseUser, AnonymousUser], database: Union[Library, None]) -> bool:
         '''
-        Return whether the user can delete a database
+        Return whether the user can delete a reference library
         '''
-        if not user or not user.is_authenticated: # user account needed for deleting 
-            return False 
-        elif not isinstance(user, User):
-            return False
-        elif not database is None and database.owner == user: # for generic models, give access by default
-            return BlastDb.objects.editable(user).exists()
-        return user.is_superuser # only superuser to edit permissions
-    
+        return isinstance(user, User) and user.is_superuser
+
+class DatabaseSharePermissions(CustomPermissions[BlastDb]):
+    @staticmethod 
+    def has_explicit_permission_given(user: AbstractUser, database: BlastDb, acceptable_permissions: List[str], prohibited_permissions: List[str] = [DatabasePermissions.DENY_ACCESS]):
+        pass
+
+    @staticmethod
+    def has_module_permission(user: Union[AbstractBaseUser, AnonymousUser]) -> bool:
+        return LibrarySharePermissions.has_module_permission(user)
+
+    @staticmethod
+    def has_add_permission(user: Union[AbstractBaseUser, AnonymousUser], obj: Union[BlastDb, None]) -> bool:
+        if obj is None:
+            return isinstance(user, AbstractUser) and user.is_authenticated
+        else:
+            return LibrarySharePermissions.has_add_permission(user, obj.library)
+
+    @staticmethod
+    def has_view_permission(user: Union[AbstractBaseUser, AnonymousUser], obj: Union[BlastDb, None]) -> bool:
+        if obj is None:
+            return True
+        else:
+            return LibrarySharePermissions.has_add_permission(user, obj.library)
+ 
+
+    @staticmethod
+    def has_run_permission(user: Union[AbstractBaseUser, AnonymousUser], obj: Union[BlastDb, None]) -> bool:
+        if obj is None:
+            return isinstance(user, AbstractUser) and user.is_authenticated
+        else:
+            return LibrarySharePermissions.has_run_permission(user, obj.library)
+
+    @staticmethod
+    def has_change_permission(user: Union[AbstractBaseUser, AnonymousUser], obj: Union[BlastDb, None]) -> bool:
+        if obj is None:
+            return isinstance(user, AbstractUser) and user.is_authenticated
+        else:
+            return LibrarySharePermissions.has_change_permission(user, obj.library)
+
+    @staticmethod
+    def has_delete_permission(user: Union[AbstractBaseUser, AnonymousUser], obj: Union[BlastDb, None]) -> bool:
+        if obj is None:
+            return isinstance(user, AbstractUser) and user.is_authenticated
+        else:
+            return LibrarySharePermissions.has_delete_permission(user, obj.library)
+
 class RunSharePermissions(CustomPermissions[BlastRun]):
     '''
     Determine user permissions for a BlastRun
@@ -325,11 +364,13 @@ class NuccoreSharePermission(CustomPermissions[NuccoreSequence]):
         if obj is None:
             return NuccoreSharePermission.defer_to_database(
                 DatabaseSharePermissions.has_change_permission, user, obj)
+        elif isinstance(user, User) and user.is_superuser:
+            return NuccoreSharePermission.defer_to_database(
+                DatabaseSharePermissions.has_delete_permission, user, obj) 
         else:
             return NuccoreSharePermission.defer_to_database(
                 DatabaseSharePermissions.has_change_permission, user, obj) \
                 and not obj.owner_database.locked
-
 
 class HitSharePermission(CustomPermissions[Hit]):
     
@@ -394,17 +435,17 @@ class BaseEndpointPermission(Generic[SharePermission, EndpointModel], permission
             return share_permission_type.has_change_permission(request.user, obj)
         elif request.method in ['POST']:
             return share_permission_type.has_add_permission(request.user, obj)
-        else:
+        elif request.method == 'DELETE':
             return share_permission_type.has_delete_permission(request.user, obj) 
+        else:
+            return share_permission_type.has_view_permission(request.user, obj)
     
     def has_permission(self, request, view):
         return super().has_permission(request, view)
 
     def has_object_permission(self, request, view, obj):
         return self.determine_obj_permission(self.get_share_permission_type(), request, view, obj)
-    
-
-    
+     
 class NuccoreSequenceEndpointPermission(BaseEndpointPermission[NuccoreSharePermission, NuccoreSequence]):
     '''
     Permission class used for NuccoreSequence endpoints
@@ -417,8 +458,14 @@ class BlastDbEndpointPermission(BaseEndpointPermission[DatabaseSharePermissions,
     '''
     message = 'Insufficient permissions for this action.'
 
-class BlastRunEndpointPermission(BaseEndpointPermission[DatabaseSharePermissions, BlastRun]):
+class BlastRunEndpointPermission(BaseEndpointPermission[RunSharePermissions, BlastRun]):
     '''
     Permission class used for BlastRun endpoints
+    '''
+    message = 'Insufficient permissions for this action.'
+
+class LibraryEndpointPermission(BaseEndpointPermission[LibrarySharePermissions, Library]):
+    '''
+    Permission class used for Library endpoints
     '''
     message = 'Insufficient permissions for this action.'

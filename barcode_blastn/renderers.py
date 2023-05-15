@@ -50,7 +50,8 @@ class BlastDbCSVRenderer(BaseRenderer):
 
         comment_writer = csv.writer(response)
         comment_writer.writerow([f'# Barcode Identifier API'])
-        comment_writer.writerow([f"# Database: {data['custom_name']}"])
+        comment_writer.writerow([f"# Library: {data['library']['custom_name']}"])
+        comment_writer.writerow([f"# Version: {data['version_number']}"])
         comment_writer.writerow([f"# Description: {data['description']}"])
         
         # fields displayed for each sequence
@@ -81,7 +82,8 @@ class BlastRunTxtRenderer(BaseRenderer):
         for comment in comment_fields:
             if comment == 'db_used':
                 out_lines.append(f'# db_used-id={data[comment]["id"]}\n')
-                out_lines.append(f'# db_used-custom_name={data[comment]["custom_name"]}\n')
+                out_lines.append(f'# db_used-custom_name={data[comment]["library"]["custom_name"]}\n')
+                out_lines.append(f'# db_used-custom_name={data[comment]["version_number"]}\n')
                 out_lines.append(f'# db_used-description={data[comment]["description"]}\n')
             else:
                 val : str = data[comment]
