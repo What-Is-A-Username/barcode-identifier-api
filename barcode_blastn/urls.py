@@ -43,7 +43,7 @@ urlpatterns = [
 
     # Reference Libraries
     path('libraries/', views.LibraryListView.as_view()),
-    path('libraries/<uuid:library>/versions', views.LibraryBlastDbList.as_view()),
+    path('libraries/<uuid:library>/versions/', views.LibraryBlastDbList.as_view()),
     path('libraries/<uuid:library>', views.LibraryDetailView.as_view()),
 
     # Library Versions

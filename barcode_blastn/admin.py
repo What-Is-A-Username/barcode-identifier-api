@@ -37,11 +37,15 @@ class SequenceFormset(BaseInlineFormSet):
             for form in self.forms
             if form.is_valid() and form not in self.deleted_forms
         ]
-        accession_numbers = [form.cleaned_data['accession_number'] for form in valid_forms]
+        accession_numbers = [form.cleaned_data.get('accession_number', '') for form in valid_forms]
+        if any([len(acc) == 0 for acc in accession_numbers]):
+            raise ValidationError(f'One or more accessions to be added had a missing accession number')
         try:
             retrieve_gb(accession_numbers=accession_numbers, raise_if_missing=True)
         except InsufficientAccessionData as exc:
             raise ValidationError(f'One or more accession numbers do not match a GenBank record: {", ".join(exc.missing_accessions)}')
+        except ValueError:
+            pass
         except BaseException as exc:
             raise ValidationError('Error validating accession numbers with GenBank.')
         else:
@@ -80,10 +84,7 @@ class NuccoreSequenceInline(admin.TabularInline):
         return DatabaseSharePermissions.has_view_permission(request.user, obj)
     
     def has_change_permission(self, request: HttpRequest, obj: Union[BlastDb, None] = None) -> bool:
-        if obj is None:
-            return DatabaseSharePermissions.has_change_permission(request.user, obj)
-        else:
-            return not obj.locked and DatabaseSharePermissions.has_change_permission(request.user, obj)
+        return False
 
     def has_delete_permission(self, request, obj: Union[BlastDb, None] = None) -> bool:
         if obj is None:
@@ -159,7 +160,7 @@ class LibraryAdmin(admin.ModelAdmin):
     list_display = ('custom_name', 'owner', 'public', 'latest_version', 'sequence_count', 'id')
 
     def get_fields(self, request: HttpRequest, obj: Optional[Library] = None):
-        fields = LibraryEditSerializer.Meta.fields
+        fields = LibraryEditSerializer.Meta.fields.copy()
         fields.extend(['owner', 'created'])
         return fields
          
@@ -174,6 +175,10 @@ class LibraryAdmin(admin.ModelAdmin):
 
     def delete_model(self, request: HttpRequest, obj: Library) -> None:
         delete_library(obj)
+
+    def save_model(self, request: Any, obj: Any, form: Any, change: Any) -> None:
+        obj.owner = request.user
+        return super().save_model(request, obj, form, change)
 
 @admin.register(BlastDb)
 class BlastDbAdmin(admin.ModelAdmin):

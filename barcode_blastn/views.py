@@ -162,6 +162,7 @@ class NuccoreSequenceAdd(mixins.UpdateModelMixin, mixins.DestroyModelMixin, gene
     serializer_class = NuccoreSequenceBulkAddSerializer
     permission_classes = [NuccoreSequenceEndpointPermission]
     queryset = NuccoreSequence.objects.all()
+    parser_classes = [JSONParser, FormParser, MultiPartParser]
     
     @swagger_auto_schema(
         operation_summary='Add accession numbers to database.',
@@ -202,10 +203,24 @@ class NuccoreSequenceAdd(mixins.UpdateModelMixin, mixins.DestroyModelMixin, gene
         except BlastDb.DoesNotExist:
             return Response({'message': 'Database does not exist', 'requested': pk}, status.HTTP_404_NOT_FOUND)
         
+        # Desired numbers collects the accession numbers to add to the database
+        desired_numbers = []
+        # Check if accession number file provided
+        accession_file = request.FILES.get('accession_file', None)
+        # return an error if no file of name 'query_file' was found in the request
+        if not accession_file is None:
+            query_file_io = io.StringIO(accession_file.file.read().decode('UTF-8'))
+            file_accessions: List[str] = query_file_io.readlines()
+            desired_numbers.extend(file_accessions)
+
         # Check if accession numbers provided
-        if not 'accession_numbers' in request.data:
-            return Response({'message': 'Missing required list of accession numbers to add.', 'accession_numbers': []}, status.HTTP_400_BAD_REQUEST)
-        desired_numbers = request.data['accession_numbers']
+        serialized_data = NuccoreSequenceBulkAddSerializer(data=request.data)
+        if serialized_data.is_valid():
+            desired_numbers.extend(request.data.get('accession_numbers', []))
+
+        # Respond with error if accessions empty
+        if len(desired_numbers) == 0:
+            return Response({'message': 'The list of numbers to add cannot be empty.', 'accession_numbers': str(desired_numbers)}, status.HTTP_400_BAD_REQUEST)
 
         # Deny user if user has insufficient permissions
         if not NuccoreSharePermission.has_add_permission(user=request.user, obj=None):
@@ -501,8 +516,7 @@ class LibraryListView(mixins.ListModelMixin, generics.CreateAPIView):
         List all reference libraries
         '''
 
-        # queryset = Library.objects.viewable(request.user)
-        queryset = Library.objects.all()
+        queryset = Library.objects.viewable(request.user)
 
         page = self.paginate_queryset(queryset)
         if page is not None:
@@ -713,7 +727,7 @@ class LibraryBlastDbList(mixins.ListModelMixin, generics.CreateAPIView):
         if not LibrarySharePermissions.has_view_permission(request.user, library):
             return Response(status=status.HTTP_403_FORBIDDEN) 
 
-        queryset = BlastDb.objects.viewable(request.user).filter(library=library_pk)
+        queryset = BlastDb.objects.viewable(request.user).filter(library=library_pk).reverse()
 
         page = self.paginate_queryset(queryset)
         if page is not None:
@@ -796,7 +810,6 @@ class LibraryBlastDbList(mixins.ListModelMixin, generics.CreateAPIView):
                 assert isinstance(serializer.validated_data, dict)
             except AssertionError:
                 return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
             # Ensure that accession_numbers and base are parsed in order to be
             # passed to create_blastdb
             serializer_data = serializer.validated_data
@@ -831,7 +844,8 @@ class LibraryBlastDbList(mixins.ListModelMixin, generics.CreateAPIView):
                 raise exc
             else:
                 # serialize the list of created objects so they can be sent back
-                return Response(self.get_serializer_class()(BlastDb.objects.get(id=new_database.id)).data, status = status.HTTP_201_CREATED)
+                return Response(BlastDbSerializer(BlastDb.objects.get(id=new_database.id)).data, status = status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.DestroyModelMixin, generics.GenericAPIView):
     '''

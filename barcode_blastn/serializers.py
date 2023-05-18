@@ -140,8 +140,11 @@ class NuccoreSequenceBulkAddSerializer(serializers.Serializer):
     Serialize data when receiving a request to bulk add sequences to a database
     '''
     accession_numbers = serializers.ListField(
-        child=serializers.CharField()
+        child=serializers.CharField(),
+        required=False
     )
+    # TODO: Specify max length https://www.django-rest-framework.org/api-guide/fields/#filefield
+    accession_file = serializers.FileField(allow_empty_file=True, required=False)
 
     class Meta:
         ref_name = nuccore_title
@@ -359,7 +362,7 @@ class BlastDbListSerializer(serializers.ModelSerializer):
     class Meta:
         model = BlastDb
         ref_name = blast_db_title 
-        fields = ['id', 'version_number', 'description', 'locked']
+        fields = ['id', 'version_number', 'custom_name', 'description', 'locked']
         example = [{
             "id": "66855f2c-f360-4ad9-8c98-998ecb815ff5",
             "version_number": '254.2.1',
