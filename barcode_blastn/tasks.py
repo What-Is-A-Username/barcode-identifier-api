@@ -27,7 +27,7 @@ HARD_TIME_LIMIT_IN_SECONDS = 600
 def raise_error(run: BlastRun, err: str) -> None:
     print(err)
     run.errors = run.errors + "\n" + err
-    run.job_status = BlastRun.JobStatus.ERRORED
+    run.status = BlastRun.JobStatus.ERRORED
     run.save()
     return
 
@@ -51,8 +51,8 @@ def run_blast_command(ncbi_blast_version: str, fishdb_id: str, run_id: str) -> b
         print(f"Critical error: BlastRun of id {run_id} does not exist.")
         raise RuntimeError('BlastRun of specified id does not exist')
 
-    run_details.job_status = BlastRun.JobStatus.STARTED
-    run_details.job_start_time = datetime.now()
+    run_details.status = BlastRun.JobStatus.STARTED
+    run_details.start_time = datetime.now()
     run_details.save()
 
     blast_root = get_ncbi_folder(ncbi_blast_version=ncbi_blast_version)
@@ -183,7 +183,7 @@ PERIOD = 10 # Time between calls, in number of seconds
 def performAlignment(blast_successful: bool, run_id: str) -> Tuple[str, int]:
     '''Perform tree construction for the given run specified by run_id.
         Return a three item tuple, representing the status message and status number.
-        The job was successful if status number is 201 
+        The job was successful if status number is 201 or 200.
     '''
 
     if not blast_successful:
@@ -199,8 +199,8 @@ def performAlignment(blast_successful: bool, run_id: str) -> Tuple[str, int]:
         
     # Return if no construction needs to occur
     if not run.create_db_tree and not run.create_hit_tree:
-        run.job_status = BlastRun.JobStatus.FINISHED
-        run.job_end_time = datetime.now()
+        run.status = BlastRun.JobStatus.FINISHED
+        run.end_time = datetime.now()
         run.save()
         return ('', status.HTTP_200_OK)
 
@@ -260,10 +260,10 @@ def performAlignment(blast_successful: bool, run_id: str) -> Tuple[str, int]:
             return (all_job_result[1], all_job_result[2]) 
 
     try:
-        run.job_status = BlastRun.JobStatus.FINISHED
+        run.status = BlastRun.JobStatus.FINISHED
         run.db_tree = readDbTreeFromFile(run) if run.create_db_tree else ''
         run.hit_tree = readHitTreeFromFile(run) if run.create_hit_tree else ''
-        run.job_end_time = datetime.now()
+        run.end_time = datetime.now()
         run.save()
     except BaseException as exc:
         raise_error(run, f"Errored while updating run status.")

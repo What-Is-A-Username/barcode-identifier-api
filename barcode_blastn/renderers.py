@@ -75,7 +75,7 @@ class BlastRunTxtRenderer(BaseRenderer):
         run_id = data['id']
         
         # get a list of fields to display as comments at the start of the file
-        exclude_fields = ['runtime', 'queries', 'job_status', 'hits', 'create_hit_tree', 'hit_tree', 'alignment_job_id', 'create_db_tree', 'db_tree', 'complete_alignment_job_id', 'owner_run']
+        exclude_fields = ['start_time', 'queries', 'status', 'hits', 'create_hit_tree', 'hit_tree', 'alignment_job_id', 'create_db_tree', 'db_tree', 'complete_alignment_job_id', 'owner_run']
         comment_fields = [ field for field in BlastRunSerializer.Meta.fields if field not in exclude_fields]
 
         # write the comments
@@ -96,7 +96,7 @@ class BlastRunTxtRenderer(BaseRenderer):
         run_folder = get_data_run_path(run_id)
 
         # only print results if run is finished and file exists
-        if data['job_status'] == BlastRun.JobStatus.FINISHED:
+        if data['status'] == BlastRun.JobStatus.FINISHED:
             results_file = f'{run_folder}results.txt'
             if os.path.exists(results_file) and os.path.isfile(results_file):
                 with open(results_file, 'r') as results_txt_file:
@@ -125,7 +125,7 @@ class BlastRunCSVRenderer(BaseRenderer):
         response = io.StringIO()
 
         # get a list of fields to display as comments at the start of the file
-        exclude_fields = ['runtime', 'queries', 'job_status', 'hits', 'create_hit_tree', 'hit_tree', 'alignment_job_id', 'create_db_tree', 'db_tree', 'complete_alignment_job_id', 'owner_run']
+        exclude_fields = ['start_time', 'queries', 'status', 'hits', 'create_hit_tree', 'hit_tree', 'alignment_job_id', 'create_db_tree', 'db_tree', 'complete_alignment_job_id', 'owner_run']
         comment_fields = [ field for field in BlastRunSerializer.Meta.fields if field not in exclude_fields]
 
         # write the comments

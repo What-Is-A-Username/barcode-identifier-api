@@ -70,6 +70,7 @@ def retrieve_gb(accession_numbers: List[str], raise_if_missing: bool = False) ->
     try:
         handle = Entrez.efetch(db="nucleotide", rettype="gb", retmode="text", id=accessions_query_string)
     except:
+        # TODO: This fetch returns a different error if NONE of the accessions match a record. So add functionality to distinguish these cases from a network error.
         raise GenBankConnectionError(accession_numbers)
     response_time_str = datetime.now().strftime("%H:%M:%S.%f")
     print(f'{response_time_str} | Response received from GenBank for accessions {accessions_query_string}')

@@ -32,22 +32,29 @@ urlpatterns = [
     re_path(r'^swagger(?P<format>\.json|\.yaml)$', schema_view.without_ui(cache_timeout=0), name='schema-json'),
     re_path(r'^swagger/$', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
     re_path(r'^redoc/$', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
+
     # Django-Rest-Knox Authentication
     path(r'login/', views.LoginView.as_view(), name='knox_login'),
     path(r'logout/', views.LogoutView.as_view(), name='knox_logout'),
     path(r'logoutall/', views.LogoutAllView.as_view(), name='knox_logoutall'),
+
     # Token Authentication Testing 
     path('users/', views.UserDetailView.as_view()),
 
+    # Reference Libraries
     path('libraries/', views.LibraryListView.as_view()),
-    path('libraries/<uuid:library>/versions', views.BlastDbList.as_view()),
+    path('libraries/<uuid:library>/versions', views.LibraryBlastDbList.as_view()),
     path('libraries/<uuid:library>', views.LibraryDetailView.as_view()),
 
+    # Library Versions
     path('blastdbs/<uuid:pk>/', views.BlastDbDetail.as_view()),
-    path('blastdbs/<uuid:pk>/add/', views.NuccoreSequenceAdd.as_view()),
+    path('blastdbs/<uuid:pk>/sequences/', views.NuccoreSequenceAdd.as_view()),
     path('blastdbs/<uuid:pk>/run/', views.BlastRunRun.as_view()),
 
+    # nuccore sequence
     path('nuccores/<uuid:pk>/', views.NuccoreSequenceDetail.as_view()),
+
+    # runs
     path('runs/', views.BlastRunList.as_view()),
     path('runs/<uuid:pk>/', views.BlastRunDetail.as_view()),
     path('runs/<uuid:pk>/status/', views.BlastRunStatus.as_view()),

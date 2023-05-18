@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.contrib.auth.models import User
@@ -101,6 +102,7 @@ class Library(models.Model):
     # Is the database accessible to the public for viewing and running?
     public = models.BooleanField(default=False, help_text='Is this reference library accessible to the public?')
     
+    # Access permissions granted to users by the owner
     shares = models.ManyToManyField(User, related_name='permission', related_query_name='permissions', through='DatabaseShare')
 
     # Short description of the database
@@ -108,9 +110,12 @@ class Library(models.Model):
 
     # Unique identifier for the BLAST database
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, help_text='Unique identifier of this Reference Library')
-    
+
     # The user-customized title
     custom_name = models.CharField(max_length=255, help_text='Name of Reference Library')
+
+    # Time of first creation
+    created = models.DateTimeField(auto_now_add=True, help_text='Date and time at which reference library was first created')
 
     def __str__(self) -> str:
         return f'"{self.custom_name}" Library ({str(self.id)})'
@@ -119,6 +124,16 @@ class Library(models.Model):
         ordering = ['custom_name']
         verbose_name = 'Reference Library'
         verbose_name_plural = 'Reference Libraries'
+
+    def latest(self):
+        return self.blastdb_set.latest(self)
+
+    def latest_version(self):
+        db = self.latest()
+        if db is None:
+            return ""
+        else:
+            return f'{db.version_number()} ({db.custom_name})'
 
 class BlastDbManager(models.Manager):
     def latest(self, library: Library):
@@ -148,16 +163,14 @@ class BlastDbManager(models.Manager):
 class BlastDb(models.Model):
     objects = BlastDbManager()
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, help_text='Unique identifier of this BLAST database version')
+    custom_name = models.CharField(max_length=255, help_text='Name of the database version')
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, help_text='Unique identifier of this database version of the library')
 
-    library = models.ForeignKey(Library, on_delete=models.CASCADE)
+    library = models.ForeignKey(Library, on_delete=models.CASCADE, help_text='The reference library which this database is a version of.')
 
-    genbank_version = models.SmallIntegerField(default=1, 
-        validators=[MaxValueValidator(32767), MaxValueValidator(1)])
-    major_version = models.SmallIntegerField(default=1, 
-        validators=[MaxValueValidator(32767), MaxValueValidator(1)])
-    minor_version = models.SmallIntegerField(default=1, 
-        validators=[MaxValueValidator(32767), MaxValueValidator(1)])
+    genbank_version = models.SmallIntegerField(default=1, validators=[MaxValueValidator(32767), MaxValueValidator(1)], help_text='Version number reflective of changes in sequence data, accession.versions, and the set of accessions included.')
+    major_version = models.SmallIntegerField(default=1, validators=[MaxValueValidator(32767), MaxValueValidator(1)], help_text='Version number reflective of changes in important metadata such as source information, location, specimen identifiers.')
+    minor_version = models.SmallIntegerField(default=1, validators=[MaxValueValidator(32767), MaxValueValidator(1)], help_text='Version number reflective of minor changes such as database description, names, references.')
 
     def version_number(self) -> str:
         return f'{self.genbank_version}.{self.major_version}.{self.minor_version}'
@@ -166,7 +179,9 @@ class BlastDb(models.Model):
         return NuccoreSequence.objects.filter(owner_database=self).count()
 
     # The creation datetime of this version
-    created = models.DateTimeField(auto_now_add=True, help_text='Date and time at which database was created')
+    created = models.DateTimeField(auto_now_add=True, help_text='Date and time at which database was created.')
+    # Last modified
+    modified = models.DateTimeField(auto_now=True, help_text='Date and time at which database was last modified.')
     # Short description of the version
     description = models.CharField(max_length=1024, blank=True, default='', help_text='Description of this version')
     # Locked
@@ -174,9 +189,9 @@ class BlastDb(models.Model):
 
     def __str__(self) -> str:
         if self.locked:
-            return f'"{self.library.custom_name}", Version {self.version_number()} ({self.id})'
+            return f'"{self.library.custom_name}", Version {self.version_number()}, ({self.custom_name}) ({self.id})'
         else:
-            return f'"{self.library.custom_name}", Unpublished ({self.id})'
+            return f'"{self.library.custom_name}", Unpublished ({self.custom_name}), ({self.id})'
 
     class Meta:
         ordering = ['genbank_version', 'major_version', 'minor_version']
@@ -186,10 +201,8 @@ class BlastDb(models.Model):
 class DatabaseShare(models.Model):
     # The database these permissions apply to
     database = models.ForeignKey(Library, on_delete=models.CASCADE, help_text='The database these permissions apply to.')
-
     # User that the permissions apply to
     grantee = models.ForeignKey(User, on_delete=models.CASCADE, help_text='User that the permissions apply to.')
-
     # Permission level given to this relationship 
     permission_level = models.CharField(max_length=16, choices=DatabasePermissions.choices, default=DatabasePermissions.DENY_ACCESS, help_text='Access permissions')
 
@@ -219,7 +232,6 @@ class NuccoreSequence(models.Model):
     owner_database = models.ForeignKey(BlastDb, related_name='sequences',
         on_delete=models.CASCADE, help_text='The curated database to which this sequence was added')
 
-    created = models.DateTimeField(auto_now_add=True, help_text='Date and time at which record was last updated from GenBank')
     accession_number = models.CharField(max_length=255, help_text='Accession number on GenBank')
     version = models.CharField(max_length=63, help_text='The accession.version on GenBank')
     uid = models.CharField(max_length=2048, blank=True, default='', help_text='Obselete UUID')
@@ -233,6 +245,11 @@ class NuccoreSequence(models.Model):
     translation = models.TextField(max_length=10000, blank=True, default='', help_text='Amino acid translation corresponding to the coding sequence')
     lat_lon = models.CharField(max_length=64, blank=True, default='', help_text='Latitude and longitude from which specimen originated')
     type_material = models.CharField(max_length=255, blank=True, default='', help_text='Specimen type of the source')
+    
+    # Time when instance first created
+    created = models.DateTimeField(auto_now_add=True, help_text='Date and time at which record was first created')
+    # Date and time when data was last updated
+    updated = models.DateTimeField(auto_now=True, help_text='Date and time when sequence data was last updated from GenBank')
 
     def __str__(self) -> str:
         return f'{self.accession_number}, {str(self.organism)} ({str(self.id)})'
@@ -264,8 +281,6 @@ class BlastRun(models.Model):
 
     # Reference to the database used
     db_used = models.ForeignKey(BlastDb, related_name='usages', on_delete=models.CASCADE, help_text='The curated BLAST database against which the query BLAST was run.')
-    # When was the run request first received (i.e. added to queue)
-    runtime = models.DateTimeField(auto_now_add=True, help_text='Date and time when run first received by server')
     # Job name
     job_name = models.CharField(max_length=255, blank=True, default='', help_text='Job name given by run submission')
 
@@ -298,19 +313,22 @@ class BlastRun(models.Model):
     def throw_error(self, debug_error_message: str = ''):
         '''Designate the current run to error and add debug_error_message string to errors.
         '''
-        self.job_error_time = datetime.now()
+        self.error_time = datetime.now()
         self.errors = ('\n' + debug_error_message) if len(self.errors) > 0 else debug_error_message
-        self.job_status = self.JobStatus.ERRORED
+        self.status = self.JobStatus.ERRORED
         self.save()
 
     # What is the current status of the job?
-    job_status = models.CharField(max_length=3,choices=JobStatus.choices, default=JobStatus.UNKNOWN, help_text='Current status of the job')
+    status = models.CharField(max_length=3,choices=JobStatus.choices, default=JobStatus.UNKNOWN, help_text='Current status of the job')
+    # When was the run request first received (i.e. added to queue)
+    received_time = models.DateTimeField(auto_now_add=True, help_text='Date and time when run first received by server')
     # Time that the job started running
-    job_start_time = models.DateTimeField(blank=True, null=True, help_text='Date and time when job first started running')
+    start_time = models.DateTimeField(blank=True, null=True, help_text='Date and time when job first started running')
     # Time that job successfully finished
-    job_end_time = models.DateTimeField(blank=True, null=True, help_text='Date and time when job successfully finished running')
+    end_time = models.DateTimeField(blank=True, null=True, help_text='Date and time when job successfully finished running')
     # Time that job errored
-    job_error_time = models.DateTimeField(blank=True, null=True, help_text='Date and time when job encountered an error')
+    error_time = models.DateTimeField(blank=True, null=True, help_text='Date and time when job encountered an error')
+    # TODO: add last modified time?
 
     # Blast version
     blast_version = models.TextField(max_length=100, blank=True, default='', help_text='Version of BLASTn used')
@@ -319,7 +337,7 @@ class BlastRun(models.Model):
     errors = models.TextField(max_length=10000, blank=True, default='', help_text='Error message text')
 
     class Meta:
-        ordering = ['runtime']
+        ordering = ['received_time']
         verbose_name = 'BLASTN Run'
         verbose_name_plural = 'BLASTN Runs'
 

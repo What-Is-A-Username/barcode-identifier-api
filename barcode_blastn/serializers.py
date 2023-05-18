@@ -1,3 +1,4 @@
+from datetime import datetime
 import json
 import os
 from typing import Union
@@ -67,6 +68,16 @@ class BlastDbTinySerializer(serializers.ModelSerializer):
     class Meta:
         model = BlastDb
         fields = ['id', 'description', 'version_number', 'sequence_count', 'created', 'locked']
+        example = []
+        example = {
+            "id": "66855f2c-f360-4ad9-8c98-998ecb815ff5",
+            "description": "This BLAST database is a collection of barcodes from 167 species of Neotropical electric knifefish (Teleostei: Gymnotiformes) which was presented by Janzen et al. 2022. All sequences and related feature data are updated daily at midnight (UTC) from NCBI's Genbank database.",
+            "library": LibraryShortSerializer.Meta.example,
+            "version_number": "1.1.1",
+            "sequence_count": 2,
+            "created": datetime.now(),
+            "locked": True
+        }
 
 class BlastDbShortSerializer(serializers.ModelSerializer):
     f"""
@@ -93,7 +104,7 @@ class BlastDbShortSerializer(serializers.ModelSerializer):
 
 class NuccoreSequenceSerializer(serializers.ModelSerializer):
     f"""
-    Complete information about a {nuccore_title} found within a {blast_db_title}. 
+    Complete information about a {nuccore_title} including the {blast_db_title} it belongs to. 
     """
     owner_database = BlastDbShortSerializer(many=False, read_only=True)
 
@@ -124,16 +135,6 @@ class NuccoreSequenceSerializer(serializers.ModelSerializer):
             "created": "2023-02-20T01:00:31.240961Z"
         }
 
-class NuccoreSequenceAddSerializer(serializers.ModelSerializer):
-    '''
-    Required fields for adding a sequence accession to the database
-    '''
-    class Meta:
-        model = NuccoreSequence
-        ref_name = nuccore_title + ' addition'
-        fields = ['accession_number']
-        example = {'accession_number': 'ON303341'}
-
 class NuccoreSequenceBulkAddSerializer(serializers.Serializer):
     '''
     Serialize data when receiving a request to bulk add sequences to a database
@@ -149,30 +150,6 @@ class NuccoreSequenceBulkAddSerializer(serializers.Serializer):
                 "GU701771",
                 "KF533332"
             ]
-        }
-
-class BlastDbSequenceEntryShortSerializer(serializers.ModelSerializer):
-    f'''Information about a {nuccore_title} when included in a list of {blast_db_title} contents.'''
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        for name in self.Meta.fields:
-            self.fields[name].required = True 
-            self.fields[name].read_only = True 
-
-    '''
-    Show a condensed summary of a sequence, in order to display with a list of all blastdbs
-    '''
-    class Meta:
-        model = NuccoreSequence
-        ref_name = nuccore_title + ' item'
-        fields = ['accession_number', 'version', 'organism', 'specimen_voucher', 'country'] 
-        example = {
-            "accession_number": "GU701771",
-            "version": "ON303341.1",
-            "organism": "Gymnotus pantherinus",
-            'specimen_voucher': 'LBP-24532',
-            "country": "Brazil: Sao Paulo, Upper Parana Basin"
         }
 
 class LibraryCreateSerializer(serializers.ModelSerializer):
@@ -199,7 +176,6 @@ class LibraryCreateSerializer(serializers.ModelSerializer):
             "description": "A collection of new sequences from several species of interest.",
             "public": True
         }
-
 class BlastDbSequenceEntrySerializer(serializers.ModelSerializer):
     f'''
     Show a summary of a {nuccore_title}, to be shown when its corresponding {blast_db_title} or {hit_title} is shown.
@@ -214,19 +190,23 @@ class BlastDbSequenceEntrySerializer(serializers.ModelSerializer):
     class Meta:
         model = NuccoreSequence
         ref_name = nuccore_title
-        fields = ['id', 'accession_number', 'version', 'definition', 'organism', 'isolate', 'country', 'specimen_voucher', 'lat_lon',  'type_material', 'dna_sequence']
+        fields = ['accession_number', 'version', 'organism', 'organelle', 'isolate', 'country', 'specimen_voucher', 'dna_sequence', 'lat_lon', 'type_material', 'created', 'updated'] 
         example = {
             "id": "5100cbd8-2fda-4b42-8aa1-10ede078448b",
             "accession_number": "ON303341",
             "version": "ON303341.1",
             "definition": "Brachyhypopomus arrayae isolate 12586 cytochrome c oxidase subunit I (COX1) gene, partial cds; mitochondrial",
             "organism": "Brachyhypopomus arrayae",
-            "isolate": "12586",
+            "organelle": "mitochondrion",
+            "isolate": "12586", 
             "country": "Bolivia",
             "specimen_voucher": "ANSP:197574",
             "lat_lon": "11.03 S 66.09 W",
+            "dna_sequence": "ATAGTATTTGGTGCATGAGCTGGGATAGTAGGCACAGCCTTAAGCCTCTTAATCCGAGCAGAACTAAGCCAGCCAGGAGCTCTTATGGGCGACGACCAAATTTACAATGTGATTGTTACTGCGCACGCTTTCGTAATAATTTTCTTCATGGTTATGCCCATTATAATCGGCGGGTTCGGCAACTGATTAATTCCCCTAATACTCGGTGCCCCTGACATGGCATTCCCACGAATAAACAACATAAGCTTCTGACTTCTGCCCCCATCATTCCTTCTACTCCTTGCATCCTCTGGGGTCGAAGCGGGAGCCGGAACCGGCTGAACTGTTTACCCCCCTCTCGCTAGCAACCTCGCCCACGCAGGGGCCTCCGTTGATCTAACTATCTTCTCCCTTCACCTTGCTGGGGTTTCTTCCATCCTTGGCTCTATCAACTTCATTACTACCATTATTAACATGAAACCCCCAGCCATATCTCAGTATCAAACCCCTCTATTTATTTGAGCGCTCCTAATTACCACAGTTCTCCTACTGTTATCCCTTCCCGTACTGGCCGCTGGTATCACCATGCTGCTAACAGACCGAAACCTAAATACAACCTTCTTCGACCCCGCAGGAGGAGGGGACCCCGTCCTTTATCAGCACTTA",
+            "translation": "",
             "type_material": "paratype of Brachyhypopomus arrayae",
-            "dna_sequence": "ATAGTATTTGGTGCATGAGCTGGGATAGTAGGCACAGCCTTAAGCCTCTTAATCCGAGCAGAACTAAGCCAGCCAGGAGCTCTTATGGGCGACGACCAAATTTACAATGTGATTGTTACTGCGCACGCTTTCGTAATAATTTTCTTCATGGTTATGCCCATTATAATCGGCGGGTTCGGCAACTGATTAATTCCCCTAATACTCGGTGCCCCTGACATGGCATTCCCACGAATAAACAACATAAGCTTCTGACTTCTGCCCCCATCATTCCTTCTACTCCTTGCATCCTCTGGGGTCGAAGCGGGAGCCGGAACCGGCTGAACTGTTTACCCCCCTCTCGCTAGCAACCTCGCCCACGCAGGGGCCTCCGTTGATCTAACTATCTTCTCCCTTCACCTTGCTGGGGTTTCTTCCATCCTTGGCTCTATCAACTTCATTACTACCATTATTAACATGAAACCCCCAGCCATATCTCAGTATCAAACCCCTCTATTTATTTGAGCGCTCCTAATTACCACAGTTCTCCTACTGTTATCCCTTCCCGTACTGGCCGCTGGTATCACCATGCTGCTAACAGACCGAAACCTAAATACAACCTTCTTCGACCCCGCAGGAGGAGGGGACCCCGTCCTTTATCAGCACTTA"
+            "created": "2023-02-20T01:00:31.240961Z",
+            "updated": "2023-02-20T01:00:31.240961Z"
         }
 
 class BlastDbCreateSerializer(serializers.ModelSerializer):
@@ -241,10 +221,6 @@ class BlastDbCreateSerializer(serializers.ModelSerializer):
         super().__init__(*args, **kwargs)
         for name in ['id', 'library', 'version_number', 'sequences']:
             self.fields[name].read_only = True
-        for name in ['id', 'version_number', 'description', 'locked', 'sequences']:
-            self.fields[name].required = True
-        for name in ['accession_numbers', 'base']:
-            self.fields[name].required = False
 
     '''
     Create a new blastdb
@@ -252,9 +228,10 @@ class BlastDbCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = BlastDb
         ref_name = blast_db_title + ' creation'
-        fields = ['id', 'library', 'version_number', 'description', 'locked', 'sequences', 'base', 'accession_numbers']
+        fields = ['id', 'library', 'version_number', 'custom_name', 'description', 'locked', 'sequences', 'base', 'accession_numbers']
         example = {
             "id": "66855f2c-f360-4ad9-8c98-998ecb815ff5",
+            "custom_name": "2022 Official Release",
             "library": LibraryShortSerializer.Meta.example,
             "description": "A collection of new sequences from several species of interest.",
             "version_number": '254.2.1',
@@ -266,17 +243,13 @@ class BlastDbEditSerializer(serializers.ModelSerializer):
     These fields are editable on the admin page and through PATCH requests.
     '''
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        for name in ['description', 'locked']:
-            self.fields[name].required = True
-
     class Meta:
         model = BlastDb
         ref_name = 'Editable' + blast_db_title + ' Fields'
-        fields = ['description', 'locked']
+        fields = ['description', 'locked', 'custom_name']
         example = {
             "description": "This BLAST database is a collection of barcodes from 167 species of Neotropical electric knifefish (Teleostei: Gymnotiformes) which was presented by Janzen et al. 2022. All sequences and related feature data are updated daily at midnight (UTC) from NCBI's Genbank database.",
+            "custom_name": "2022 Official Release",
             "locked": True,
         }
 
@@ -313,26 +286,26 @@ class LibrarySerializer(serializers.ModelSerializer):
     Show detailed information about a specific {library_title}
     '''
     owner = LibraryOwnerSerializer(many=False, read_only=True)
-    blastdb_set = BlastDbTinySerializer(many=True, read_only=True)
+    latest = BlastDbTinySerializer(many=False)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        read_only_fields = ['id', 'owner', 'blastdb_set']
+        read_only_fields = ['id', 'owner']
         for name in read_only_fields:
             self.fields[name].read_only = True
-        for name in ['id', 'custom_name', 'description', 'owner', 'public', 'blastdb_set']:
+        for name in ['id', 'custom_name', 'description', 'owner', 'public']:
             self.fields[name].required = True
 
     class Meta:
         model = Library
         ref_name = library_title
-        fields = ['id', 'custom_name', 'description', 'owner', 'public', 'blastdb_set']
+        fields = ['id', 'custom_name', 'description', 'owner', 'public', 'latest']
         example = {
             "id": "66855f2c-f360-4ad9-8c98-998ecb815ff5",
             "custom_name": "Neotropical electric knifefish",
             "description": "This BLAST database is a collection of barcodes from 167 species of Neotropical electric knifefish (Teleostei: Gymnotiformes) which was presented by Janzen et al. 2022. All sequences and related feature data are updated daily at midnight (UTC) from NCBI's Genbank database.",
             "owner": LibraryOwnerSerializer.Meta.example,
-            "blastdb_set": BlastDbSerializer.Meta.example,
+            "latest": BlastDbTinySerializer.Meta.example,
             "public": True,
         }
 
@@ -513,7 +486,7 @@ class BlastRunSerializer(serializers.ModelSerializer):
     class Meta:
         model = BlastRun    
         ref_name = run_title
-        fields = ['id', 'job_name', 'queries', 'db_used', 'runtime', 'job_status', 'job_start_time', 'job_end_time', 'job_error_time', 'hits', 'create_hit_tree', 'hit_tree', 'alignment_job_id', 'create_db_tree', 'db_tree', 'complete_alignment_job_id']
+        fields = ['id', 'job_name', 'queries', 'db_used', 'start_time', 'status', 'start_time', 'end_time', 'error_time', 'hits', 'create_hit_tree', 'hit_tree', 'alignment_job_id', 'create_db_tree', 'db_tree', 'complete_alignment_job_id']
         example = load_run_example()
 
 class BlastRunStatusSerializer(serializers.ModelSerializer):    
@@ -523,15 +496,15 @@ class BlastRunStatusSerializer(serializers.ModelSerializer):
     class Meta:
         model = BlastRun    
         ref_name = run_title + ' status'
-        fields = ['id', 'job_name', 'runtime', 'job_status', 'job_start_time', 'job_end_time', 'job_error_time']
+        fields = ['id', 'job_name', 'start_time', 'status', 'start_time', 'end_time', 'error_time']
         example = {
             "id": "2e5898a3-14da-4e7f-9599-ba1ef35f1e7a",
             "job_name": "two sequences",
-            "runtime": "2023-02-21T03:27:11.323521Z",
-            "job_status": "FIN",
-            "job_start_time": "2023-02-21T03:27:12.427193Z",
-            "job_end_time": "2023-02-21T03:28:02.102346Z",
-            "job_error_time": None,
+            "start_time": "2023-02-21T03:27:11.323521Z",
+            "status": "FIN",
+            "start_time": "2023-02-21T03:27:12.427193Z",
+            "end_time": "2023-02-21T03:28:02.102346Z",
+            "error_time": None,
         }
 
 class UserSerializer(serializers.ModelSerializer):

@@ -2,6 +2,7 @@
 # TODO: Add endpoint to give create, edit and remove DatabaseShare permissions
 # TODO: Guard endpoints to only allow signed in users
 
+from datetime import datetime
 import io
 import os
 import shutil
@@ -9,6 +10,7 @@ import uuid
 from typing import Any, Dict, List
 from urllib.error import HTTPError
 
+from barcode_identifier_api.celery import app
 from Bio import SeqIO
 from celery import signature
 from django.contrib.auth import login
@@ -16,7 +18,9 @@ from django.contrib.auth.models import User
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from knox.auth import TokenAuthentication
-from knox.views import LoginView as KnoxLoginView, LogoutView as KnoxLogoutView, LogoutAllView as KnoxLogoutAllView
+from knox.views import LoginView as KnoxLoginView
+from knox.views import LogoutAllView as KnoxLogoutAllView
+from knox.views import LogoutView as KnoxLogoutView
 from rest_framework import generics, mixins, status
 from rest_framework.authtoken.serializers import AuthTokenSerializer
 from rest_framework.exceptions import PermissionDenied
@@ -25,34 +29,44 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.renderers import (BrowsableAPIRenderer, JSONRenderer,
                                       TemplateHTMLRenderer)
 from rest_framework.response import Response
-from barcode_blastn.controllers.blastdb_controller import AccessionsAlreadyExist, InsufficientAccessionData, add_sequences_to_database, create_blastdb, delete_blastdb, delete_library, save_blastdb
 
+from barcode_blastn.controllers.blastdb_controller import (
+    AccessionsAlreadyExist, AccessionsNotFound, DatabaseLocked, InsufficientAccessionData,
+    add_sequences_to_database, create_blastdb, delete_blastdb, delete_library, delete_sequences_in_database,
+    save_blastdb, update_sequences_in_database)
 from barcode_blastn.file_paths import (get_data_fishdb_path, get_data_run_path,
                                        get_ncbi_folder, get_static_run_path)
-from barcode_blastn.helper.parse_gb import MAX_ACCESSIONS_PER_REQUEST, AccessionLimitExceeded, GenBankConnectionError, retrieve_gb
+from barcode_blastn.helper.parse_gb import (MAX_ACCESSIONS_PER_REQUEST,
+                                            AccessionLimitExceeded,
+                                            GenBankConnectionError)
 from barcode_blastn.helper.verify_query import verify_dna
-from barcode_blastn.helper.version import assign_new_version, get_new_version
-from barcode_blastn.models import (BlastDb, BlastQuerySequence, BlastRun, Library,
-                                   NuccoreSequence)
-from barcode_blastn.permissions import (BlastDbEndpointPermission,
-                                        BlastRunEndpointPermission,
-                                        DatabaseSharePermissions, LibraryEndpointPermission, LibrarySharePermissions,
+from barcode_blastn.models import (BlastDb, BlastQuerySequence, BlastRun,
+                                   Library, NuccoreSequence)
+from barcode_blastn.permissions import (BlastRunEndpointPermission,
+                                        DatabaseSharePermissions,
+                                        LibraryEndpointPermission,
+                                        LibrarySharePermissions,
                                         NuccoreSequenceEndpointPermission,
                                         NuccoreSharePermission)
 from barcode_blastn.renderers import (BlastDbCSVRenderer, BlastDbFastaRenderer,
                                       BlastRunCSVRenderer,
                                       BlastRunFastaRenderer,
                                       BlastRunTxtRenderer)
-from barcode_blastn.serializers import (BlastDbCreateSerializer, BlastDbEditSerializer,
-                                        BlastDbListSerializer, BlastDbSequenceEntryShortSerializer,
+from barcode_blastn.serializers import (BlastDbCreateSerializer,
+                                        BlastDbEditSerializer,
+                                        BlastDbListSerializer,
+                                        BlastDbSequenceEntrySerializer,
                                         BlastDbSerializer,
                                         BlastRunRunSerializer,
                                         BlastRunSerializer,
-                                        BlastRunStatusSerializer, LibraryCreateSerializer, LibraryEditSerializer, LibraryListSerializer, LibrarySerializer,
-                                        NuccoreSequenceAddSerializer,
+                                        BlastRunStatusSerializer,
+                                        LibraryCreateSerializer,
+                                        LibraryEditSerializer,
+                                        LibraryListSerializer,
+                                        LibrarySerializer,
                                         NuccoreSequenceBulkAddSerializer,
-                                        NuccoreSequenceSerializer, UserSerializer)
-from barcode_identifier_api.celery import app
+                                        NuccoreSequenceSerializer,
+                                        UserSerializer)
 
 tag_libraries = 'Libraries'
 tag_runs = 'Runs/Jobs'
@@ -141,7 +155,7 @@ class LoginView(KnoxLoginView):
 
         return response
 
-class NuccoreSequenceAdd(generics.CreateAPIView):   
+class NuccoreSequenceAdd(mixins.UpdateModelMixin, mixins.DestroyModelMixin, generics.CreateAPIView):   
     '''
     Bulk add sequences to a specified database
     '''
@@ -162,14 +176,13 @@ class NuccoreSequenceAdd(generics.CreateAPIView):
         )],
         request_body=NuccoreSequenceBulkAddSerializer,
         responses={
-            '200': openapi.Response(
-                description='No new sequences added because all already exist in the database.',
-                schema=NuccoreSequenceSerializer(many=True),
+            '201': openapi.Response(
+                description='All accession numbers added to the database.',
+                schema=BlastDbSequenceEntrySerializer(many=True),
                 examples={
-                    'application/json': [ NuccoreSequenceSerializer.Meta.example ]
+                    'application/json': [ BlastDbSequenceEntrySerializer.Meta.example ]
                 }
             ),
-            '201': 'Sequences successfully added to the database.',
             '400': 'Bad parameters in request. Example reasons: list may be empty or too long (>100); accession numbers may be invalid or duplicate; database may be locked',
             '403': 'Insufficient permissions.',
             '404': 'BLAST database matching the specified ID was not found.',
@@ -193,13 +206,9 @@ class NuccoreSequenceAdd(generics.CreateAPIView):
         if not 'accession_numbers' in request.data:
             return Response({'message': 'Missing required list of accession numbers to add.', 'accession_numbers': []}, status.HTTP_400_BAD_REQUEST)
         desired_numbers = request.data['accession_numbers']
-        if len(desired_numbers) == 0:
-            return Response({'message': 'The list of numbers to add cannot be empty.', 'accession_numbers': str(desired_numbers)}, status.HTTP_400_BAD_REQUEST)
 
-        # Check if the user has permission to add a sequence by creating a dummy sequence with the first accession number
-        dummy: NuccoreSequence = NuccoreSequence(owner_database=db, accession_number=desired_numbers[0])
-        # ... and deny user if has insufficient permissions
-        if not NuccoreSharePermission.has_add_permission(user=request.user, obj=dummy):
+        # Deny user if user has insufficient permissions
+        if not NuccoreSharePermission.has_add_permission(user=request.user, obj=None):
             return Response(status=status.HTTP_403_FORBIDDEN)
         
         # Respond with an error if database is locked
@@ -207,8 +216,96 @@ class NuccoreSequenceAdd(generics.CreateAPIView):
             return Response({'message': 'The database is locked and its accession numbers cannot be added, edited or removed.'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            created_sequences, updated_sequences = add_sequences_to_database(db, desired_numbers)
+            created_sequences = add_sequences_to_database(db, desired_numbers)
+        except DatabaseLocked as exc:
+            return Response({'message': f"Cannot modify sequences in a locked database."}, status=status.HTTP_400_BAD_REQUEST)
         except AccessionsAlreadyExist as exc:
+            return Response({
+                    'message': "Every accession number specified to be added already exists in the database.", 
+                    'accession_numbers': exc.accession_numbers}, 
+                    status=status.HTTP_400_BAD_REQUEST)
+        except AccessionLimitExceeded as exc:
+            return Response({
+                    'message': f"Bulk addition of sequences requires a list of accession numbers and the list length must have 1 to {exc.max_accessions} elements (inclusive).", 
+                    "accession_numbers": desired_numbers 
+                }, 
+                status=status.HTTP_400_BAD_REQUEST)
+        except GenBankConnectionError as exc:
+            return Response({
+                    'message': f"The GenBank database could not be connected to.", 
+                    "accession_numbers": desired_numbers, 
+                    "queried_numbers": exc.queried_accessions
+                }, 
+                status=status.HTTP_502_BAD_GATEWAY)
+        except InsufficientAccessionData as exc:
+            return Response({
+                    'message': f"The GenBank database failed to return some accession numbers so no numbers were added at all.", 
+                    "accession_numbers": desired_numbers,
+                    "missing_accessions": exc.missing_accessions
+                }, 
+                status=status.HTTP_400_BAD_REQUEST)
+        else:
+            # serialize the list of created objects so they can be sent back
+            serialized_data = BlastDbSequenceEntrySerializer(created_sequences, many = True).data
+            return Response(serialized_data, status = status.HTTP_201_CREATED)
+
+    @swagger_auto_schema(
+        operation_summary='Update accessions from GenBank data.',
+        operation_description=f'From a list of accession numbers, update their accessions by refetching data from GenBank. List must contain between 1-{MAX_ACCESSIONS_PER_REQUEST} accession numbers inclusive.',
+        tags = [tag_blastdbs, tag_sequences],
+        manual_parameters=[openapi.Parameter(
+            name='id',
+            description='Id of BLAST database to update accession numbers in',
+            in_=openapi.IN_PATH, 
+            type=openapi.TYPE_STRING,
+            format=openapi.FORMAT_UUID
+        )],
+        request_body=NuccoreSequenceBulkAddSerializer,
+        responses={
+            '200': openapi.Response(
+                description='All accession numbers updated.',
+                schema=BlastDbSequenceEntrySerializer(many=True),
+                examples={
+                    'application/json': [ BlastDbSequenceEntrySerializer.Meta.example ]
+                }
+            ),
+            '400': 'Bad parameters in request. Example reasons: list may be empty or too long (>100); accession numbers may not exist in database yet; database may be locked',
+            '403': 'Insufficient permissions.',
+            '404': 'BLAST database matching the specified ID was not found.',
+            '500': 'Unexpected error.',
+            '502': 'Encountered error connecting to GenBank.'
+        }
+    )
+    def patch(self, request, *args, **kwargs):
+        '''
+        Update certain accession numbers.
+        '''
+        pk = kwargs['pk']
+        db: BlastDb
+        # Query for the Blast database
+        try:
+            db = BlastDb.objects.get(id=pk)
+        except BlastDb.DoesNotExist:
+            return Response({'message': 'Database does not exist', 'requested': pk}, status.HTTP_404_NOT_FOUND)
+        
+        # Check if accession numbers provided
+        if not 'accession_numbers' in request.data:
+            return Response({'message': 'Missing required list of accession numbers to update.', 'accession_numbers': []}, status.HTTP_400_BAD_REQUEST)
+        desired_numbers = request.data['accession_numbers']
+
+        # Deny user if user has insufficient permissions
+        if not NuccoreSharePermission.has_change_permission(user=request.user, obj=None):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        
+        # Respond with an error if database is locked
+        if db.locked:
+            return Response({'message': 'The database is locked and its accession numbers cannot be added, edited or removed.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            updated_sequences = update_sequences_in_database(db, desired_numbers)
+        except DatabaseLocked as exc:
+            return Response({'message': f"Cannot modify sequences in a locked database."}, status=status.HTTP_400_BAD_REQUEST)
+        except AccessionsNotFound as exc:
             return Response({'message': "Every accession number specified to be added already exists in the database.", 'accession_numbers': desired_numbers}, status=status.HTTP_200_OK)
         except AccessionLimitExceeded as exc:
             return Response({
@@ -230,21 +327,79 @@ class NuccoreSequenceAdd(generics.CreateAPIView):
                     "missing_accessions": exc.missing_accessions
                 }, 
                 status=status.HTTP_400_BAD_REQUEST)
-        except HTTPError:
-            return Response({
-                    'message': f"The GenBank database could not be connected to.", 
-                    "accession_numbers": desired_numbers, 
-                }, 
-                status=status.HTTP_502_BAD_GATEWAY)
-        except BaseException:
-            return Response({'message': f"Failed to parse GenBank database response when requested for a list of accession numbers", 
-                    "accession_numbers": desired_numbers, 
-                },
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         else:
-            # serialize the list of created objects so they can be sent back
-            serialized_data = NuccoreSequenceSerializer(created_sequences, many = True).data
-            return Response(serialized_data, status = status.HTTP_201_CREATED)
+            # serialize the list of updated objects so they can be sent back
+            serialized_data = BlastDbSequenceEntrySerializer(updated_sequences, many = True).data
+            return Response(serialized_data, status = status.HTTP_202_ACCEPTED)
+
+    @swagger_auto_schema(
+        operation_summary='Delete accessions from database.',
+        operation_description=f'Delete all accession numbers from a given BLAST database.',
+        tags = [tag_blastdbs, tag_sequences],
+        manual_parameters=[openapi.Parameter(
+            name='id',
+            description='Id of BLAST database to update accession numbers in',
+            in_=openapi.IN_PATH, 
+            type=openapi.TYPE_STRING,
+            format=openapi.FORMAT_UUID
+        )],
+        responses={
+            '202': openapi.Response(
+                description='Sequences deleted.',
+                schema=openapi.Schema(
+                        type=openapi.TYPE_OBJECT,
+                        properties={
+                            'deleted': openapi.Schema(
+                                type=openapi.TYPE_STRING,
+                                description='The number of objects deleted',
+                                example=1
+                            ),
+                        }
+                    ),
+                examples={
+                    'application/json': {
+                        'deleted': 2
+                    }
+                }
+            ),
+            '400': 'Bad parameters in request. Database may be locked',
+            '403': 'Insufficient permissions.',
+            '404': 'BLAST database matching the specified ID was not found.',
+            '500': 'Unexpected error.',
+            '502': 'Encountered error connecting to GenBank.'
+        }
+    )
+    def delete(self, request, *args, **kwargs):
+        '''
+        Delete all existing accessions
+        '''
+        pk = kwargs['pk']
+        db: BlastDb
+        # Query for the Blast database
+        try:
+            db = BlastDb.objects.get(id=pk)
+        except BlastDb.DoesNotExist:
+            return Response({'message': 'Database does not exist', 'requested': pk}, status.HTTP_404_NOT_FOUND)
+        
+        # Check if accession numbers provided
+        if not 'accession_numbers' in request.data:
+            return Response({'message': 'Missing required list of accession numbers to add.', 'accession_numbers': []}, status.HTTP_400_BAD_REQUEST)
+        desired_numbers = request.data['accession_numbers']
+
+        # Deny user if user has insufficient permissions
+        if not NuccoreSharePermission.has_delete_permission(user=request.user, obj=None):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        
+        # Respond with an error if database is locked
+        if db.locked:
+            return Response({'message': 'The database is locked and its accession numbers cannot be added, edited or removed.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            deleted = delete_sequences_in_database(db, desired_nums=desired_numbers)
+        except DatabaseLocked as exc:
+            return Response({'message': f"Cannot modify sequences in a locked database."}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            return Response({'deleted': deleted}, status = status.HTTP_202_ACCEPTED)
 
 class NuccoreSequenceDetail(mixins.DestroyModelMixin, generics.RetrieveAPIView):
     '''
@@ -278,7 +433,8 @@ class NuccoreSequenceDetail(mixins.DestroyModelMixin, generics.RetrieveAPIView):
             seq = NuccoreSequence.objects.get(id = db_primary_key)
         except NuccoreSequence.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
-        
+        d: BlastDb = BlastDb.objects.get()
+
         try:
             self.check_object_permissions(request, obj=seq)
         except PermissionDenied:
@@ -302,15 +458,11 @@ class NuccoreSequenceDetail(mixins.DestroyModelMixin, generics.RetrieveAPIView):
     )
     def delete(self, request, *args, **kwargs):
         pk = kwargs['pk']
-        db : BlastDb 
         try:
             seq : NuccoreSequence = NuccoreSequence.objects.get(id=pk)
+            self.check_object_permissions(request, seq)
         except NuccoreSequence.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
-        db = seq.owner_database  
-
-        try:
-            self.check_object_permissions(request, seq)
         except PermissionDenied:
             return Response(status=status.HTTP_403_FORBIDDEN)
         else:
@@ -321,15 +473,14 @@ class LibraryListView(mixins.ListModelMixin, generics.CreateAPIView):
     Return a list of all reference libraries.
     '''
     queryset = Library.objects.all()
-    serializer_class = LibraryListSerializer
 
     def get_serializer_class(self):
         if self.request is None:
-            return LibraryListSerializer
+            return LibrarySerializer
         elif self.request.method == 'POST':
             return LibraryCreateSerializer
         else:
-            return LibraryListSerializer
+            return LibrarySerializer
 
     @swagger_auto_schema(
         operation_summary='Get all reference libraries.',
@@ -391,8 +542,8 @@ class LibraryListView(mixins.ListModelMixin, generics.CreateAPIView):
             library_instance: Library = serializer.save()
             blast_db: BlastDb = BlastDb(library=library_instance)
             blast_db.save()
-            blast_db_serializer = BlastDbSerializer(blast_db)
-            return Response(blast_db_serializer.data, status=status.HTTP_201_CREATED) 
+            library_data = LibrarySerializer(library_instance)
+            return Response(library_data.data, status=status.HTTP_201_CREATED) 
             
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -519,7 +670,7 @@ class LibraryDetailView(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixi
         else:
             return Response(status=status.HTTP_204_NO_CONTENT)
 
-class BlastDbList(mixins.ListModelMixin, generics.CreateAPIView):
+class LibraryBlastDbList(mixins.ListModelMixin, generics.CreateAPIView):
     '''
     Return a list of all blast databases under a library
     '''
@@ -724,12 +875,10 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
 
         try:
             db: BlastDb = BlastDb.objects.get(id = db_primary_key)
+            # Check if user has access permissions to this database
+            self.check_object_permissions(request, db)
         except BlastDb.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
-
-        # Check if user has access to this database
-        try:
-            self.check_object_permissions(request, db)
         except PermissionDenied:
             return Response(status=status.HTTP_403_FORBIDDEN)
 
@@ -768,12 +917,10 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
         '''        
         try:
             db: BlastDb = BlastDb.objects.get(id = kwargs['pk'])
+            # Check if user has access to this database
+            self.check_object_permissions(request, db)
         except BlastDb.DoesNotExist:
             return Response("Resource does not exist", status = status.HTTP_404_NOT_FOUND)
-
-        # Check if user has access to this database
-        try:
-            self.check_object_permissions(request, db)
         except PermissionDenied:
             return Response(status=status.HTTP_403_FORBIDDEN)
 
@@ -1142,7 +1289,7 @@ class BlastRunRun(generics.CreateAPIView):
 
         # TODO: remove query_sequence reference
         ncbi_blast_version = 'ncbi-blast-2.12.0+'
-        run_details = BlastRun(id = results_uuid, db_used = odb, job_name = job_name, blast_version = ncbi_blast_version, errors = '', job_status=BlastRun.JobStatus.QUEUED, job_start_time = None, job_end_time = None, job_error_time = None, create_hit_tree = create_hit_tree, create_db_tree = create_db_tree)
+        run_details = BlastRun(id = results_uuid, db_used = odb, job_name = job_name, blast_version = ncbi_blast_version, errors = '', status=BlastRun.JobStatus.QUEUED, start_time = None, end_time = None, error_time = None, create_hit_tree = create_hit_tree, create_db_tree = create_db_tree)
         run_details.save()
 
         # make query sequence objects
@@ -1205,7 +1352,7 @@ class BlastRunDetail(mixins.DestroyModelMixin, generics.GenericAPIView):
     
     @swagger_auto_schema(
         operation_summary='Get run results.',
-        operation_description='Get run information and results of a BLAST run. The job_status indicates the status of the run. The results returned are complete once the job_status is "FIN" (i.e. run is finished). The run information includes the BLASTN hits and multiple alignment trees.',
+        operation_description='Get run information and results of a BLAST run. The status indicates the status of the run. The results returned are complete once the status is "FIN" (i.e. run is finished). The run information includes the BLASTN hits and multiple alignment trees.',
         tags = [tag_runs],
         responses={
             '200': openapi.Response(
@@ -1331,7 +1478,7 @@ class BlastRunStatus(generics.RetrieveAPIView):
 
     @swagger_auto_schema(
         operation_summary='Get status of run',
-        operation_description='Returns a minimal set of information useful for polling/checking the status of run.\n\nHow to interpret job_status:\n"QUE" (Queued): The run is currently waiting in the queue for its turn to be processed.\n"STA" (Started): The run is currently being processed.\n"FIN" (Finished): The run successfully completed and complete results are now visible.\n"ERR" (Errored): The run encountered an unexpected error and terminated.\n"UNK" (Unknown): The status is unknown, likely because there was an unexpected database or server error. Please submit another run.\n"DEN" (Denied): The run submission was received by the server, but it was denied from being processed.',
+        operation_description='Returns a minimal set of information useful for polling/checking the status of run.\n\nHow to interpret status:\n"QUE" (Queued): The run is currently waiting in the queue for its turn to be processed.\n"STA" (Started): The run is currently being processed.\n"FIN" (Finished): The run successfully completed and complete results are now visible.\n"ERR" (Errored): The run encountered an unexpected error and terminated.\n"UNK" (Unknown): The status is unknown, likely because there was an unexpected database or server error. Please submit another run.\n"DEN" (Denied): The run submission was received by the server, but it was denied from being processed.',
         tags = [tag_runs],
         responses={
             '200': openapi.Response(

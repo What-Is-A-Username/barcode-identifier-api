@@ -62,6 +62,9 @@ def save_blastdb(obj: BlastDb, perform_lock: bool = False) -> BlastDb:
     - locking the database, if perform_lock is True
     - assign a version number if it was previously locked, based on the latest library version
     - calling `.save()` on the instance
+
+    Raises:
+    
     '''
     if perform_lock:
         lastPublished: Optional[BlastDb] = BlastDb.objects.latest(obj.library)
@@ -205,35 +208,120 @@ def update_from_genbank(sequence_instances: QuerySet[NuccoreSequence]) -> Sequen
         delete_seq.delete() 
     return update_summary     
 
-class AccessionsAlreadyExist(BaseException): ...
+class AccessionsAlreadyExist(BaseException): 
+    '''
+    A set of accession numbers already exist in a database.
+    '''
+    accession_numbers: List[str]
+    def __init__(self, accession_numbers: List[str]) -> None:
+        self.accession_numbers = accession_numbers
 
-def add_sequences_to_database(database: BlastDb, desired_numbers: List[str]) -> Tuple[List[NuccoreSequence], List[NuccoreSequence]]:
+class AccessionsNotFound(BaseException):
+    '''
+    A set of accession numbers could not be located in the database.
+    '''
+    accession_numbers: List[str]
+    def __init__(self, accession_numbers: List[str]) -> None:
+        self.accession_numbers = accession_numbers
+
+class DatabaseLocked(BaseException): ...
+
+def delete_sequences_in_database(database: BlastDb, desired_nums: List[str]) -> int:
+    '''
+    Remove all sequences.
+
+    Returns the number of sequence objects deleted.
+
+    Raises
+        DatabaseLocked: If database is locked for editing.
+    '''
+    if database.locked:
+        raise DatabaseLocked()
+    desired_nums = list(set(desired_nums))
+    to_delete: QuerySet[NuccoreSequence] = NuccoreSequence.objects.filter(owner_database=database, accession_number__in=desired_nums)
+    result = to_delete.delete()
+
+    return result[1]['barcode_blastn.NuccoreSequence']
+
+def update_sequences_in_database(database: BlastDb, desired_numbers: List[str]) -> List[NuccoreSequence]:
     ''''
-    Add a list of accession numbers to a database by bulk creating/saving and returning the resulting list of NuccoreSequences.
-    Accession numbers that have already been added to the database will have their sequence data updated.
+    Bulk update the given accession numbers in the database and return the resulting list of NuccoreSequences. If a number doesn't exists, then an AccessionsNotFound Error is raised.
 
     Returns a tuple of two lists. The first list contains the saved NuccoreSequence objects, as returned by `.bulk_create()`. The second list contains the updated objects, as returned by `.bulk_update()`.
 
     Raises:
+        DatabaseLocked: If database is locked for editing.
         ValueError: If no accession numbers are specified
-        AccessionsAlreadyExist: If the accession already exists in the database
+        AccessionsNotFound: If a given accession number is not present in the database.
         AccessionLimitExceeded: If the number of accessions to add exceeds the maximum allowed
-        HTTPError, URLError: Could not connect to GenBank or the request sent was bad
+        GenbankConnectionError: Could not connect to GenBank or the request sent was bad
         InsufficientAccessionData: If all accession numbers could not be identified by GenBank 
     '''
+    if database.locked:
+        raise DatabaseLocked()
     if len(desired_numbers) == 0:
         raise ValueError('No accessions given')
+    desired_numbers = list(set(desired_numbers))
     # Check what accession numbers are duplicate (i.e. already existing in the datab)
     existing: QuerySet[NuccoreSequence] = NuccoreSequence.objects.filter(owner_database=database, accession_number__in=desired_numbers) # type: ignore        
-    # return an OK status if all the numbers to be added already exist
-    if existing.count() == len(desired_numbers):
-        raise AccessionsAlreadyExist()
+    # raise error if not all numbers exist
+    if existing.count() < len(desired_numbers):
+        e: NuccoreSequence
+        existing_nums: List[str] = [e.accession_number for e in existing]
+        raise AccessionsNotFound([d for d in desired_numbers if d not in existing_nums])
+
+    # retrieve data
+    genbank_data = retrieve_gb(accession_numbers=desired_numbers)
+    keys = [d['accession_number'] for d in genbank_data]
+    # map accession numbers -> retrieved data dictionary
+    acc_to_data: Dict[str, Dict[str, str]] = dict(zip(keys, genbank_data))
+
+    # save the new sequences using a bulk operation
+    to_update: List[NuccoreSequence] = []
+    record: NuccoreSequence
+    for record in existing:
+        for key, value in acc_to_data[record.accession_number].items():
+            setattr(record, key, str(value))
+        record.updated = datetime.now()
+        to_update.append(record)
+
+    fields_to_update = list(genbank_data[0].keys())
+    fields_to_update.append('updated')
+    NuccoreSequence.objects.bulk_update(existing, fields=fields_to_update)
+    return to_update
+
+
+def add_sequences_to_database(database: BlastDb, desired_numbers: List[str]) -> List[NuccoreSequence]:
+    ''''
+    Add a list of accession numbers to a database by bulk creating and return the resulting list of NuccoreSequences. If a number already exists, then an AccessionsAlreadyExist Error is raised.
+
+    Returns a tuple of two lists. The first list contains the saved NuccoreSequence objects, as returned by `.bulk_create()`. The second list contains the updated objects, as returned by `.bulk_update()`.
+
+    Raises:
+        DatabaseLocked: If database is locked for editing.
+        ValueError: If no accession numbers are specified
+        AccessionsAlreadyExist: If an accession already exists in the database
+        AccessionLimitExceeded: If the number of accessions to add exceeds the maximum allowed
+        GenbankConnectionError: Could not connect to GenBank or the request sent was bad
+        InsufficientAccessionData: If all accession numbers could not be identified by GenBank 
+    '''
+    if database.locked:
+        raise DatabaseLocked()
+    if len(desired_numbers) == 0:
+        raise ValueError('No accessions given')
+    desired_numbers = list(set(desired_numbers))
+    # Check what accession numbers are duplicate (i.e. already existing in the datab)
+    existing: QuerySet[NuccoreSequence] = NuccoreSequence.objects.filter(owner_database=database, accession_number__in=desired_numbers) # type: ignore        
+    # raise error if any the numbers to be added already exist
+    if existing.count() > 0:
+        e: NuccoreSequence
+        existing_nums: List[str] = [e.accession_number for e in existing]
+        raise AccessionsAlreadyExist(existing_nums)
 
     # retrieve data
     genbank_data = retrieve_gb(accession_numbers=desired_numbers)
 
     # save the new sequences using a bulk operation
-    to_update: List[NuccoreSequence] = []
     to_create: List[NuccoreSequence] = []
     for data in genbank_data:
         an: str = data['accession_number']
@@ -242,13 +330,11 @@ def add_sequences_to_database(database: BlastDb, desired_numbers: List[str]) -> 
         except NuccoreSequence.DoesNotExist:
             to_create.append(NuccoreSequence(owner_database=database, **data))
         else:
-            to_update.append(NuccoreSequence(**data))
+            raise AccessionsAlreadyExist([an])
 
+    created_sequences = []
     created_sequences = NuccoreSequence.objects.bulk_create(to_create)
-    fields_to_update = list(genbank_data[0].keys())
-    fields_to_update.append('created')
-    NuccoreSequence.objects.bulk_update(to_update, fields=fields_to_update)
-    return (created_sequences, to_update)
+    return created_sequences
 
 def save_sequence(obj: NuccoreSequence, change: bool=True, commit: bool = False, raise_if_missing: bool = False):
     '''
@@ -273,17 +359,19 @@ def save_sequence(obj: NuccoreSequence, change: bool=True, commit: bool = False,
         raise ValueError()
     if not obj.owner_database:
         raise ValueError()
+    if obj.owner_database.locked:
+        raise ValueError('Database locked')
 
     accession_number = obj.accession_number
 
     # check if there is a duplicate
     try:
-        NuccoreSequence.objects.filter(owner_database=obj.owner_database).exclude(id=obj.id).get(accession_number=accession_number)
+        existing = NuccoreSequence.objects.filter(owner_database=obj.owner_database).exclude(id=obj.id).get(accession_number=accession_number)
     except NuccoreSequence.DoesNotExist:
         pass
     else:
         # raise error if duplicate accession already exists
-        raise AccessionsAlreadyExist() 
+        raise AccessionsAlreadyExist([e.accession_number for e in existing]) 
 
     # fetch GenBank data
     try:
