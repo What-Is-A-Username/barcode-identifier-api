@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 import os
 import shutil
 from typing import Any, Dict, List, Optional, Tuple
-from barcode_blastn.file_paths import get_data_fishdb_path
+from barcode_blastn.file_paths import get_data_fishdb_path, get_data_library_path, get_ncbi_folder
 from barcode_blastn.helper.parse_gb import AccessionLimitExceeded, GenBankConnectionError, InsufficientAccessionData, retrieve_gb
 from barcode_blastn.models import BlastDb, Library, NuccoreSequence
 from barcode_blastn.serializers import NuccoreSequenceSerializer 
@@ -27,10 +27,9 @@ def delete_blastdb(blast_db: Optional[BlastDb]) -> None:
         raise ValueError('Library cannnot be None')
 
     # delete the database from the file system
-    database_id: str = str(blast_db.id)
     try:
-        local_db_folder = get_data_fishdb_path(database_id)
-        if len(database_id) > 0 and os.path.exists(local_db_folder):
+        local_db_folder = get_data_fishdb_path(blast_db)
+        if len(str(blast_db.id)) > 0 and os.path.exists(local_db_folder):
             shutil.rmtree(local_db_folder, ignore_errors=True)
     except BaseException as exc:
         raise OSError(exc)
@@ -64,11 +63,14 @@ def save_blastdb(obj: BlastDb, perform_lock: bool = False) -> BlastDb:
     - calling `.save()` on the instance
 
     Raises:
-    
+        OSError: If an error is encountered while manipulating files in the filesystem when preparing the database files. 
     '''
     if perform_lock:
         lastPublished: Optional[BlastDb] = BlastDb.objects.latest(obj.library)
         version_nums = (1,1,1) # if this is the first published version of the library, assign version 1.1.1 
+
+        # If a previous version exists, assign the new database a version reflective
+        # of the differences of it from the most recent database
         if lastPublished is not None:
             sequence_summary: SequenceUpdateSummary = calculate_update_summary(last=lastPublished, current=obj)
             if len(sequence_summary.deleted) > 0 or len(sequence_summary.added) > 0 or len(sequence_summary.accession_version_changed) > 0:
@@ -77,7 +79,44 @@ def save_blastdb(obj: BlastDb, perform_lock: bool = False) -> BlastDb:
                 version_nums = (lastPublished.genbank_version, lastPublished.major_version + 1, 1)
             else:
                 version_nums = (lastPublished.genbank_version, lastPublished.major_version, lastPublished.minor_version + 1)
+
+        # Make database files
+        # Make the database from scratch
+        library_path = get_data_library_path(obj.library)
+        if not os.path.exists(library_path):
+            os.mkdir(library_path)
+        elif os.path.isfile(library_path):
+            os.remove(library_path)
+            os.mkdir(library_path)
+        fishdb_path = get_data_fishdb_path(obj)
+        # make a directory for the database if it doesn't exist
+        if not os.path.exists(fishdb_path):
+            os.mkdir(fishdb_path)
+        # if the directory exists, delete the old folder
+        else:
+            try:
+                # delete the old folder
+                shutil.rmtree(fishdb_path, ignore_errors = False)
+            except BaseException:
+                raise OSError('Encountered error while setting up database files.')
+            os.mkdir(fishdb_path)
         
+        fasta_file = fishdb_path + f'/database.fasta'
+        sequences: QuerySet[NuccoreSequence] = NuccoreSequence.objects.filter(owner_database=obj)
+        with open(fasta_file, 'w') as my_file:
+            for x in sequences:
+                sequence_identifier = x.version
+                dna_sequence = x.dna_sequence
+                my_file.write('>' + sequence_identifier + '\n' + dna_sequence + '\n')
+        
+        my_file.close()
+
+        ncbi_blast_version = 'ncbi-blast-2.12.0+'
+        blast_root = get_ncbi_folder(ncbi_blast_version=ncbi_blast_version)
+        command = '{} -in {} -dbtype nucl -out {} -title {} -parse_seqids'.format(blast_root + '/makeblastdb', fasta_file, fishdb_path + '/database', 'database')
+        
+        os.system(command)
+
         obj.genbank_version = version_nums[0]
         obj.major_version = version_nums[1]
         obj.minor_version = version_nums[2]
@@ -87,9 +126,14 @@ def save_blastdb(obj: BlastDb, perform_lock: bool = False) -> BlastDb:
 
     return obj
 
-def create_blastdb(additional_accessions: List[str], base: Optional[BlastDb] = None, **kwargs) -> BlastDb:
+def create_blastdb(additional_accessions: List[str], base: Optional[BlastDb] = None, database: Optional[BlastDb] = None, **kwargs) -> BlastDb:
     '''
-    Create an entirely new blastdb with the accession numbers in additional_accessions. Also add the data from base.
+    Create a new blastdb with the accession numbers in additional_accessions. Also add the accession numbers
+    from the instance given by `base`.
+    The accession numbers provided by base and additional accessions are able to overlap, as the number list
+    is filtered for unique values before addition.
+    If `database` is given, the values and accessions will be populated into that instance and a new instance
+    will not be created
     Data for every accession, from both additional_accessions and base, will be refetched from GenBank.
     The new blastdb and accessions will be saved. The saved instance will be returned.
 
@@ -102,13 +146,27 @@ def create_blastdb(additional_accessions: List[str], base: Optional[BlastDb] = N
     minor_version = kwargs.pop('minor_version', 0)
     created = kwargs.pop('created', datetime.now())
     locked = kwargs.pop('locked', False) # ignore value of locked for now
-    new_database: BlastDb = BlastDb(genbank_version=genbank_version, major_version=major_version, minor_version=minor_version, created=created, locked=False, **kwargs)
-    new_database.save()
+    if database is None:
+        new_database: BlastDb = BlastDb(genbank_version=genbank_version, major_version=major_version, minor_version=minor_version, created=created, locked=False, **kwargs)
+        new_database.save()
+    else:
+        new_database = database
+        new_database.genbank_version = genbank_version
+        new_database.major_version = major_version
+        new_database.minor_version = minor_version
+        new_database.created = created
+        new_database.locked = False
+        for k, v in kwargs.items():
+            setattr(new_database, k, v)
+        new_database.save()
     
     accessions_to_add = additional_accessions
     if base is not None:
         seqs = NuccoreSequence.objects.filter(owner_database=base)
         accessions_to_add.extend([s.accession_number for s in seqs])
+
+    # ensure all accessions are unique
+    accessions_to_add = list(set(accessions_to_add))
     
     if len(accessions_to_add) > 0:
         add_sequences_to_database(new_database, desired_numbers=accessions_to_add)

@@ -899,7 +899,7 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
         response = Response(self.get_serializer_class()(db).data, status=status.HTTP_200_OK, template_name='blastdb.html')
 
         # based on the media type file returned, specify attachment and file name
-        file_name_root = get_data_fishdb_path(str(db.id))
+        file_name_root = get_data_fishdb_path(db)
         if request.accepted_media_type.startswith('text/csv'):
             response['Content-Disposition'] = f'attachment; filename={file_name_root}.csv";'
         elif request.accepted_media_type.startswith('text/x-fasta'):
@@ -1219,21 +1219,8 @@ class BlastRunRun(generics.CreateAPIView):
         if len(query_sequences) == 0:
             return Response({'message': 'Found zero sequences in the request to query with. Sequences can be sent as text in a form or a file.'}, status = status.HTTP_400_BAD_REQUEST)
 
-        print(query_sequences)
-
         job_name = request.data['job_name'] if 'job_name' in request.data else ''
-
-        # path to parent folder of blast tools and django app
-        project_root = os.path.abspath(os.path.dirname('./'))
-        # path to ncbi.../bin/
         
-        print("Making folders with user id ", os.getuid())
-
-        # path to output the database
-        fishdb_path = get_data_fishdb_path(str(odb.id))
-        if not os.path.exists(fishdb_path):
-            os.mkdir(fishdb_path)
-
         # path to output the results
         results_uuid = uuid.uuid4()
         results_path = get_data_run_path(str(results_uuid))
@@ -1253,39 +1240,9 @@ class BlastRunRun(generics.CreateAPIView):
         print("Run id: " + str(results_uuid))
 
         if not odb.locked:
-            print('Database was not locked. Creating database locally ...')
-            
-            # Make the database from scratch
-            if os.path.exists(fishdb_path):
-                try:
-                    # delete the old folder
-                    shutil.rmtree(fishdb_path, ignore_errors = False)
-                except BaseException as base_exception:
-                    return Response({
-                        'message': "Server errored making the database."
-                    }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-            
-            print('Gathering sequences into fasta ...')
-            os.mkdir(fishdb_path)
-            fasta_file = fishdb_path + f'/database.fasta'
-            with open(fasta_file, 'w') as my_file:
-                for x in sequences:
-                    identifier = x.accession_number
-                    dna_sequence = x.dna_sequence
-                    my_file.write('>' + identifier + '\n' + dna_sequence + '\n')
-            
-            my_file.close()
-
-            print('Creating db now ...')
-            ncbi_blast_version = 'ncbi-blast-2.12.0+'
-            blast_root = get_ncbi_folder(ncbi_blast_version=ncbi_blast_version)
-            command = '{} -in {} -dbtype nucl -out {} -title {} -parse_seqids'.format(blast_root + '/makeblastdb', fasta_file, fishdb_path + '/database', 'database')
-        
-            # Lock the database
-            odb.locked = True
-            odb.save()
-
-            os.system(command)
+            return Response({
+                'message': 'The specified database is not published yet for queries',
+            }, status=status.HTTP_400_BAD_REQUEST)
         else:
             print('Database was locked. Will use existing local database.')
 

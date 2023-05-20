@@ -56,7 +56,7 @@ class LibraryManager(models.Manager):
                 # exclude databases that are public but explicitly denied to user
                 models.Q(public=True) &
                 models.Q(shares=user, 
-                         databaseshare__perms=DatabasePermissions.DENY_ACCESS)
+                         databaseshare__permission_level=DatabasePermissions.DENY_ACCESS)
             ).filter(
                 # include databases owned by user
                 models.Q(owner=user) |

@@ -1,20 +1,24 @@
-from typing import Any, Dict, List, Optional, Union
+import io
+from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
 from django.contrib import admin
 from django.db import models
+from django import forms
 from django.db.models.query import QuerySet
+from django.db.models import Q
+from django.template.response import TemplateResponse
 
 from django.http.request import HttpRequest
 from django.urls import reverse
 
 from django.utils.html import format_html
 from django.contrib.auth.models import User
-from barcode_blastn.controllers.blastdb_controller import delete_blastdb, delete_library, save_blastdb, save_sequence
+from barcode_blastn.controllers.blastdb_controller import add_sequences_to_database, create_blastdb, delete_blastdb, delete_library, save_blastdb, save_sequence
 from barcode_blastn.helper.parse_gb import GenBankConnectionError, InsufficientAccessionData, retrieve_gb
 from barcode_blastn.models import BlastDb, BlastQuerySequence, DatabaseShare, Library, NuccoreSequence, BlastRun, Hit
 from django.forms import BaseInlineFormSet, ModelForm, ValidationError
 from barcode_blastn.permissions import DatabaseSharePermissions, HitSharePermission, LibrarySharePermissions, NuccoreSharePermission, RunSharePermissions
 
-from barcode_blastn.serializers import BlastDbEditSerializer, LibraryEditSerializer, NuccoreSequenceSerializer
+from barcode_blastn.serializers import LibraryEditSerializer, library_title, blast_db_title, run_title, nuccore_title, hit_title
 
 class SequenceFormset(BaseInlineFormSet):
 
@@ -159,10 +163,30 @@ class LibraryAdmin(admin.ModelAdmin):
     inlines = [UserPermissionsInline, VersionInline]
     list_display = ('custom_name', 'owner', 'public', 'latest_version', 'sequence_count', 'id')
 
+    def changelist_view(self, request, extra_context: Optional[Dict[str, str]] = None):
+        # Customize the title at the top of the change list
+        extra_context = {'title': f'Select a {library_title} to view or change'}
+        return super(LibraryAdmin, self).changelist_view(request, extra_context=extra_context)
+
     def get_fields(self, request: HttpRequest, obj: Optional[Library] = None):
         fields = LibraryEditSerializer.Meta.fields.copy()
         fields.extend(['owner', 'created'])
         return fields
+
+    def has_module_permission(self, request: HttpRequest) -> bool:
+        return LibrarySharePermissions.has_module_permission(request.user)
+    
+    def has_add_permission(self, request: HttpRequest) -> bool:
+        return LibrarySharePermissions.has_add_permission(request.user, None)
+
+    def has_change_permission(self, request: HttpRequest, obj: Optional[Library] = None) -> bool:
+        return LibrarySharePermissions.has_change_permission(request.user, obj)
+
+    def has_delete_permission(self, request: HttpRequest, obj: Optional[Library] = None) -> bool:
+        return LibrarySharePermissions.has_delete_permission(request.user, obj)
+
+    def has_view_permission(self, request: HttpRequest, obj: Optional[Library] = None) -> bool:
+        return LibrarySharePermissions.has_view_permission(request.user, obj)
          
     def get_readonly_fields(self, request: HttpRequest, obj: Optional[Library]) :
         return ['owner', 'created']
@@ -180,23 +204,111 @@ class LibraryAdmin(admin.ModelAdmin):
         obj.owner = request.user
         return super().save_model(request, obj, form, change)
 
+    def get_queryset(self, request: HttpRequest) -> QuerySet[Any]:
+        if isinstance(request.user, User):
+            return Library.objects.viewable(request.user)
+        else:
+            return Library.objects.none()
+
+class BlastDbForm(ModelForm):
+    accession_list_upload = forms.FileField(help_text='Add large numbers of sequences at once by uploading a .txt file, with each accession number on a separate line.', required=False)
+    accession_list_text = forms.CharField(widget=forms.Textarea, help_text='Add multiple sequences by pasting in a list of accession numbers, one per line.', required=False)
+    base_library = forms.ModelChoiceField(queryset=BlastDb.objects.none(), help_text='Inherit all accession numbers from an existing BLAST database in order to populate the current.', required=False)
+
+    def __init__(self, *args, **kwargs) -> None:
+        super(BlastDbForm, self).__init__(*args, **kwargs)
+        user = getattr(self, 'user', None)
+        if user:
+            self.fields['base_library'].queryset = BlastDb.objects.runnable(user)
+        else:
+            raise ValueError('No user')
+
+    def clean(self) -> Dict[str, Any]:
+        cleaned_data = super().clean()
+        existing = NuccoreSequence.objects.filter(owner_database=self.instance)
+
+        accessions_to_add = []
+
+        # Check that the accesson numbers or accession.versions in the list_text are not duplicates
+        accession_file_upload = cleaned_data.get('accession_list_upload')
+        if accession_file_upload:
+            accession_file_upload.seek(0)
+            file_numbers = [line.decode('utf-8') for line in accession_file_upload.readlines()]
+            # remove whitespace and newline characters
+            file_numbers = [t.strip() for t in file_numbers]
+            file_numbers = [t for t in file_numbers if len(t) > 0]
+            # query the database for any entries with matching accession.versions or accession numbers
+            exists_duplicate = existing.filter(Q(accession_number__in=file_numbers) | Q(version__in=file_numbers))
+            if exists_duplicate.exists():
+                raise ValidationError({'accession_list_upload': 'The file given for "accession list upload" contains accession numbers or accession.versions already in the database.'})
+            accessions_to_add.extend(file_numbers)
+        # Check that the accession numbers or accession.versions in the list_upload are not duplicates
+        accession_list_text: str = cleaned_data.get('accession_list_text', '')
+        if len(accession_list_text) > 0:
+            # remove whitespace and newline characters
+            list_text = accession_list_text.replace('\r\n', '\n').split('\n')
+            list_text = [t.strip() for t in list_text]
+            list_text = [t for t in list_text if len(t) > 0]
+            # query the database for any entries with matching accession.versions or accession numbers
+            exists_duplicate = existing.filter(Q(accession_number__in=list_text) | Q(version__in=list_text))
+            if exists_duplicate.exists():
+                raise ValidationError({'accession_list_text': 'The raw text list given for "accession list text" contains accession numbers or accession.versions already in the database.'})
+            accessions_to_add.extend(list_text)
+
+        # Check that accessions actually correspond with GenBank records
+        try:
+            retrieve_gb(accession_numbers=accessions_to_add, raise_if_missing=True)
+        except InsufficientAccessionData as exc:
+            raise ValidationError(f'One or more accession numbers or accession.versions do not match a GenBank record: {", ".join(exc.missing_accessions)}')
+        except ValueError:
+            pass
+        except BaseException as exc:
+            raise ValidationError('None of the accession numbers or accession.versions match a GenBank record.')
+
+        return cleaned_data
+
 @admin.register(BlastDb)
 class BlastDbAdmin(admin.ModelAdmin):
     '''
     Admin page for BlastDb instances.
     '''
     inlines = [NuccoreSequenceInline]
+    form = BlastDbForm
     list_display = ('library', 'version_number', 'sequence_count', 'id')
+    fieldsets = [('Details', { 'fields': ['library', 'library_owner', 'custom_name', 'description', 'version_number']}), ('Visibility', { 'fields': ['locked', 'library_is_public']})]
+
+
+    def library_is_public(self, obj: BlastDb):
+        return not obj.library is None and obj.library.public
+
+    def library_owner(self, obj: BlastDb):
+        if not obj.library is None:
+            return obj.library.owner
+        else:
+            return None
+
+    def changelist_view(self, request, extra_context: Optional[Dict[str, str]] = None):
+        # Customize the title at the top of the change list
+        extra_context = {'title': f'Select a {blast_db_title} to view or change'}
+        return super(BlastDbAdmin, self).changelist_view(request, extra_context=extra_context)
 
     def delete_model(self, request: HttpRequest, obj: BlastDb) -> None:
         '''Delete instance of database'''
         delete_blastdb(obj)
-    
-    def get_fields(self, request: HttpRequest, obj: Optional[BlastDb]):
-        f: List[str] = ['description', 'custom_name', 'library']
-        if obj:
-            f.extend(['locked', 'version_number'])
-        return f 
+
+    def get_form(self, request: Any, obj: Optional[BlastDb] = ..., change: bool = ..., **kwargs: Any) -> Any:
+        form = super().get_form(request, obj, change, **kwargs)
+        form.user = request.user
+        return form
+
+    def get_fieldsets(self, request: HttpRequest, obj: Optional[BlastDb] = None) -> List[Tuple[Optional[str], Dict[str, Any]]]:
+        f = super().get_fieldsets(request, obj).copy()
+        if obj is None:
+            f.append(('Accessions Included', { 'fields': ('base_library', 'accession_list_upload', 'accession_list_text')}))
+        else:
+            if isinstance(request.user, User) and DatabaseSharePermissions.has_change_permission(request.user, obj=obj):
+                f.append(('Add additional accessions', { 'fields': ('accession_list_upload', 'accession_list_text')}))
+        return f
 
     def save_formset(self, request: Any, form: Any, formset: Any, change: Any) -> None:
         super_results = super().save_formset(request, form, formset, change)
@@ -211,15 +323,45 @@ class BlastDbAdmin(admin.ModelAdmin):
 
     def save_model(self, request: Any, obj: BlastDb, form: Any, change: Any) -> None:
         # Since the model is saved first before any changes in sequence, don't lock the
-        # database
+        # database yet. The database will be locked if needed by save_formset
         obj.locked = False
-        super().save_model(request, obj, form, change)
+
+        accessions = []
+
+        base = form.cleaned_data.get('base_library', None)
+
+        accession_file_upload = form.cleaned_data.get('accession_list_upload')
+        if accession_file_upload:
+            accession_file_upload.seek(0)
+            file_numbers = [line.decode('utf-8') for line in accession_file_upload.readlines()]
+            file_numbers = [t.strip() for t in file_numbers]
+            file_numbers = [t for t in file_numbers if len(t) > 0]
+            accessions.extend(file_numbers)
+
+        accession_list_text = form.cleaned_data.get('accession_list_text')
+        if len(accession_list_text) > 0:
+            list_text = accession_list_text.replace('\r\n', '\n').split('\n')
+            list_text = [t.strip() for t in list_text]
+            list_text = [t for t in list_text if len(t) > 0]
+            accessions.extend(list_text)
+        
+        blastdb_fields = {
+            'custom_name': form.cleaned_data.get('custom_name'),
+            'description': form.cleaned_data.get('description')
+        }
+        if not change:
+            create_blastdb(additional_accessions=accessions, base=base, database=obj, **blastdb_fields, library=obj.library)
+        else:
+            if len(accessions) > 0:
+                add_sequences_to_database(obj, desired_numbers=accessions)
+            else:
+                obj.save()
 
     def get_readonly_fields(self, request, obj: Union[BlastDb, None] = None):
         if obj is None: # is adding
-            return ['version_number']
+            return ['version_number', 'library_is_public', 'library_owner']
         else:
-            return ['library', 'version_number']
+            return ['library', 'version_number', 'library_is_public', 'library_owner']
 
     def sequence_count(self, obj):
         num_seqs: int = NuccoreSequence.objects.filter(owner_database=obj).count()
@@ -232,6 +374,8 @@ class BlastDbAdmin(admin.ModelAdmin):
             if isinstance(request.user, User):
                 # restrict choices of library to those that the user can edit
                 kwargs['queryset'] = Library.objects.editable(request.user)
+            else:
+                kwargs['queryset'] = Library.objects.none()
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
         
     def get_queryset(self, request: HttpRequest) -> QuerySet[Any]:
@@ -241,7 +385,6 @@ class BlastDbAdmin(admin.ModelAdmin):
             return BlastDb.objects.viewable(request.user)
 
     def has_module_permission(self, request: HttpRequest) -> bool:
-        super().has_module_permission
         return DatabaseSharePermissions.has_module_permission(request.user)
 
     def has_view_permission(self, request: HttpRequest, obj: Union[BlastDb, None] = None) -> bool:
@@ -335,7 +478,14 @@ class NuccoreAdmin(admin.ModelAdmin):
 
     # TODO: Make the owner_database field read_only if database is locked 
 
+    def changelist_view(self, request, extra_context: Optional[Dict[str, str]] = None):
+        # Customize the title at the top of the change list
+        extra_context = {'title': f'Select a {nuccore_title} to view or change'}
+        return super(NuccoreAdmin, self).changelist_view(request, extra_context=extra_context)
+
     def get_queryset(self, request: HttpRequest) -> QuerySet[Any]:
+        # Restrict the sequences visible based on which databases they belong to, and
+        # which libraries the user can see
         if not isinstance(request.user, User) or not request.user.is_authenticated:
             return NuccoreSequence.objects.none()
         else:
@@ -347,7 +497,8 @@ class NuccoreAdmin(admin.ModelAdmin):
         if db_field.name == 'owner_database':
             if not request.user is None:
                 if isinstance(request.user, User):
-                    # set the available choices of database the accession can belong to
+                    # Set the available choices of database the accession can belong to
+                    # based on the user's permission
                     kwargs['queryset'] = BlastDb.objects.editable(request.user)
         return super().formfield_for_foreignkey(db_field, request, **kwargs) 
 
@@ -473,6 +624,11 @@ class BlastRunAdmin(admin.ModelAdmin):
     list_display = (
         'id', 'job_name', 'received_time', 'status'
     )
+
+    def changelist_view(self, request, extra_context: Optional[Dict[str, str]] = None):
+        # Customize the title at the top of the change list
+        extra_context = {'title': f'Select a {run_title} to view or change'}
+        return super(BlastRunAdmin, self).changelist_view(request, extra_context=extra_context)
     
     def get_queryset(self, request: HttpRequest) -> QuerySet[Any]:
         if not request.user.is_authenticated:
@@ -505,7 +661,7 @@ class BlastRunAdmin(admin.ModelAdmin):
         ))
 
 @admin.register(Hit)
-class HitAdmin(BlastRunAdmin):
+class HitAdmin(admin.ModelAdmin):
     '''
     Admin page for showing Hit instances.
     '''
@@ -514,6 +670,11 @@ class HitAdmin(BlastRunAdmin):
     list_display = (
         'db_entry', 'id', 'owner_run_link'
     )
+
+    def changelist_view(self, request, extra_context: Optional[Dict[str, str]] = None):
+        # Customize the title at the top of the change list
+        extra_context = {'title': f'Select a {hit_title} to view or change'}
+        return super(HitAdmin, self).changelist_view(request, extra_context=extra_context)
 
     def owner_run_link(self, obj):
         url = reverse("admin:%s_%s_change" % ('barcode_blastn', 'blastrun'), args=(obj.owner_run.id,))

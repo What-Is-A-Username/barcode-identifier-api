@@ -234,9 +234,8 @@ class DatabaseSharePermissions(CustomPermissions[BlastDb]):
         if obj is None:
             return True
         else:
-            return LibrarySharePermissions.has_add_permission(user, obj.library)
+            return LibrarySharePermissions.has_view_permission(user, obj.library)
  
-
     @staticmethod
     def has_run_permission(user: Union[AbstractBaseUser, AnonymousUser], obj: Union[BlastDb, None]) -> bool:
         if obj is None:

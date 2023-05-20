@@ -7,7 +7,7 @@ from rest_framework import serializers
 from barcode_blastn.models import BlastQuerySequence, BlastRun, DatabaseShare, Hit, Library, NuccoreSequence, BlastDb
 
 library_title = 'Reference Library'
-blast_db_title = 'BLAST Database'
+blast_db_title = 'BLAST Database Version'
 nuccore_title = 'GenBank Accession'
 hit_title = 'BLASTN hit'
 query_title = 'Query Sequence'
@@ -489,7 +489,7 @@ class BlastRunSerializer(serializers.ModelSerializer):
     class Meta:
         model = BlastRun    
         ref_name = run_title
-        fields = ['id', 'job_name', 'queries', 'db_used', 'start_time', 'status', 'start_time', 'end_time', 'error_time', 'hits', 'create_hit_tree', 'hit_tree', 'alignment_job_id', 'create_db_tree', 'db_tree', 'complete_alignment_job_id']
+        fields = ['id', 'job_name', 'queries', 'db_used', 'start_time', 'status', 'received_time', 'start_time', 'end_time', 'error_time', 'hits', 'create_hit_tree', 'hit_tree', 'alignment_job_id', 'create_db_tree', 'db_tree', 'complete_alignment_job_id']
         example = load_run_example()
 
 class BlastRunStatusSerializer(serializers.ModelSerializer):    
@@ -499,10 +499,11 @@ class BlastRunStatusSerializer(serializers.ModelSerializer):
     class Meta:
         model = BlastRun    
         ref_name = run_title + ' status'
-        fields = ['id', 'job_name', 'start_time', 'status', 'start_time', 'end_time', 'error_time']
+        fields = ['id', 'job_name', 'received_time', 'status', 'start_time', 'end_time', 'error_time']
         example = {
             "id": "2e5898a3-14da-4e7f-9599-ba1ef35f1e7a",
             "job_name": "two sequences",
+            "received_time": "2023-02-21T03:26:32.323521Z",
             "start_time": "2023-02-21T03:27:11.323521Z",
             "status": "FIN",
             "start_time": "2023-02-21T03:27:12.427193Z",

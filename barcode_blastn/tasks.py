@@ -62,7 +62,11 @@ def run_blast_command(ncbi_blast_version: str, fishdb_id: str, run_id: str) -> b
         raise_error(run_details, f"Critical error: Failed to find blastn executable at {command_app}")
         raise FileNotFoundError('Failed to find blastn executable')
 
-    db_path = get_data_fishdb_path(fishdb_id) + '/database'
+    try:
+        db: BlastDb = BlastDb.objects.get(id=fishdb_id)
+    except BlastDb.DoesNotExist as exc:
+        raise RuntimeError('BlastDb of specified id does not exist')
+    db_path = get_data_fishdb_path(db) + '/database'
     # check if the database file exists
     if not os.path.exists(db_path + '.fasta') or not os.path.isfile(db_path + '.fasta'):
         raise_error(run_details, f"Critical error: Failed to find BLAST database at {db_path}")
@@ -119,8 +123,8 @@ def run_blast_command(ncbi_blast_version: str, fishdb_id: str, run_id: str) -> b
     try:
         parsed_data = parse_results(out)
         accessions = [hit['subject_accession_version'] for hit in parsed_data]
-        accession_entries = NuccoreSequence.objects.filter(accession_number__in=accessions, owner_database=run_details.db_used)
-        all_hits = [Hit(**hit, owner_run = run_details, db_entry = accession_entries.get(accession_number=hit['subject_accession_version'])) for hit in parsed_data]
+        accession_entries = NuccoreSequence.objects.filter(version__in=accessions, owner_database=run_details.db_used)
+        all_hits = [Hit(**hit, owner_run = run_details, db_entry = accession_entries.get(version=hit['subject_accession_version'])) for hit in parsed_data]
         Hit.objects.bulk_create(all_hits)
     except BaseException as exc:
         raise_error(run_details, f"Errored while bulk creating hit results.")

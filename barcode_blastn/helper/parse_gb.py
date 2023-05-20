@@ -136,6 +136,7 @@ def retrieve_gb(accession_numbers: List[str], raise_if_missing: bool = False) ->
     if raise_if_missing:
         successful_queries : List[str]
         successful_queries = [entry["accession_number"] for entry in all_data]
+        successful_queries.extend([entry["version"] for entry in all_data])
         failed_queries = [d for d in desired_numbers if d not in successful_queries]
         # stop execution if data not complete
         if len(failed_queries) > 0:
