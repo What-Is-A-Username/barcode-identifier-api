@@ -14,11 +14,40 @@ from django.utils.html import format_html
 from django.contrib.auth.models import User
 from barcode_blastn.controllers.blastdb_controller import add_sequences_to_database, create_blastdb, delete_blastdb, delete_library, save_blastdb, save_sequence
 from barcode_blastn.helper.parse_gb import GenBankConnectionError, InsufficientAccessionData, retrieve_gb
-from barcode_blastn.models import BlastDb, BlastQuerySequence, DatabaseShare, Library, NuccoreSequence, BlastRun, Hit
+from barcode_blastn.models import BlastDb, BlastQuerySequence, DatabaseShare, Library, NuccoreSequence, BlastRun, Hit, TaxonomyNode
 from django.forms import BaseInlineFormSet, ModelForm, ValidationError
 from barcode_blastn.permissions import DatabaseSharePermissions, HitSharePermission, LibrarySharePermissions, NuccoreSharePermission, RunSharePermissions
 
 from barcode_blastn.serializers import LibraryEditSerializer, library_title, blast_db_title, run_title, nuccore_title, hit_title
+
+@admin.register(TaxonomyNode)
+class TaxonomyNodeAdmin(admin.ModelAdmin):
+    list_display = ('scientific_name', 'rank', 'id')
+    readonly_fields = ('scientific_name', 'rank', 'id')
+
+    def has_module_permission(self, request: HttpRequest) -> bool:
+        return True 
+    
+    def has_view_permission(self, request: HttpRequest, obj: Optional[TaxonomyNode] = None) -> bool:
+        return isinstance(request.user, User) and request.user.is_superuser
+
+    def has_add_permission(self, request: HttpRequest, obj: Optional[TaxonomyNode] = None) -> bool:
+        return False
+    
+    def has_delete_permission(self, request: HttpRequest, obj: Optional[TaxonomyNode] = None) -> bool:
+        return isinstance(request.user, User) and request.user.is_superuser
+
+    def has_change_permission(self, request: HttpRequest, obj: Optional[TaxonomyNode] = None) -> bool:
+        return isinstance(request.user, User) and request.user.is_superuser
+
+    def changeform_view(self, request: HttpRequest, object_id: Union[str, None], form_url: str, extra_context: Optional[Dict[str, bool]]) -> Any:
+        extra_context = extra_context or {}
+
+        extra_context['show_save_and_continue'] = False # show Save and Continue button
+        extra_context['show_save_and_add_another'] = False # hide Save and Add Another button
+        extra_context['show_save'] = False # hide save button
+        extra_context['show_delete'] = True # show delete button
+        return super().changeform_view(request, object_id, form_url, extra_context)
 
 class SequenceFormset(BaseInlineFormSet):
 
@@ -274,7 +303,7 @@ class BlastDbAdmin(admin.ModelAdmin):
     '''
     inlines = [NuccoreSequenceInline]
     form = BlastDbForm
-    list_display = ('library', 'version_number', 'sequence_count', 'id')
+    list_display = ('custom_name', 'library', 'version_number', 'sequence_count', 'id', 'locked')
     fieldsets = [('Details', { 'fields': ['library', 'library_owner', 'custom_name', 'description', 'version_number']}), ('Visibility', { 'fields': ['locked', 'library_is_public']})]
 
 
@@ -450,8 +479,8 @@ class NuccoreAdminModifyForm(ModelForm):
 
         # check if the accession already exists in the database
         duplicate_exists: bool = False
-        if self.instance is None: # if this is an addition
-            duplicate_exists = NuccoreSequence.objects.filter(accession_number = accession_number, owner_database_id = owner_database.id).exists()
+        if instance is None: # if this is an addition
+            duplicate_exists = NuccoreSequence.objects.filter(accession_number = accession_number, owner_database=owner_database).exists()
         
         if duplicate_exists:
             raise ValidationError(f'Error: Sequence entry for accession number {accession_number} already exists in the same database.')
@@ -475,7 +504,6 @@ class NuccoreAdmin(admin.ModelAdmin):
     )
     fields_excluded = ['uuid']
     form = NuccoreAdminModifyForm
-
     # TODO: Make the owner_database field read_only if database is locked 
 
     def changelist_view(self, request, extra_context: Optional[Dict[str, str]] = None):
@@ -525,24 +553,24 @@ class NuccoreAdmin(admin.ModelAdmin):
 
     def get_readonly_fields(self, request, obj: Optional[NuccoreSequence]=None):
         fields = [
-            'organism',
-            'version',
-            'definition',
-            'organelle',
-            'specimen_voucher',
-            'id',
-            'isolate',
-            'country',
-            'dna_sequence',
-            'lat_lon',
-            'type_material',
-            'translation',
-            'created',
-            'updated'
+            'organism', 'version', 'definition', 'organelle',
+            'specimen_voucher', 'id', 'isolate', 'country',
+            'dna_sequence', 'lat_lon', 'type_material',
+            'created', 'updated', 'taxonomy', 'taxon_species', 'taxon_genus', 'taxon_family', 'taxon_order', 'taxon_class', 'taxon_phylum', 'taxon_kingdom', 'taxon_superkingdom','title', 'authors', 'journal'
         ]
         if not obj is None:
             fields.extend(['owner_database', 'accession_number'])
+        fields.extend(['taxon'])
         return fields
+
+    def get_fieldsets(self, request: HttpRequest, obj: Optional[NuccoreSequence] = None) -> List[Tuple[Optional[str], Dict[str, Any]]]:
+        return [('Summary', { 'fields': ['id', 'accession_number', 'version', 'definition', 'taxonomy', 'owner_database']}), 
+        ('Source Information', {'fields': ['specimen_voucher', 'type_material', 'organelle', 'isolate', 'country', 'lat_lon']}),
+        ('History', { 'fields': ['created', 'updated']}),
+        ('Taxonomy', { 'fields': ['taxonomy', 'taxon_species', 'taxon_genus', 'taxon_family', 'taxon_order', 'taxon_class', 'taxon_phylum', 'taxon_kingdom', 'taxon_superkingdom']}),
+        ('Reference', { 'fields': ['title', 'authors', 'journal']}),
+        ('Sequence', { 'fields': ['dna_sequence'] })
+        ]
      
     def owner_database_link(self, obj):
         url = reverse("admin:%s_%s_change" % ('barcode_blastn', 'blastdb'), args=(obj.owner_database.id,))

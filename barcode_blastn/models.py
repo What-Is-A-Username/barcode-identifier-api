@@ -7,6 +7,29 @@ import uuid
 from django.core.validators import MaxValueValidator, MinValueValidator
 from barcode_blastn.database_permissions import DatabasePermissions
 
+class TaxonomyNode(models.Model):
+    class TaxonomyRank(models.TextChoices):
+        SUPERKINGDOM = 'sk'
+        KINGDOM = 'k'
+        PHYLUM = 'p'
+        CLASS = 'c'
+        ORDER = 'o'
+        FAMILY = 'f'
+        GENUS = 'g'
+        SPECIES = 's'        
+
+    scientific_name = models.CharField(help_text='Scientific name.', max_length=512)
+    rank = models.CharField(help_text='Taxonomic rank', choices=TaxonomyRank.choices, max_length=128)
+    last_updated = models.DateTimeField(auto_now=True)
+
+    def __str__(self) -> str:
+        return f'{self.scientific_name}: {self.id} ({self.rank})'
+
+    class Meta:
+        ordering = ['id']
+        verbose_name = 'NCBI Taxonomy Node'
+        verbose_name_plural = 'NCBI Taxonomy Nodes'
+
 class LibraryManager(models.Manager):
     '''
     Model manager for the BlastDb class.
@@ -245,10 +268,29 @@ class NuccoreSequence(models.Model):
     translation = models.TextField(max_length=10000, blank=True, default='', help_text='Amino acid translation corresponding to the coding sequence')
     lat_lon = models.CharField(max_length=64, blank=True, default='', help_text='Latitude and longitude from which specimen originated')
     type_material = models.CharField(max_length=255, blank=True, default='', help_text='Specimen type of the source')
+
+    taxid = models.IntegerField('Taxonomic identifier of source organism.', blank=True, default=-2)
+
+    taxon_species = models.ForeignKey(TaxonomyNode, related_name='species_member', related_query_name='species_members', help_text='Species taxa of the source organism', on_delete=models.CASCADE, null=True) 
+    taxon_genus = models.ForeignKey(TaxonomyNode, related_name='genus_member', related_query_name='genus_members', help_text='Genus of the source organism', on_delete=models.CASCADE, null=True) 
+    taxon_family = models.ForeignKey(TaxonomyNode, related_name='family_member', related_query_name='family_members', help_text='Family of the source organism', on_delete=models.CASCADE, null=True) 
+    taxon_order = models.ForeignKey(TaxonomyNode, related_name='order_member', related_query_name='order_members', help_text='Order of the source organism', on_delete=models.CASCADE, null=True) 
+    taxon_class = models.ForeignKey(TaxonomyNode, related_name='class_member', related_query_name='class_members', help_text='Class of the source organism', on_delete=models.CASCADE, null=True) 
+    taxon_phylum = models.ForeignKey(TaxonomyNode, related_name='phylum_member', related_query_name='phylum_members', help_text='Phylum of the source organism', on_delete=models.CASCADE, null=True) 
+    taxon_kingdom = models.ForeignKey(TaxonomyNode, related_name='kingdom_member', related_query_name='kingdom_members', help_text='Kingdom of the source organism', on_delete=models.CASCADE, null=True) 
+    taxon_superkingdom = models.ForeignKey(TaxonomyNode, related_name='superkingdom_member', related_query_name='superkingdom_members', help_text='Superkingdom of the source organism', on_delete=models.CASCADE, null=True) 
     
+    
+    title = models.CharField(max_length=512, help_text='Title of a publication by the authors of the sequence record.', blank=True, default='')
+    journal = models.CharField(max_length=128, help_text='The journal of a publication, expressed with the MEDLINE abbreviation.', blank=True, default='')
+    authors = models.CharField(max_length=512, help_text='Author list from the publication.', blank=True, default='')
+    taxonomy = models.CharField(max_length=512,help_text='Comma-separated list of taxonomic lineage from GenBank', blank=True, default='')
+    
+    genbank_modification_date = models.DateField(help_text='Modification date of the GenBank entry, shown in the locus field of the flat file.')
+
     # Time when instance first created
     created = models.DateTimeField(auto_now_add=True, help_text='Date and time at which record was first created')
-    # Date and time when data was last updated
+    # Date and time when data was last updated by this app
     updated = models.DateTimeField(auto_now=True, help_text='Date and time when sequence data was last updated from GenBank')
 
     def __str__(self) -> str:
@@ -371,3 +413,6 @@ class Hit(models.Model):
         ordering = ['percent_identity']
         verbose_name = 'BLASTN Run Hit'
         verbose_name_plural = 'BLASTN Run Hits'
+
+
+

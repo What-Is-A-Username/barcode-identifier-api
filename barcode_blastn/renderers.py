@@ -112,7 +112,6 @@ class BlastRunTxtRenderer(BaseRenderer):
 
         return ''.join(out_lines).encode(self.charset)
         
-
 class BlastRunCSVRenderer(BaseRenderer):
     '''
     Return the information of a blast run in CSV format

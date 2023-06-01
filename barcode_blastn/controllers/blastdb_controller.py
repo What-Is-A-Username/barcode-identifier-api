@@ -3,7 +3,7 @@ import os
 import shutil
 from typing import Any, Dict, List, Optional, Tuple
 from barcode_blastn.file_paths import get_data_fishdb_path, get_data_library_path, get_ncbi_folder
-from barcode_blastn.helper.parse_gb import AccessionLimitExceeded, GenBankConnectionError, InsufficientAccessionData, retrieve_gb
+from barcode_blastn.helper.parse_gb import AccessionLimitExceeded, GenBankConnectionError, InsufficientAccessionData, retrieve_gb, save_taxonomy
 from barcode_blastn.models import BlastDb, Library, NuccoreSequence
 from barcode_blastn.serializers import NuccoreSequenceSerializer 
 from django.db.models import QuerySet
@@ -175,7 +175,12 @@ def create_blastdb(additional_accessions: List[str], base: Optional[BlastDb] = N
         new_database = save_blastdb(new_database, perform_lock=locked)
     return new_database
 
-def calculate_update_summary(last: BlastDb, current: BlastDb):
+def calculate_update_summary(last: BlastDb, current: BlastDb) -> SequenceUpdateSummary:
+    '''
+    Create a SequenceUpdateSummary based on the differences of current database
+    from the last database.
+    '''
+
     fields_to_check = ['definition', 'dna_sequence', 'organism', 'organelle', 'isolate', 'country', 'specimen_voucher', 'type_material', 'lat_lon']
 
     last_sequences: QuerySet[NuccoreSequence] = NuccoreSequence.objects.filter(owner_database=last)
@@ -378,7 +383,8 @@ def add_sequences_to_database(database: BlastDb, desired_numbers: List[str]) -> 
 
     # retrieve data
     genbank_data = retrieve_gb(accession_numbers=desired_numbers)
-
+    genbank_data = save_taxonomy(genbank_data)
+    
     # save the new sequences using a bulk operation
     to_create: List[NuccoreSequence] = []
     for data in genbank_data:
@@ -429,9 +435,10 @@ def save_sequence(obj: NuccoreSequence, change: bool=True, commit: bool = False,
         pass
     else:
         # raise error if duplicate accession already exists
-        raise AccessionsAlreadyExist([e.accession_number for e in existing]) 
+        raise AccessionsAlreadyExist([existing.accession_number]) 
 
     # fetch GenBank data
+    currentData: Dict[str, Any]
     try:
         currentData = retrieve_gb(accession_numbers=[accession_number],
                                   raise_if_missing=raise_if_missing)[0]
@@ -441,7 +448,12 @@ def save_sequence(obj: NuccoreSequence, change: bool=True, commit: bool = False,
         raise exc
 
     # check that the GenBank data is valid
+    currentData = save_taxonomy([currentData])[0]
+    taxon_fields = ['taxon_species', 'taxon_genus', 'taxon_family', 'taxon_order', 'taxon_class', 'taxon_phylum', 'taxon_kingdom', 'taxon_superkingdom']
+    for taxon_field in taxon_fields:
+        setattr(obj, taxon_field, currentData[taxon_field])
     serializer = NuccoreSequenceSerializer(obj, data=currentData, partial=True)
+
     if serializer.is_valid():
         if commit:
             # only save if commit specified

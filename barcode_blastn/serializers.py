@@ -4,7 +4,7 @@ import os
 from typing import Union
 from django.contrib.auth.models import User
 from rest_framework import serializers
-from barcode_blastn.models import BlastQuerySequence, BlastRun, DatabaseShare, Hit, Library, NuccoreSequence, BlastDb
+from barcode_blastn.models import BlastQuerySequence, BlastRun, DatabaseShare, Hit, Library, NuccoreSequence, BlastDb, TaxonomyNode
 
 library_title = 'Reference Library'
 blast_db_title = 'BLAST Database Version'
@@ -13,6 +13,11 @@ hit_title = 'BLASTN hit'
 query_title = 'Query Sequence'
 run_title = 'Run'
 share_title = 'Share Details'
+
+class TaxonomyNodeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TaxonomyNode
+        fields = ['id', 'scientific_name']
 
 class LibraryOwnerSerializer(serializers.ModelSerializer):
     f'''
@@ -107,6 +112,14 @@ class NuccoreSequenceSerializer(serializers.ModelSerializer):
     Complete information about a {nuccore_title} including the {blast_db_title} it belongs to. 
     """
     owner_database = BlastDbShortSerializer(many=False, read_only=True)
+    taxon_genus = TaxonomyNodeSerializer(many=False, read_only=True)
+    taxon_family = TaxonomyNodeSerializer(many=False, read_only=True)
+    taxon_species = TaxonomyNodeSerializer(many=False, read_only=True)
+    taxon_order = TaxonomyNodeSerializer(many=False, read_only=True)
+    taxon_class = TaxonomyNodeSerializer(many=False, read_only=True)
+    taxon_phylum = TaxonomyNodeSerializer(many=False, read_only=True)
+    taxon_kingdom = TaxonomyNodeSerializer(many=False, read_only=True)
+    taxon_superkingdom = TaxonomyNodeSerializer(many=False, read_only=True)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -116,7 +129,7 @@ class NuccoreSequenceSerializer(serializers.ModelSerializer):
     class Meta:
         model = NuccoreSequence
         ref_name = nuccore_title + ' summary'
-        fields = ['id', 'owner_database', 'accession_number', 'version', 'definition', 'organism', 'organelle', 'isolate', 'country', 'specimen_voucher', 'lat_lon', 'dna_sequence', 'translation', 'type_material', 'created']
+        fields = ['id', 'owner_database', 'accession_number', 'version', 'definition', 'organism', 'organelle', 'isolate', 'country', 'specimen_voucher', 'lat_lon', 'dna_sequence', 'translation', 'type_material', 'created', 'genbank_modification_date', 'taxid', 'taxonomy', 'title', 'journal', 'authors', 'taxonomy', 'taxon_superkingdom', 'taxon_kingdom', 'taxon_phylum', 'taxon_class', 'taxon_order', 'taxon_family', 'taxon_genus', 'taxon_species']
         example = {
             "id": "5100cbd8-2fda-4b42-8aa1-10ede078448b",
             "owner_database": BlastDbShortSerializer.Meta.example,
@@ -184,6 +197,15 @@ class BlastDbSequenceEntrySerializer(serializers.ModelSerializer):
     Show a summary of a {nuccore_title}, to be shown when its corresponding {blast_db_title} or {hit_title} is shown.
     '''
 
+    taxon_genus = TaxonomyNodeSerializer(many=False, read_only=True)
+    taxon_family = TaxonomyNodeSerializer(many=False, read_only=True)
+    taxon_species = TaxonomyNodeSerializer(many=False, read_only=True)
+    taxon_order = TaxonomyNodeSerializer(many=False, read_only=True)
+    taxon_class = TaxonomyNodeSerializer(many=False, read_only=True)
+    taxon_phylum = TaxonomyNodeSerializer(many=False, read_only=True)
+    taxon_kingdom = TaxonomyNodeSerializer(many=False, read_only=True)
+    taxon_superkingdom = TaxonomyNodeSerializer(many=False, read_only=True)
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         for name in self.Meta.fields:
@@ -193,7 +215,7 @@ class BlastDbSequenceEntrySerializer(serializers.ModelSerializer):
     class Meta:
         model = NuccoreSequence
         ref_name = nuccore_title
-        fields = ['accession_number', 'version', 'organism', 'organelle', 'isolate', 'country', 'specimen_voucher', 'dna_sequence', 'lat_lon', 'type_material', 'created', 'updated'] 
+        fields = ['accession_number', 'version', 'organism', 'organelle', 'isolate', 'country', 'specimen_voucher', 'dna_sequence', 'lat_lon', 'type_material', 'created', 'updated', 'genbank_modification_date', 'taxonomy', 'taxon_superkingdom', 'taxon_kingdom', 'taxon_phylum', 'taxon_class', 'taxon_order', 'taxon_family', 'taxon_genus', 'taxon_species'] 
         example = {
             "id": "5100cbd8-2fda-4b42-8aa1-10ede078448b",
             "accession_number": "ON303341",
