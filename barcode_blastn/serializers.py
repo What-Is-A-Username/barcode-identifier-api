@@ -297,7 +297,7 @@ class BlastDbSerializer(serializers.ModelSerializer):
     class Meta:
         model = BlastDb
         ref_name = blast_db_title
-        fields = ['id', 'library', 'version_number', 'description', 'locked', 'sequences']
+        fields = ['id', 'library', 'custom_name', 'version_number', 'description', 'locked', 'sequences']
         example = {
             "id": "66855f2c-f360-4ad9-8c98-998ecb815ff5",
             "description": "This BLAST database is a collection of barcodes from 167 species of Neotropical electric knifefish (Teleostei: Gymnotiformes) which was presented by Janzen et al. 2022. All sequences and related feature data are updated daily at midnight (UTC) from NCBI's Genbank database.",

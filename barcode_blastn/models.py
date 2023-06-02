@@ -1,8 +1,8 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Union
 from django.db import models
 from django.utils.translation import gettext_lazy as _
-from django.contrib.auth.models import User
+from django.contrib.auth.models import User, AnonymousUser, AbstractBaseUser
 import uuid
 from django.core.validators import MaxValueValidator, MinValueValidator
 from barcode_blastn.database_permissions import DatabasePermissions
@@ -34,7 +34,7 @@ class LibraryManager(models.Manager):
     '''
     Model manager for the BlastDb class.
     '''
-    def editable(self, user: User):
+    def editable(self, user: Union[AbstractBaseUser, AnonymousUser]):
         '''
         Return a queryset of Reference Libraries that are editable by the given user.
         Editability is given if:
@@ -49,7 +49,7 @@ class LibraryManager(models.Manager):
         if not user.is_authenticated:
             # public users can never edit a database
             return super().none()
-        elif user.is_superuser:
+        elif isinstance(user, User) and user.is_superuser:
             # give access to all databases if superuser
             return super().get_queryset().all()
         else:
@@ -60,7 +60,7 @@ class LibraryManager(models.Manager):
                 models.Q(shares=user, databaseshare__permission_level__in=[DatabasePermissions.CAN_EDIT_DB])
             )
         
-    def viewable(self, user: User):
+    def viewable(self, user: Union[AbstractBaseUser, AnonymousUser]):
         '''
         Retrieve a set of databases that the user can view. A user can view if:
         - the reference library is public, and either not explicitly denied or unauthenticated
@@ -71,7 +71,7 @@ class LibraryManager(models.Manager):
         if not user.is_authenticated:
             # only return public databases for public users
             return super().get_queryset().filter(public=True)
-        elif user.is_superuser:
+        elif isinstance(user, User) and user.is_superuser:
             # give access to all databases if superuser
             return super().get_queryset().all()
         else:
@@ -92,7 +92,7 @@ class LibraryManager(models.Manager):
                          ])
             )
 
-    def runnable(self, user: User):
+    def runnable(self, user: Union[AbstractBaseUser, AnonymousUser]):
         '''
         Retrieve a set of reference libraries that the user can run on. Permission is given if:
         - the user can view
@@ -100,7 +100,7 @@ class LibraryManager(models.Manager):
         # Currently, if a user can view the database, they can run it
         return self.viewable(user)
 
-    def deletable(self, user: User):
+    def deletable(self, user: Union[AbstractBaseUser, AnonymousUser]):
         '''
         Retrieve a set of reference libraries that is deletable by the user. 
         A reference library is deletable if:
@@ -109,7 +109,7 @@ class LibraryManager(models.Manager):
         if not user.is_authenticated:
             # public users cannot delete any databases
             return super().none()
-        elif user.is_superuser:
+        elif isinstance(user, User) and user.is_superuser:
             # A superuser can delete any database
             return super().get_queryset().all()
         else:
@@ -168,7 +168,7 @@ class BlastDbManager(models.Manager):
         libs: models.QuerySet[Library] = Library.objects.editable(user)
         return BlastDb.objects.filter(library__in=libs)
 
-    def viewable(self, user: User):
+    def viewable(self, user: Union[AbstractBaseUser, AnonymousUser]):
         '''Return a QuerySet of BLAST databases that are viewable by the given user. BLAST databases are editable if their reference library are viewable by the same user.'''
         libs: models.QuerySet[Library] = Library.objects.viewable(user)
         return BlastDb.objects.filter(library__in=libs)

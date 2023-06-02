@@ -1,6 +1,8 @@
 import csv
 import io
 import os
+import zipfile
+from typing import Any, Dict, List, Optional, Set, Tuple
 from django.http.response import HttpResponse
 from rest_framework.renderers import BaseRenderer
 from barcode_blastn.file_paths import get_data_run_path
@@ -8,19 +10,189 @@ from barcode_blastn.models import BlastRun
 
 from barcode_blastn.serializers import BlastDbSequenceEntrySerializer,  BlastRunSerializer, HitSerializer
 
+
+
+def get_letter(rank: str) -> str:
+    '''
+    Return the letter abbreviation of the taxonomic rank.
+    E.g. `rank = "taxon_family" => "f"`
+    '''
+    assert rank.startswith('taxon_')
+    if rank == 'taxon_superkingdom':
+        return 'sk'
+    else:
+        return rank[6]
+
+def renderDada2Taxonomy(data) -> List[str]:
+    taxa_ranks = ['taxon_kingdom', 'taxon_phylum', 'taxon_class', 'taxon_order', 'taxon_family', 'taxon_genus']   
+    sequence_file = []
+    for sequence in data['sequences']:
+        taxa = [sequence[rank] for rank in taxa_ranks]
+        taxa_to_print = []
+        for t in taxa:
+                # stop printing as soon as rank unspecified
+            if t is None:
+                break
+            taxa_to_print.append(t['scientific_name'].replace(' ', '_'))
+        lineage = ';'.join(taxa_to_print)
+        sequence_file.append(f'>{lineage};\n{sequence["dna_sequence"]}\n')
+    return sequence_file
+
+def renderDada2Species(data) -> List[str]:
+    sequence_file = []
+    for sequence in data['sequences']:
+        id: str = sequence["version"].replace('.', '_')
+        species = sequence['taxon_species']
+        if species is None:
+            genus = sequence['taxon_species']
+            if not genus is None:
+                species = f'{genus["scientific_name"]} {id}'
+            else:
+                species = f'{id} unidentified_species'
+        else:
+            species = species['scientific_name']
+        sequence_file.append(f'>{id} {species}\n{sequence["dna_sequence"]}\n')
+    return sequence_file
+
+def renderSintax(data) -> List[str]:
+    taxa_ranks = ['taxon_kingdom', 'taxon_phylum', 'taxon_class', 'taxon_order', 'taxon_family', 'taxon_genus']   
+    sequence_file = []
+    for sequence in data['sequences']:
+        id: str = sequence["version"].replace('.', '_')
+        taxa_to_print: List[str] = []
+        for rank in taxa_ranks:
+            if not sequence[rank] is None:
+                name = sequence[rank]["scientific_name"].replace(' ', '_')
+                taxa_to_print.append(f'{get_letter(rank)}:{name}')
+        lineage = ','.join(taxa_to_print)
+        sequence_file.append(f'>{id};tax={lineage};\n{sequence["dna_sequence"]}\n')
+    return sequence_file
+
+def renderDefaultFasta(data) -> List[str]:
+    sequence_file = []
+    for sequence in data['sequences']:
+        sequence_file.append(f'>{sequence["accession_number"]}\n{sequence["dna_sequence"]}\n')
+    return sequence_file
+
 class BlastDbFastaRenderer(BaseRenderer):
     '''
-    Return the entries of blastdb in FASTA format (accession number + sequence)
+    Return the entries of blastdb in FASTA format.
+    The header 
     '''
     media_type = 'text/x-fasta'
     format = 'fasta'
     charset = 'utf-8'
 
+    def render(self, data, accepted_media_type=None, renderer_context: Optional[Dict[Any, Any]]=None):
+        fasta_format = renderer_context.get('fasta_format', '') if not renderer_context is None else ''
+        
+        sequence_file: List[str]
+        if fasta_format == 'dada2tax':
+            sequence_file = renderDada2Taxonomy(data)
+        elif fasta_format == 'dada2sp':
+            sequence_file = renderDada2Species(data)
+        elif fasta_format == 'sintax':
+            sequence_file = renderSintax(data)
+        else:
+            sequence_file = renderDefaultFasta(data)
+            
+        return ''.join(sequence_file).encode(self.charset)
+
+class BlastDbCompatibleRenderer(BaseRenderer):
+    media_type = 'application/zip'
+    format = 'zip'
+    charset = 'utf-8'
+
+    def get_rdp_rank_name(self, rank: str) -> str:
+        assert rank.startswith('taxon_')
+        return rank[6:]
+
     def render(self, data, accepted_media_type=None, renderer_context=None):
-        fasta_file = []
-        for sequence in data['sequences']:
-            fasta_file.append(f'>{sequence["accession_number"]}\n{sequence["dna_sequence"]}\n')
-        return ''.join(fasta_file).encode(self.charset)
+        fasta_format = renderer_context.get('fasta_format', '') if not renderer_context is None else ''
+
+        zip_buffer = io.BytesIO()
+        zip_files: List[Tuple[str,str]] = [] # a list of tuples, (filename, content)
+
+        if fasta_format == 'dada2tax':
+            sequence_file = renderDada2Taxonomy(data)
+            zip_files.append((f'{data["custom_name"]}__dada2taxonomy.fasta', ''.join(sequence_file)))
+
+        elif fasta_format == 'dada2sp':
+            sequence_file = renderDada2Species(data)
+            zip_files.append((f'{data["custom_name"]}__dada2species.fasta', ''.join(sequence_file)))
+
+        elif fasta_format == 'sintax':
+            sequence_file = renderSintax(data)
+            zip_files.append((f'{data["custom_name"]}__sintax.fasta', ''.join(sequence_file)))
+
+        elif fasta_format == 'rdp':
+            rdp_taxa_ranks = ['taxon_superkingdom', 'taxon_kingdom', 'taxon_phylum', 'taxon_class', 'taxon_order', 'taxon_family', 'taxon_genus', 'taxon_species']
+            sequence_file = []
+            taxonomy_file = []
+            taxonomy_file.append('1*Root*-1*0*rootrank\n')
+            # set of taxomic names added already. key = taxonomic_name, id = taxid
+            rdpTaxaAdded: Dict[str, int] = {}
+            # next unused taxid
+            nextRdpTaxId = -2
+            for sequence in data['sequences']:
+                id: str = sequence["version"].replace('.', '_')
+                taxa_to_print: List[str] = ['Root']
+                last_rank_id = 1
+                for index, rank in enumerate(rdp_taxa_ranks):
+                    taxon_name = taxa_to_print[-1] if sequence[rank] is None else sequence[rank]["scientific_name"].replace(' ', '_')
+                    taxon_name = f'{get_letter(rank)}__{taxon_name}'
+                    taxa_to_print.append(taxon_name)
+                    if taxon_name not in rdpTaxaAdded:
+                        # For taxon names that haven't been encountered before,
+                        # write them to the taxonomy file
+                        if not sequence[rank] is None:
+                            taxid = sequence[rank]["id"]
+                        else:
+                            taxid = nextRdpTaxId
+                            nextRdpTaxId = nextRdpTaxId - 1
+                        taxonomy_file.append(f'{taxid}*{taxon_name}*{last_rank_id}*{index+1}*{self.get_rdp_rank_name(rank)}\n')
+                        rdpTaxaAdded[taxon_name] = taxid
+                        
+                        last_rank_id = taxid 
+                    else:
+                        last_rank_id = rdpTaxaAdded[taxon_name]
+
+                lineage = ';'.join(taxa_to_print)
+                sequence_file.append(f'>{id}\t{lineage}\n{sequence["dna_sequence"]}\n')
+            
+            db_name = data["custom_name"].replace(' ', '_')
+            zip_files.append((f'{db_name}__rdp.fasta', ''.join(sequence_file)))
+            zip_files.append((f'{db_name}__rdp.txt', ''.join(taxonomy_file)))
+            
+        elif fasta_format == 'mothur':
+            mothur_taxa_ranks = ['taxon_superkingdom', 'taxon_kingdom', 'taxon_phylum', 'taxon_class', 'taxon_order', 'taxon_family', 'taxon_genus', 'taxon_species']
+            sequence_file = []
+            taxonomy_file = []
+            for sequence in data['sequences']: 
+                id: str = sequence["version"].replace('.', '_')
+                taxa_to_print = ['Root']
+                for rank in mothur_taxa_ranks:
+                    # stop printing as soon as rank unspecified
+                    if sequence[rank] is None: 
+                        break
+                    name = sequence[rank]["scientific_name"].replace(' ', '_')
+                    taxa_to_print.append(f"{get_letter(rank)}__{name}")
+                lineage = ';'.join(taxa_to_print)
+                sequence_file.append(f'>{id}\t{lineage};\n{sequence["dna_sequence"]}\n')
+                taxonomy_file.append(f'{id}\t{lineage};\n')
+            zip_files.append((f'{data["custom_name"]}__mothur.pds.fasta', ''.join(sequence_file)))
+            zip_files.append((f'{data["custom_name"]}__mothur.pds.tax', ''.join(taxonomy_file)))
+
+        else:
+            sequence_file = renderDefaultFasta(data)
+            zip_files.append((f'{data["custom_name"]}.fasta', ''.join(sequence_file)))
+        
+        with zipfile.ZipFile(zip_buffer, 'w') as zip_file:
+            for file in zip_files:
+                print(file[1])
+                zip_file.writestr(file[0], file[1])
+        
+        return zip_buffer.getvalue()
 
 class BlastRunFastaRenderer(BaseRenderer):
     '''
@@ -30,8 +202,13 @@ class BlastRunFastaRenderer(BaseRenderer):
     format = 'fasta'
     charset = 'utf-8'
     
-    def render(self, data, accepted_media_type=None, renderer_context=None):
-        return data
+    def render(self, data, accepted_media_type=None, renderer_context: Optional[Dict[Any, Any]] = None):
+        fasta_file = []
+        if not renderer_context is None:
+            fasta_file.append(renderer_context.get('fasta_format', ''))
+        for sequence in data['sequences']:
+            fasta_file.append(f'>{sequence["accession_number"]}\n{sequence["dna_sequence"]}\n')
+        return ''.join(fasta_file).encode(self.charset)
 
 class BlastDbCSVRenderer(BaseRenderer):
     '''

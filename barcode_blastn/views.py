@@ -42,13 +42,13 @@ from barcode_blastn.helper.parse_gb import (MAX_ACCESSIONS_PER_REQUEST,
 from barcode_blastn.helper.verify_query import verify_dna
 from barcode_blastn.models import (BlastDb, BlastQuerySequence, BlastRun,
                                    Library, NuccoreSequence)
-from barcode_blastn.permissions import (BlastRunEndpointPermission,
+from barcode_blastn.permissions import (BlastDbEndpointPermission, BlastRunEndpointPermission,
                                         DatabaseSharePermissions,
                                         LibraryEndpointPermission,
                                         LibrarySharePermissions,
                                         NuccoreSequenceEndpointPermission,
                                         NuccoreSharePermission)
-from barcode_blastn.renderers import (BlastDbCSVRenderer, BlastDbFastaRenderer,
+from barcode_blastn.renderers import (BlastDbCSVRenderer, BlastDbCompatibleRenderer, BlastDbFastaRenderer,
                                       BlastRunCSVRenderer,
                                       BlastRunFastaRenderer,
                                       BlastRunTxtRenderer)
@@ -853,6 +853,7 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
     '''
     queryset = BlastDb.objects.all()
     renderer_classes = [JSONRenderer, BrowsableAPIRenderer, TemplateHTMLRenderer, BlastDbCSVRenderer, BlastDbFastaRenderer]
+    permission_classes = [BlastDbEndpointPermission]
 
     def get_serializer_class(self):
         if not self.request or self.request.method == 'GET':
@@ -992,6 +993,49 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
             return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         else:
             return Response(status=status.HTTP_204_NO_CONTENT)
+
+class BlastDbExport(generics.GenericAPIView):
+    serializer_class = BlastDbSerializer
+    renderer_classes = [JSONRenderer, BrowsableAPIRenderer, BlastDbFastaRenderer, BlastDbCompatibleRenderer]
+
+    def get_queryset(self):
+        return BlastDb.objects.viewable(self.request.user)
+
+    def get_renderer_context(self):
+        context = super().get_renderer_context()
+        context['fasta_format'] = self.request.GET.get('fasta_format', '')
+        return context
+    
+    def get(self, request, *args, **kwargs):
+        '''
+        Export blastdb to compatible formats for taxonomic assignment.
+        '''
+
+        db_primary_key = kwargs['pk']
+
+        try:
+            db: BlastDb = BlastDb.objects.get(id = db_primary_key)
+            # Check if user has access permissions to this database
+            self.check_object_permissions(request, db)
+        except BlastDb.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        except PermissionDenied:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        response = Response(self.get_serializer_class()(db).data, status=status.HTTP_200_OK, template_name='blastdb.html')
+
+        # based on the media type file returned, specify attachment and file name
+        if request.accepted_media_type.startswith('text/x-fasta'):
+            ff = self.request.GET.get('fasta_format', 'fasta')
+            response['Content-Disposition'] = f'attachment; filename="{db.custom_name}.fasta";'
+        elif request.accepted_media_type.startswith('application/zip'):
+            ff = self.request.GET.get('fasta_format', 'fasta')
+            response['Content-Disposition'] = f'attachment; filename="{db.custom_name}.zip";'
+        else:
+            # If the accepted media type cannot be chosen (ie content negotiation)
+            # fails, then return a 406 response
+            return Response(status=status.HTTP_406_NOT_ACCEPTABLE)
+        return response
 
 class BlastRunList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.GenericAPIView):
     '''
