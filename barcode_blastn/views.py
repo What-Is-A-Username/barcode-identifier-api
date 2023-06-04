@@ -5,10 +5,8 @@
 from datetime import datetime
 import io
 import os
-import shutil
 import uuid
 from typing import Any, Dict, List
-from urllib.error import HTTPError
 
 from barcode_identifier_api.celery import app
 from Bio import SeqIO
@@ -48,12 +46,12 @@ from barcode_blastn.permissions import (BlastDbEndpointPermission, BlastRunEndpo
                                         LibrarySharePermissions,
                                         NuccoreSequenceEndpointPermission,
                                         NuccoreSharePermission)
-from barcode_blastn.renderers import (BlastDbCSVRenderer, BlastDbCompatibleRenderer, BlastDbFastaRenderer,
+from barcode_blastn.renderers import (BlastDbCSVRenderer, BlastDbCompatibleRenderer, BlastDbFastaRenderer, BlastDbTSVRenderer, BlastDbXMLRenderer,
                                       BlastRunCSVRenderer,
                                       BlastRunFastaRenderer,
                                       BlastRunTxtRenderer)
 from barcode_blastn.serializers import (BlastDbCreateSerializer,
-                                        BlastDbEditSerializer,
+                                        BlastDbEditSerializer, BlastDbExportSerializer,
                                         BlastDbListSerializer,
                                         BlastDbSequenceEntrySerializer,
                                         BlastDbSerializer,
@@ -801,7 +799,6 @@ class LibraryBlastDbList(mixins.ListModelMixin, generics.CreateAPIView):
         if not LibrarySharePermissions.has_change_permission(request.user, library):
             return Response(status=status.HTTP_403_FORBIDDEN)
 
-        # TODO: Move logic to blastdb_controller.py
         updated_data = request.data.copy()
         updated_data['library'] = library.id
         serializer = self.get_serializer_class()(data=request.data)
@@ -995,15 +992,15 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
             return Response(status=status.HTTP_204_NO_CONTENT)
 
 class BlastDbExport(generics.GenericAPIView):
-    serializer_class = BlastDbSerializer
-    renderer_classes = [JSONRenderer, BrowsableAPIRenderer, BlastDbFastaRenderer, BlastDbCompatibleRenderer]
-
-    def get_queryset(self):
-        return BlastDb.objects.viewable(self.request.user)
-
+    '''
+    Export the reference library to JSON and different file formats.
+    '''
+    serializer_class = BlastDbExportSerializer
+    renderer_classes = [JSONRenderer, BrowsableAPIRenderer, BlastDbCSVRenderer, BlastDbTSVRenderer, BlastDbXMLRenderer, BlastDbFastaRenderer, BlastDbCompatibleRenderer]
+    
     def get_renderer_context(self):
         context = super().get_renderer_context()
-        context['fasta_format'] = self.request.GET.get('fasta_format', '')
+        context['export_format'] = self.request.GET.get('export_format', '')
         return context
     
     def get(self, request, *args, **kwargs):
@@ -1024,13 +1021,21 @@ class BlastDbExport(generics.GenericAPIView):
 
         response = Response(self.get_serializer_class()(db).data, status=status.HTTP_200_OK, template_name='blastdb.html')
 
-        # based on the media type file returned, specify attachment and file name
-        if request.accepted_media_type.startswith('text/x-fasta'):
-            ff = self.request.GET.get('fasta_format', 'fasta')
-            response['Content-Disposition'] = f'attachment; filename="{db.custom_name}.fasta";'
+        # based on the media type file to be returned, specify attachment and file name
+        if request.accepted_media_type.startswith('text/csv'):
+            response['Content-Disposition'] = f'filename="{db.custom_name}.csv";'
+        elif request.accepted_media_type.startswith('text/plain'):
+            response['Content-Disposition'] = f'filename="{db.custom_name}.txt";'
+        elif request.accepted_media_type.startswith('text/tsv'):
+            response['Content-Disposition'] = f'filename="{db.custom_name}.tsv";'
+        elif request.accepted_media_type.startswith('application/xml'):
+            response['Content-Disposition'] = f'filename="{db.custom_name}.xml";'
+        elif request.accepted_media_type.startswith('application/x-fasta'):
+            response['Content-Disposition'] = f'filename="{db.custom_name}.fasta";'
         elif request.accepted_media_type.startswith('application/zip'):
-            ff = self.request.GET.get('fasta_format', 'fasta')
             response['Content-Disposition'] = f'attachment; filename="{db.custom_name}.zip";'
+        elif request.accepted_media_type.startswith('application/json'):
+            return response
         else:
             # If the accepted media type cannot be chosen (ie content negotiation)
             # fails, then return a 406 response
@@ -1302,7 +1307,6 @@ class BlastRunRun(generics.CreateAPIView):
 
         print('Running BLAST search ...')
 
-        # TODO: remove query_sequence reference
         ncbi_blast_version = 'ncbi-blast-2.12.0+'
         run_details = BlastRun(id = results_uuid, db_used = odb, job_name = job_name, blast_version = ncbi_blast_version, errors = '', status=BlastRun.JobStatus.QUEUED, start_time = None, end_time = None, error_time = None, create_hit_tree = create_hit_tree, create_db_tree = create_db_tree)
         run_details.save()

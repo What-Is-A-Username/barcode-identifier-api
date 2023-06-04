@@ -370,7 +370,6 @@ class BlastRun(models.Model):
     end_time = models.DateTimeField(blank=True, null=True, help_text='Date and time when job successfully finished running')
     # Time that job errored
     error_time = models.DateTimeField(blank=True, null=True, help_text='Date and time when job encountered an error')
-    # TODO: add last modified time?
 
     # Blast version
     blast_version = models.TextField(max_length=100, blank=True, default='', help_text='Version of BLASTn used')

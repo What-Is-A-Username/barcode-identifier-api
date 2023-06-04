@@ -2,15 +2,13 @@ import csv
 import io
 import os
 import zipfile
+import xmltodict
 from typing import Any, Dict, List, Optional, Set, Tuple
-from django.http.response import HttpResponse
 from rest_framework.renderers import BaseRenderer
 from barcode_blastn.file_paths import get_data_run_path
 from barcode_blastn.models import BlastRun
 
-from barcode_blastn.serializers import BlastDbSequenceEntrySerializer,  BlastRunSerializer, HitSerializer
-
-
+from barcode_blastn.serializers import BlastDbSequenceExportSerializer,  BlastRunSerializer, HitSerializer
 
 def get_letter(rank: str) -> str:
     '''
@@ -74,12 +72,23 @@ def renderDefaultFasta(data) -> List[str]:
         sequence_file.append(f'>{sequence["accession_number"]}\n{sequence["dna_sequence"]}\n')
     return sequence_file
 
+class BlastDbXMLRenderer(BaseRenderer):
+    '''
+    Return the entries of the blastdb in XML format.
+    '''
+    media_type = 'application/xml'
+    format = 'xml'
+    charset = 'utf-8'
+
+    def render(self, data, accepted_media_type=None, renderer_context=None):
+        export_data = {'Database': data}
+        return xmltodict.unparse(export_data).encode(self.charset)
+
 class BlastDbFastaRenderer(BaseRenderer):
     '''
     Return the entries of blastdb in FASTA format.
-    The header 
     '''
-    media_type = 'text/x-fasta'
+    media_type = 'application/x-fasta'
     format = 'fasta'
     charset = 'utf-8'
 
@@ -99,6 +108,10 @@ class BlastDbFastaRenderer(BaseRenderer):
         return ''.join(sequence_file).encode(self.charset)
 
 class BlastDbCompatibleRenderer(BaseRenderer):
+    '''
+    Return the entries of blastdb in ZIP file format
+    '''
+    
     media_type = 'application/zip'
     format = 'zip'
     charset = 'utf-8'
@@ -113,7 +126,28 @@ class BlastDbCompatibleRenderer(BaseRenderer):
         zip_buffer = io.BytesIO()
         zip_files: List[Tuple[str,str]] = [] # a list of tuples, (filename, content)
 
-        if fasta_format == 'dada2tax':
+        if fasta_format == 'qiime2':
+            sequence_file = []
+            taxonomy_file = []
+            taxa_ranks = ['taxon_kingdom', 'taxon_phylum', 'taxon_class', 'taxon_order', 'taxon_family', 'taxon_genus']
+            for sequence in data['sequences']:
+                id: str = sequence["version"].replace('.', '_')
+                found_empty: bool = False
+                taxa_to_print = []
+                sequence_file.append(f'>{id}\n{sequence["dna_sequence"]}\n')
+                for rank in taxa_ranks:
+                    if found_empty:
+                        taxa_to_print.append(f'{get_letter(rank)}__')
+                    elif sequence[rank] is None:
+                        taxa_to_print.append(f'{get_letter(rank)}__')
+                        found_empty = True
+                    else:
+                        taxa_to_print.append(f'{get_letter(rank)}__{sequence[rank]["scientific_name"].replace(" ", "_")}\n')
+                taxonomy_file.append(f'{id}\t{"; ".join(taxa_to_print)}\n')
+            zip_files.append((f'{data["custom_name"]}__q2.fasta', ''.join(sequence_file)))
+            zip_files.append((f'{data["custom_name"]}__q2taxonomy.txt', ''.join(taxonomy_file)))
+                
+        elif fasta_format == 'dada2tax':
             sequence_file = renderDada2Taxonomy(data)
             zip_files.append((f'{data["custom_name"]}__dada2taxonomy.fasta', ''.join(sequence_file)))
 
@@ -189,10 +223,53 @@ class BlastDbCompatibleRenderer(BaseRenderer):
         
         with zipfile.ZipFile(zip_buffer, 'w') as zip_file:
             for file in zip_files:
-                print(file[1])
                 zip_file.writestr(file[0], file[1])
         
         return zip_buffer.getvalue()
+
+def dictWrite(data, delimiter: str = ','):
+    response = io.StringIO()
+    # fields displayed for each sequence entry
+    sequence_fields = BlastDbSequenceExportSerializer.Meta.fields[:]
+    sequence_fields = [field for field in sequence_fields if not field in ['id']]
+
+    # For the following keys, flatten the keys so that there are no nested objects
+    taxon_keys = [field for field in sequence_fields if field.startswith('taxon_')]
+    def mutate_taxonomy(sequence):
+        '''Remove nexted taxonomy objects from a sequence dictionary, and
+        add information back as keys.'''
+        for taxon_key in taxon_keys:
+            # remove taxonomy object
+            taxon_data = sequence.pop(taxon_key, None)
+            # add back information as keys
+            if taxon_data is None:
+                sequence[f'{taxon_key}_id'] = None
+                sequence[f'{taxon_key}_scientific_name'] = None
+            else:
+                sequence[f'{taxon_key}_id'] = taxon_data['id']
+                sequence[f'{taxon_key}_scientific_name'] = taxon_data['scientific_name']
+        return sequence
+    sequence_data = [mutate_taxonomy(sequence) for sequence in data['sequences']]
+    # Ensure that the newly added keys are added
+    for taxon_key in taxon_keys:
+        sequence_fields.extend([f'{taxon_key}_id', f'{taxon_key}_scientific_name'])
+        sequence_fields.remove(taxon_key)
+    # Write to file
+    writer = csv.DictWriter(response, fieldnames=sequence_fields, extrasaction='ignore', dialect='unix', delimiter=delimiter)
+    writer.writeheader()
+    writer.writerows(sequence_data)
+    return response
+
+class BlastDbTSVRenderer(BaseRenderer):
+    '''
+    Return the entries of blastdb in TSV format.
+    '''
+    media_type = 'text/tsv'
+    format = 'tsv'
+    charset = 'utf-8'
+    def render(self, data, accepted_media_type=None, renderer_context=None):
+        response = dictWrite(data=data, delimiter='\t')
+        return response.getvalue().encode(self.charset)
 
 class BlastRunFastaRenderer(BaseRenderer):
     '''
@@ -219,24 +296,7 @@ class BlastDbCSVRenderer(BaseRenderer):
     charset = 'utf-8'
 
     def render(self, data, accepted_media_type=None, renderer_context=None):
-        response = io.StringIO()
-       
-        # fields displayed for each sequence entry
-        sequence_fields = BlastDbSequenceEntrySerializer.Meta.fields[:]
-        sequence_fields = [field for field in sequence_fields if not field in ['id']]
-
-        comment_writer = csv.writer(response)
-        comment_writer.writerow([f'# Barcode Identifier API'])
-        comment_writer.writerow([f"# Library: {data['library']['custom_name']}"])
-        comment_writer.writerow([f"# Version: {data['version_number']}"])
-        comment_writer.writerow([f"# Description: {data['description']}"])
-        
-        # fields displayed for each sequence
-        writer = csv.DictWriter(response, fieldnames=sequence_fields, extrasaction='ignore', dialect='unix')
-
-        writer.writeheader()
-        writer.writerows(data['sequences'])
-
+        response = dictWrite(data=data, delimiter=',')
         return response.getvalue().encode(self.charset)
 
 class BlastRunTxtRenderer(BaseRenderer):

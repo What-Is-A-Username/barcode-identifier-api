@@ -72,10 +72,11 @@ class BlastDbTinySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = BlastDb
-        fields = ['id', 'description', 'version_number', 'sequence_count', 'created', 'locked']
+        fields = ['id', 'description', 'version_number', 'custom_name', 'sequence_count', 'created', 'locked']
         example = []
         example = {
             "id": "66855f2c-f360-4ad9-8c98-998ecb815ff5",
+            "custom_name": "March 2022 Update",
             "description": "This BLAST database is a collection of barcodes from 167 species of Neotropical electric knifefish (Teleostei: Gymnotiformes) which was presented by Janzen et al. 2022. All sequences and related feature data are updated daily at midnight (UTC) from NCBI's Genbank database.",
             "library": LibraryShortSerializer.Meta.example,
             "version_number": "1.1.1",
@@ -192,6 +193,7 @@ class LibraryCreateSerializer(serializers.ModelSerializer):
             "description": "A collection of new sequences from several species of interest.",
             "public": True
         }
+
 class BlastDbSequenceEntrySerializer(serializers.ModelSerializer):
     f'''
     Show a summary of a {nuccore_title}, to be shown when its corresponding {blast_db_title} or {hit_title} is shown.
@@ -306,6 +308,26 @@ class BlastDbSerializer(serializers.ModelSerializer):
             "sequences": BlastDbSequenceEntrySerializer.Meta.example
         }
 
+class BlastDbSequenceExportSerializer(BlastDbSequenceEntrySerializer):
+    '''
+    Gather detailed information for exporting the sequence to file when
+    its database is exported.
+    It includes all fields returned by the superclass (BlastDbSequenceEntrySerializer), but adds publication information
+    to the exported file.
+    '''
+    class Meta:
+        model = NuccoreSequence
+        ref_name = nuccore_title + ' export'
+        fields = ['accession_number', 'version', 'organism', 'organelle', 'isolate', 'country', 'specimen_voucher', 'dna_sequence', 'lat_lon', 'type_material', 'created', 'updated', 'genbank_modification_date', 'taxonomy', 'taxon_superkingdom', 'taxon_kingdom', 'taxon_phylum', 'taxon_class', 'taxon_order', 'taxon_family', 'taxon_genus', 'taxon_species', 'authors', 'title', 'journal']
+
+class BlastDbExportSerializer(BlastDbSerializer):
+    '''
+    Gather detailed information for exporting the database to file.
+    It includes all data otherwise added by BlastDbSerializer, but
+    includes more information for each sequence.
+    '''
+    sequences = BlastDbSequenceExportSerializer(many=True, read_only=True)
+
 class LibrarySerializer(serializers.ModelSerializer):
     f'''
     Show detailed information about a specific {library_title}
@@ -384,10 +406,11 @@ class BlastDbListSerializer(serializers.ModelSerializer):
     class Meta:
         model = BlastDb
         ref_name = blast_db_title 
-        fields = ['id', 'version_number', 'custom_name', 'description', 'locked']
+        fields = ['id', 'version_number', 'custom_name', 'sequence_count', 'description', 'locked']
         example = [{
             "id": "66855f2c-f360-4ad9-8c98-998ecb815ff5",
             "version_number": '254.2.1',
+            "sequence_count": 167,
             "description": "This BLAST database is a collection of barcodes from 167 species of Neotropical electric knifefish (Teleostei: Gymnotiformes) which was presented by Janzen et al. 2022. All sequences and related feature data are updated daily at midnight (UTC) from NCBI's Genbank database.",
             "locked": True,
         }]

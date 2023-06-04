@@ -23,8 +23,11 @@ from barcode_identifier_api.celery import app
 # Max time
 HARD_TIME_LIMIT_IN_SECONDS = 600
 
-# update the blast run with the errors and print to console
 def raise_error(run: BlastRun, err: str) -> None:
+    '''
+    Update the blast run with the error message and status
+    specified by `err` and print it to console.
+    '''
     print(err)
     run.errors = run.errors + "\n" + err
     run.status = BlastRun.JobStatus.ERRORED
@@ -44,12 +47,10 @@ def run_blast_command(ncbi_blast_version: str, fishdb_id: str, run_id: str) -> b
     print(f'Using blast version {ncbi_blast_version}')
     print(f'Using database id {fishdb_id} and run id {run_id}')
     
-    # TODO: throw error if blastrun DNE
     try:
         run_details : BlastRun = BlastRun.objects.get(id = run_id)
     except BlastRun.DoesNotExist as exc:
-        print(f"Critical error: BlastRun of id {run_id} does not exist.")
-        raise RuntimeError('BlastRun of specified id does not exist')
+        raise RuntimeError(f'BlastRun of specified id {run_id} does not exist')
 
     run_details.status = BlastRun.JobStatus.STARTED
     run_details.start_time = datetime.now()

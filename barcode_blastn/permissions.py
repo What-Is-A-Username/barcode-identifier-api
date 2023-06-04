@@ -365,11 +365,12 @@ class NuccoreSharePermission(CustomPermissions[NuccoreSequence]):
                 DatabaseSharePermissions.has_change_permission, user, obj)
         elif isinstance(user, User) and user.is_superuser:
             return NuccoreSharePermission.defer_to_database(
-                DatabaseSharePermissions.has_delete_permission, user, obj) 
+                DatabaseSharePermissions.has_delete_permission, user, obj) \
+                    and not obj.owner_database.locked
         else:
             return NuccoreSharePermission.defer_to_database(
                 DatabaseSharePermissions.has_change_permission, user, obj) \
-                and not obj.owner_database.locked
+                    and not obj.owner_database.locked
 
 class HitSharePermission(CustomPermissions[Hit]):
     

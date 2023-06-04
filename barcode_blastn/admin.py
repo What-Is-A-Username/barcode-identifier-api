@@ -51,7 +51,7 @@ class TaxonomyNodeAdmin(admin.ModelAdmin):
 
 class SequenceFormset(BaseInlineFormSet):
 
-    def save(self, commit: bool = ...) -> Any:
+    def save(self, commit: bool = False) -> Any:
         return super().save(commit)
 
     def save_new(self, form, commit=True):
@@ -84,14 +84,6 @@ class SequenceFormset(BaseInlineFormSet):
         else:
             return None
 
-    def save_existing(self, form, instance, commit=True):
-        '''
-        Callback when a sequence is edited through a save button in the admin form.
-        '''
-        obj = super(SequenceFormset, self).save_existing(form, instance, commit=False)
-        # TODO: Catch errors and/or enable validation
-        return save_sequence(obj, change=True, commit=commit, raise_if_missing=True)
-
 class NuccoreSequenceInline(admin.TabularInline):
     model = NuccoreSequence     
     formset = SequenceFormset   # Specify the form to handle edits and additions
@@ -117,6 +109,8 @@ class NuccoreSequenceInline(admin.TabularInline):
         return DatabaseSharePermissions.has_view_permission(request.user, obj)
     
     def has_change_permission(self, request: HttpRequest, obj: Union[BlastDb, None] = None) -> bool:
+        # Sequences cannot be modified directly; if an accession should be altered,
+        # the old should be deleted and a new entry should be added
         return False
 
     def has_delete_permission(self, request, obj: Union[BlastDb, None] = None) -> bool:
@@ -180,6 +174,9 @@ class VersionInline(admin.TabularInline):
 
     def has_delete_permission(self, request: HttpRequest, obj: Union[Library, None] = None) -> bool:
         return False # Disable deletions
+
+    def has_change_permission(self, request: HttpRequest, obj: Union[Library, None] = None) -> bool:
+        return False # Disable edits through the inline editor
 
 # TODO: Make model form for creating and updating libraries
 # https://stackoverflow.com/questions/24047308/django-rest-framework-serializers-and-django-forms
@@ -335,7 +332,7 @@ class BlastDbAdmin(admin.ModelAdmin):
         if obj is None:
             f.append(('Accessions Included', { 'fields': ('base_library', 'accession_list_upload', 'accession_list_text')}))
         else:
-            if isinstance(request.user, User) and DatabaseSharePermissions.has_change_permission(request.user, obj=obj):
+            if not obj.locked and isinstance(request.user, User) and DatabaseSharePermissions.has_change_permission(request.user, obj=obj):
                 f.append(('Add additional accessions', { 'fields': ('accession_list_upload', 'accession_list_text')}))
         return f
 
@@ -500,11 +497,10 @@ class NuccoreAdmin(admin.ModelAdmin):
     Admin page for showing accession instances.
     '''
     list_display = (
-        'accession_number', 'organism', 'specimen_voucher', 'id', 'owner_database_link'
+        'accession_number', 'version', 'organism', 'specimen_voucher', 'id', 'owner_database_link'
     )
     fields_excluded = ['uuid']
     form = NuccoreAdminModifyForm
-    # TODO: Make the owner_database field read_only if database is locked 
 
     def changelist_view(self, request, extra_context: Optional[Dict[str, str]] = None):
         # Customize the title at the top of the change list
@@ -556,7 +552,10 @@ class NuccoreAdmin(admin.ModelAdmin):
             'organism', 'version', 'definition', 'organelle',
             'specimen_voucher', 'id', 'isolate', 'country',
             'dna_sequence', 'lat_lon', 'type_material',
-            'created', 'updated', 'taxonomy', 'taxon_species', 'taxon_genus', 'taxon_family', 'taxon_order', 'taxon_class', 'taxon_phylum', 'taxon_kingdom', 'taxon_superkingdom','title', 'authors', 'journal'
+            'created', 'updated', 'taxonomy', 'taxon_species', 
+            'taxon_genus', 'taxon_family', 'taxon_order', 'taxon_class', 
+            'taxon_phylum', 'taxon_kingdom', 'taxon_superkingdom','title', 
+            'authors', 'journal'
         ]
         if not obj is None:
             fields.extend(['owner_database', 'accession_number'])
