@@ -4,7 +4,7 @@ import shutil
 from typing import Any, Dict, List, Optional, Tuple
 from barcode_blastn.file_paths import get_data_fishdb_path, get_data_library_path, get_ncbi_folder
 from barcode_blastn.helper.parse_gb import AccessionLimitExceeded, GenBankConnectionError, InsufficientAccessionData, retrieve_gb, save_taxonomy
-from barcode_blastn.models import BlastDb, Library, NuccoreSequence
+from barcode_blastn.models import BlastDb, Hit, Library, NuccoreSequence
 from barcode_blastn.serializers import NuccoreSequenceSerializer 
 from django.db.models import QuerySet
 
@@ -14,6 +14,11 @@ class SequenceUpdateSummary:
     metadata_changed = []
     deleted = []
     added = []
+
+def compareHits(hitA: Hit, hitB: Hit):
+    '''Return True if hitB is a better hit than hitA for the purposes of
+    taxonomic classification.'''
+    return hitA.percent_identity < hitB.percent_identity
 
 def delete_blastdb(blast_db: Optional[BlastDb]) -> None:
     '''

@@ -386,7 +386,7 @@ class HitSharePermission(CustomPermissions[Hit]):
         if obj is None:
             return permission_function(user, None)
         else:
-            return permission_function(user, obj.owner_run)
+            return permission_function(user, obj.owner_run())
 
     @staticmethod
     def has_module_permission(user: Union[AbstractBaseUser, AnonymousUser]) -> bool:

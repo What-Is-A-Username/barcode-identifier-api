@@ -1,3 +1,4 @@
+from collections import namedtuple
 from datetime import datetime
 from typing import Optional, Union
 from django.db import models
@@ -296,6 +297,35 @@ class NuccoreSequence(models.Model):
     def __str__(self) -> str:
         return f'{self.accession_number}, {str(self.organism)} ({str(self.id)})'
 
+    def write_tree_identifier(self) -> str:
+        '''Create the pipe-delimited identifier string used to represent this sequence in multiple sequence alignment or
+        phylogenetic tree construction jobs.
+        
+        Raises ValueError if the components used to create the string already have pipes (i.e.: `|`)
+        '''
+        info = [self.version, 
+        self.taxon_species.scientific_name if not self.taxon_species is None else '']
+        for i in info:
+            if '|' in i:
+                raise ValueError('The SeqId or species name specified have existing pipe delimiters.')
+        return '|'.join(info).replace(' ', '_')
+
+    @staticmethod
+    def extract_header_info(id):
+        '''
+        Parse the information stored within the identifier string `id`, based on the format
+        used in `BlastQuerySequence.write_tree_identifier()`.
+        
+        HeaderInfo is a named tuple of three elements. The last element indicates whether
+        the sequence was a query sequence. 
+        '''
+        header = id.split('|')
+        id = header[0]
+        species = header[1].replace('_', ' ')
+        # Query sequences are differentiated from other seqs by a third value in the header
+        is_query = len(header) > 2 and header[2] == 'query'
+        return HeaderInfo(id, species, is_query)
+
     class Meta:
         ordering = ['accession_number']
         verbose_name = 'GenBank Accession'
@@ -382,18 +412,72 @@ class BlastRun(models.Model):
         verbose_name = 'BLASTN Run'
         verbose_name_plural = 'BLASTN Runs'
 
+HeaderInfo = namedtuple('HeaderInfo', 'id species is_query')
+
 class BlastQuerySequence(models.Model):
     owner_run = models.ForeignKey(BlastRun, related_name='queries', on_delete=models.CASCADE, help_text='Job/run in which this query entry appeared')
     definition = models.CharField(max_length=255, help_text='Definition line')
+    
+    def query_seq_identifier(self) -> str:
+        '''Return the sequence identifier from the definition line, which is used by the command-line BLAST+
+        when identify sequences and report hits.'''
+        return self.definition.split(' ')[0]
+
+    def write_tree_identifier(self) -> str:
+        '''Create the pipe-delimited identifier string used to represent this sequence in multiple sequence alignment or
+        phylogenetic tree construction jobs.
+        
+        Raises ValueError if the components used to create the string already have pipes (i.e.: `|`)
+        '''
+        info = [self.query_seq_identifier(), self.original_species_name, 'query']
+        for i in info:
+            if '|' in i:
+                raise ValueError('The SeqId or species name specified have existing pipe delimiters.')
+        return '|'.join(info).replace(' ', '_')
+
+    @staticmethod
+    def extract_header_info(id):
+        '''
+        Parse the information stored within the identifier string `id`, based on the format
+        used in `BlastQuerySequence.write_tree_identifier()`.
+        
+        HeaderInfo is a named tuple of three elements. The last element indicates whether
+        the sequence was a query sequence. 
+        '''
+        header = id.split('|')
+        id = header[0]
+        species = header[1]
+        # Query sequences are differentiated from other seqs by a third value in the header
+        is_query = len(header) > 2 and header[2] == 'query'
+        return HeaderInfo(id, species, is_query)
+
     query_sequence = models.CharField(max_length=10000, help_text='Sequence text')
+    # The binomial name of the classification made by nucleotide blast. None if assignment not yet done, empty string if no assignment could be made.
+    results_species_name = models.CharField(max_length=255, help_text='Binomial species identity assigned from nucleotide BLAST hits.', null=True, default=None)
+    # Classification
+    class QueryClassification(models.TextChoices):
+        CORRECT_ID = 'Correct ID'
+        INCORRECT_ID = 'Incorrect ID'
+        NEW_ID = 'New ID'
+        TENTATIVE_CORRECT_ID = 'Tentative Correct ID'
+        INCORRECT_ID_NO_MATCH = 'Incorrect ID without match'
+        UNKNOWN_ID = 'Unknown ID'
+        TENATIVE_ADDITIONAL_SPECIES = 'Tentative additional species'
+        NO_HITS = 'No hits'
+    accuracy_category = models.CharField(choices=QueryClassification.choices, max_length=32, help_text='Category assigned after comparing sequence against reference libraries, using categories in Janzen et al. 2022.', null=True, default=None)
+    # Original label
+    original_species_name = models.CharField(max_length=255, help_text='Original binomial species identity reported from the user query', null=True, default=None)
 
     class Meta:
         verbose_name = 'BLASTN Query Sequence'
         verbose_name_plural = 'BLASTN Query Sequences'
 
 class Hit(models.Model):
-    owner_run = models.ForeignKey(BlastRun, related_name='hits', on_delete=models.CASCADE, help_text='Run in which this hit appeared')
     db_entry = models.ForeignKey(NuccoreSequence, on_delete=models.CASCADE, help_text='BLAST database used in the run')
+    query_sequence = models.ForeignKey(BlastQuerySequence, related_name='hits', on_delete=models.CASCADE, help_text='Query sequence to which this hit was registered.')
+
+    def owner_run(self):
+        return self.query_sequence.owner_run
 
     query_accession_version = models.CharField(max_length=128, help_text='Sequence identifier of query sequence')
     subject_accession_version = models.CharField(max_length=128, help_text='Sequence identifier of sequence in database')

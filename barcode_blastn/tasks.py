@@ -2,7 +2,7 @@ import copy
 from io import StringIO
 import os
 import shutil
-from typing import Tuple
+from typing import Tuple, Union
 from ratelimit import limits
 from shlex import quote
 from Bio import SeqIO
@@ -11,12 +11,13 @@ from datetime import datetime, timezone
 import subprocess
 from typing import Dict, List
 from barcode_blastn.file_paths import get_data_fishdb_path, get_data_run_path, get_ncbi_folder, get_static_run_path
+from barcode_blastn.helper.calculate_distance import annotate_pair_comparison, calculate_genetic_distance
 from barcode_blastn.helper.modified_clustalo import getMultipleAlignmentResult, submitMultipleAlignmentAsync
 from barcode_blastn.helper.parse_gb import retrieve_gb
 from barcode_blastn.helper.parse_results import parse_results
 from rest_framework import status
 from barcode_blastn.helper.read_tree import readDbTreeFromFile, readHitTreeFromFile
-from barcode_blastn.models import BlastDb, BlastRun, Hit, NuccoreSequence 
+from barcode_blastn.models import BlastDb, BlastQuerySequence, BlastRun, Hit, NuccoreSequence 
 from django.db.models import QuerySet
 from barcode_identifier_api.celery import app
 
@@ -106,7 +107,7 @@ def run_blast_command(ncbi_blast_version: str, fishdb_id: str, run_id: str) -> b
         raise_error(run_details, f"Errored while retrieving shell output.")
         raise RuntimeError('Errored while retrieving shell output.') from exc
 
-    print(out)
+    # print(out)
 
     print('Writing results to file ...')
 
@@ -125,11 +126,44 @@ def run_blast_command(ncbi_blast_version: str, fishdb_id: str, run_id: str) -> b
         parsed_data = parse_results(out)
         accessions = [hit['subject_accession_version'] for hit in parsed_data]
         accession_entries = NuccoreSequence.objects.filter(version__in=accessions, owner_database=run_details.db_used)
-        all_hits = [Hit(**hit, owner_run = run_details, db_entry = accession_entries.get(version=hit['subject_accession_version'])) for hit in parsed_data]
-        Hit.objects.bulk_create(all_hits)
+
+        # Map query id -> query object
+        query_entries: List[BlastQuerySequence] = list(run_details.queries.all())
+        query_entry_ids = [q.query_seq_identifier() for q in query_entries]
+        query_entries_dict: dict[str, BlastQuerySequence] = dict(zip(query_entry_ids, query_entries))
+
+        all_hits = [Hit(**hit, query_sequence=query_entries_dict[hit['query_accession_version']], db_entry = accession_entries.get(version=hit['subject_accession_version'])) for hit in parsed_data]
+        hit_objects = Hit.objects.bulk_create(all_hits)
     except BaseException as exc:
         raise_error(run_details, f"Errored while bulk creating hit results.")
         raise RuntimeError('Errored while bulk creating hit results.') from exc
+    
+    # Find the hit with the highest percent identity for each query_accession_version
+    # Dictionary mapping query_accession_version -> highest scoring Hits
+    best_hits: Dict[str, Hit] = {}
+    for hit in hit_objects:
+        current_hit = best_hits.get(hit.query_accession_version, None)
+        if current_hit is None or current_hit.percent_identity < hit.percent_identity:
+            best_hits[hit.query_accession_version] = hit
+        
+    # assign identities to query sequences
+    queries: List[BlastQuerySequence] = list(run_details.queries.all())
+    for query in queries:
+        best_hit = best_hits.get(query.query_seq_identifier(), None)
+        if not best_hit is None:
+            taxon = best_hit.db_entry.taxon_species
+            if taxon is None:
+                # If the reference sequence is missing species information,
+                # specify the result with the accession and note
+                query.results_species_name = f'{best_hit.db_entry.version}_unspecified_species'
+            else:
+                # Specify the result as the reference sequence species info
+                query.results_species_name = taxon.scientific_name
+        else:
+            # If there was no hits on the reference sequences,
+            # leave the result blank
+            query.results_species_name = ''
+    BlastQuerySequence.objects.bulk_update(queries, fields=['results_species_name'])
 
     # update run information
     try:
@@ -140,7 +174,12 @@ def run_blast_command(ncbi_blast_version: str, fishdb_id: str, run_id: str) -> b
         raise RuntimeError('Errored while updating run errors.') from exc
 
     print('Queued BLAST search completed.')
-    return True
+    
+    alignment_successful = performAlignment(True, run_id=run_id)
+
+    classification_successful = classify_genetic_distance(alignment_successful=alignment_successful, run_id=run_id)
+
+    return classification_successful
 
 PERIOD = 3500 # Time between calls, in number of seconds
 @limits(calls = 1, period = PERIOD)
@@ -181,18 +220,20 @@ def update_database() -> None:
         print(f"Finished updating database {str(db.id)}")
     print("Finished updating all databases.")
         
-
-PERIOD = 10 # Time between calls, in number of seconds
-@limits(calls = 1, period = PERIOD)
-@app.task(time_limit=HARD_TIME_LIMIT_IN_SECONDS)
-def performAlignment(blast_successful: bool, run_id: str) -> Tuple[str, int]:
+# TODO (IMPORTANT): ON ERROR, MAKE IT RETURN FALSE AND PROPERLY SET ERRORS
+# @limits(calls = 1, period = 10)
+# @app.task(time_limit=HARD_TIME_LIMIT_IN_SECONDS)
+def performAlignment(blast_successful: bool, run_id: str) -> bool:
     '''Perform tree construction for the given run specified by run_id.
         Return a three item tuple, representing the status message and status number.
         The job was successful if status number is 201 or 200.
     '''
+    print(f'Performing alignment for {run_id}')
 
     if not blast_successful:
-        return ('BLAST returned error code', status.HTTP_500_INTERNAL_SERVER_ERROR)
+        print('Error 500')
+        return False
+        # return ('BLAST returned error code', status.HTTP_500_INTERNAL_SERVER_ERROR)
     else:
         print(f"Starting alignment submission for run {run_id}")
 
@@ -200,33 +241,35 @@ def performAlignment(blast_successful: bool, run_id: str) -> Tuple[str, int]:
     try:
         run : BlastRun = BlastRun.objects.get(id=run_id)
     except BlastRun.DoesNotExist:
-        return ('Could not find a run result with the given id.', status.HTTP_400_BAD_REQUEST)
+        print('DNE')
+        return False
+        # return ('Could not find a run result with the given id.', status.HTTP_400_BAD_REQUEST)
         
     # Return if no construction needs to occur
     if not run.create_db_tree and not run.create_hit_tree:
         run.status = BlastRun.JobStatus.FINISHED
         run.end_time = datetime.now()
         run.save()
-        return ('', status.HTTP_200_OK)
+        print('No const')
+        return False
+        # return ('', status.HTTP_200_OK)
 
     # Gather sequences (query sequences + hit sequences) into a single list
     run_folder = get_data_run_path(run_id=run_id)
-    query_sequences: List[SeqIO.SeqRecord] = list(SeqIO.parse(f'{run_folder}/query.fasta', 'fasta'))
-    for i in range(len(query_sequences)):
-        query_sequences[i].id += '|query'
+    query_sequences: List[SeqIO.SeqRecord] = list(SeqIO.parse(f'{run_folder}/alignment_query.fasta', 'fasta'))
 
-    def gatherSequences(sequences: List[NuccoreSequence], existingSequences: List[SeqIO.SeqRecord] = []) -> List[SeqIO.SeqRecord]:
+    def gatherSequences(reference_sequences: List[NuccoreSequence], query_sequences: List[SeqIO.SeqRecord] = []) -> List[SeqIO.SeqRecord]:
         '''Creates a new List of SeqRecords created by making a new deep copy of existingSequences and SeqRecords
         made from the NuccoreSequences in sequences
         '''
-        concatSequences = copy.deepcopy(existingSequences)
-        sequences_added = [q.id for q in concatSequences]
-        for seq in sequences:
-            seq_id = f'{seq.accession_number}|{seq.organism}'.replace(' ', '_')
+        concatSequences = copy.deepcopy(query_sequences)
+        sequences_added = [q.description for q in concatSequences]
+        for seq in reference_sequences:
+            seq_id = seq.write_tree_identifier()
             if seq_id not in sequences_added:
                 concatSequences.append(SeqIO.SeqRecord(
                     seq=Seq(seq.dna_sequence), 
-                    id= seq_id,
+                    id=seq_id,
                     description=seq.definition
                 ))
                 sequences_added.append(seq_id)
@@ -236,7 +279,10 @@ def performAlignment(blast_successful: bool, run_id: str) -> Tuple[str, int]:
         # Construct a list of all hit and query sequences
         queryAndHitSequences = query_sequences[:]
         # Query over all hits
-        hits = [h.db_entry for h in list(run.hits.all())] # type: ignore
+        hits = []
+        hit_query = Hit.objects.filter(query_sequence__owner_run_id=run_id)
+        hits = [h.db_entry for h in hit_query]
+        print(hits)
         queryAndHitSequences = gatherSequences(hits, query_sequences)
 
         sequence_string = StringIO()
@@ -246,7 +292,9 @@ def performAlignment(blast_successful: bool, run_id: str) -> Tuple[str, int]:
         run.alignment_job_id = hit_job_result[0]
         if hit_job_result[-1] != status.HTTP_200_OK:
             run.throw_error(hit_job_result[1])
-            return (hit_job_result[1], hit_job_result[2]) 
+            print('Err on create hit tree')
+            return False
+            # return (hit_job_result[1], hit_job_result[2]) 
     
     if run.create_db_tree:
     # Construct a list of query sequences and all database sequences
@@ -262,7 +310,9 @@ def performAlignment(blast_successful: bool, run_id: str) -> Tuple[str, int]:
         run.complete_alignment_job_id = all_job_result[0]
         if all_job_result[-1] != status.HTTP_200_OK:
             run.throw_error(all_job_result[1])
-            return (all_job_result[1], all_job_result[2]) 
+            print('Err on create db tree')
+            return False
+            # return (all_job_result[1], all_job_result[2]) 
 
     try:
         run.status = BlastRun.JobStatus.FINISHED
@@ -273,11 +323,9 @@ def performAlignment(blast_successful: bool, run_id: str) -> Tuple[str, int]:
     except BaseException as exc:
         raise_error(run, f"Errored while updating run status.")
         raise RuntimeError('Errored while updating run status.') from exc
-
-    return ('', status.HTTP_201_CREATED)
-
-
-
+    print('Successfully finished tree construction')
+    return True
+    # return ('', status.HTTP_201_CREATED)
 
 def completeAlignment(sequence_string: str, run_id: str) -> Tuple[str, str, int]:
     '''
@@ -285,16 +333,14 @@ def completeAlignment(sequence_string: str, run_id: str) -> Tuple[str, str, int]
         Return a three-item tuple, containing the job ID, status message, and status number.
         The job was successful if status message is 200 (OK).
     '''
-
+    print("Considering tree alignment for " + run_id)
     # The following code submits the fasta file to ClustalO at EMBL-EBI for multiple sequence alignment, and is adapted from clustalo.py at https://www.ebi.ac.uk/seqdb/confluence/display/JDSAT/Clustal+Omega+Help+and+Documentation
     # ClustalO:
-    # TODO: Add citation to web interface
     #   Sievers F., Wilm A., Dineen D., Gibson T.J., Karplus K., Li W., Lopez R., McWilliam H., Remmert M., Söding J., Thompson J.D. and Higgins D.G. (2011)
     # Fast, scalable generation of high-quality protein multiple sequence alignments using Clustal Omega. 
     # Mol. Syst. Biol. 7:539
     # PMID:  21988835 
     # DOI:  10.1038/msb.2011.75
-    # TODO: Find citation for EMBL-EBI
 
     # This runs the tool, mimicking the following command line calls from the original Python wrapper
     # python clustalo.py --asyncjob --email email@domain.com ./aggregate.fasta
@@ -342,3 +388,39 @@ def completeAlignment(sequence_string: str, run_id: str) -> Tuple[str, str, int]
     # return success
     return (job_id, 'Successfully ran alignment job', status.HTTP_200_OK)
 
+# @limits(calls = 1, period = 10)
+# @app.task(time_limit=HARD_TIME_LIMIT_IN_SECONDS)
+def classify_genetic_distance(alignment_successful: bool, run_id: str) -> bool:
+    if alignment_successful:
+        print(f'Running db accuracy classification for {run_id}')
+    else:
+        print(f'Skipping db classification for {run_id} because alignment was unsuccessful')
+        return True
+    try:
+        run: BlastRun = BlastRun.objects.get(id=run_id)
+    except BlastRun.DoesNotExist:
+        return False
+        # return ('While calculating distance, could not find a run result with the given id.', status.HTTP_400_BAD_REQUEST)
+
+    # we can only calculate distances with a complete alignment of hits with query sequences
+    if not run.create_hit_tree:
+        print('Will not classify distances because no alignment performed.')
+        return True
+
+    alignment_file_path = f'{get_static_run_path(run_id)}/{run.alignment_job_id}.aln-clustal_num.clustal_num'
+    if os.path.exists(alignment_file_path) and os.path.isfile(alignment_file_path):
+        matrix = calculate_genetic_distance(alignment_file_path)
+        annotate_pair_comparison(matrix, run)
+        
+        run.status = BlastRun.JobStatus.FINISHED
+        run.end_time = datetime.now()
+        run.save()
+    else:
+        print(f'Could not find multiple alignment file at {alignment_file_path}\n')
+        run.errors = f'Could not find multiple alignment file at {alignment_file_path}\n' + run.errors
+        run.error_time = datetime.now()
+        run.status = BlastRun.JobStatus.ERRORED
+        run.save()
+    
+    print('Successfully finished annotating accuracy')
+    return True

@@ -18,5 +18,9 @@ def verify_query(definition: str, sequence: str):
     else:
         return True
 
+def verify_header(header: str):
+    return bool(re.match('^[A-Za-z0-9.:#*_-]+$', header))
+
 def verify_dna(sequence: str):
+    # TODO: Add more permissible sequence letters
     return bool(re.match('^[NCAGTncagt-]+$', sequence))

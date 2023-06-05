@@ -60,7 +60,8 @@ urlpatterns = [
     path('runs/<uuid:pk>/', views.BlastRunDetail.as_view()),
     path('runs/<uuid:pk>/status/', views.BlastRunStatus.as_view()),
     path('runs/<uuid:pk>/download/', views.BlastRunDetailDownload.as_view()),
-    path('runs/<uuid:pk>/input-download/', views.BlastRunInputDownload.as_view())
+    path('runs/<uuid:pk>/download/input', views.BlastRunInputDownload.as_view()),
+    path('runs/<uuid:pk>/download/taxonomy', views.BlastRunTaxonomyDownload.as_view()),
 ]
 
 # give access to media files if in debug mode (i.e. when nginx not serving them)

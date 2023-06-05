@@ -5,12 +5,14 @@
 from datetime import datetime
 import io
 import os
+import re
 import uuid
 from typing import Any, Dict, List
 
 from barcode_identifier_api.celery import app
 from Bio import SeqIO
-from celery import signature
+from celery import signature, chain
+from barcode_blastn.tasks import run_blast_command, performAlignment, classify_genetic_distance
 from django.contrib.auth import login
 from django.contrib.auth.models import User
 from drf_yasg import openapi
@@ -37,7 +39,7 @@ from barcode_blastn.file_paths import (get_data_fishdb_path, get_data_run_path,
 from barcode_blastn.helper.parse_gb import (MAX_ACCESSIONS_PER_REQUEST,
                                             AccessionLimitExceeded,
                                             GenBankConnectionError)
-from barcode_blastn.helper.verify_query import verify_dna
+from barcode_blastn.helper.verify_query import verify_dna, verify_header
 from barcode_blastn.models import (BlastDb, BlastQuerySequence, BlastRun,
                                    Library, NuccoreSequence)
 from barcode_blastn.permissions import (BlastDbEndpointPermission, BlastRunEndpointPermission,
@@ -47,9 +49,10 @@ from barcode_blastn.permissions import (BlastDbEndpointPermission, BlastRunEndpo
                                         NuccoreSequenceEndpointPermission,
                                         NuccoreSharePermission)
 from barcode_blastn.renderers import (BlastDbCSVRenderer, BlastDbCompatibleRenderer, BlastDbFastaRenderer, BlastDbTSVRenderer, BlastDbXMLRenderer,
-                                      BlastRunCSVRenderer,
+                                      BlastRunHitsCSVRenderer,
+                                      BlastRunHitsTSVRenderer,
                                       BlastRunFastaRenderer,
-                                      BlastRunTxtRenderer)
+                                      BlastRunHitsTxtRenderer, BlastRunTaxonomyCSVRenderer, BlastRunTaxonomyTSVRenderer)
 from barcode_blastn.serializers import (BlastDbCreateSerializer,
                                         BlastDbEditSerializer, BlastDbExportSerializer,
                                         BlastDbListSerializer,
@@ -1215,11 +1218,6 @@ class BlastRunRun(generics.CreateAPIView):
                 
                 for query_record in query_records:
                     seq = str(query_record.seq).strip()
-                    if not verify_dna(seq):
-                        query_string_io.close()
-                        return Response({
-                            'message': f"The sequence provided for '>{query_record.description}' has non-DNA nucleotide characters."
-                        }, status = status.HTTP_400_BAD_REQUEST) 
                     query_sequences.append({
                         'definition': query_record.description,
                         'query_sequence': seq
@@ -1229,26 +1227,21 @@ class BlastRunRun(generics.CreateAPIView):
             if len(query_sequences) == 0:
                 # replace all whitespace
                 full_query = full_query.strip().replace('\r', '').replace('\n', '').replace(' ', '')
-                if not verify_dna(full_query):
-                    query_string_io.close()
-                    return Response({
-                        'message': f"Tried to parse input as single entry by removing whitespace, but the sequence provided has non-nucleotide characters."
-                    }, status = status.HTTP_400_BAD_REQUEST) 
                 query_sequences.append({
                     'definition': 'query_sequence', 
                     'query_sequence': full_query
                 })
         else:
-            query_file = request.FILES.get('query_file', False)
+            blast_query_file = request.FILES.get('query_file', False)
             # return an error if no file of name 'query_file' was found in the request
-            if not query_file:
+            if not blast_query_file:
                 return Response({'message': 'No submitted sequences were found. Either upload a .fasta file or paste raw text for a single sequence.'}, status = status.HTTP_400_BAD_REQUEST)
 
             # TODO: Check file type uploaded
 
             # parse the file with Biopython
             try:
-                query_file_io = io.StringIO(query_file.file.read().decode('UTF-8'))
+                query_file_io = io.StringIO(blast_query_file.file.read().decode('UTF-8'))
                 query_file_seqs = SeqIO.parse(query_file_io, 'fasta')
             except BaseException:
                 return Response({'message': 'The fasta file received was unable to be parsed with Biopython SeqIO using the "fasta" format. Double check the fasta contents.'}, status = status.HTTP_400_BAD_REQUEST)
@@ -1256,10 +1249,6 @@ class BlastRunRun(generics.CreateAPIView):
             parsed_entry: SeqIO.SeqRecord
             for parsed_entry in query_file_seqs:
                 seq = str(parsed_entry.seq)
-                if not verify_dna(seq):
-                    return Response({
-                        'message': f"The sequence provided for '>{parsed_entry.description}' has non-DNA nucleotide characters."
-                    }, status = status.HTTP_400_BAD_REQUEST) 
                 query_sequences.append({
                     'definition': parsed_entry.description,
                     'query_sequence': seq
@@ -1297,13 +1286,41 @@ class BlastRunRun(generics.CreateAPIView):
 
         # Perform blast search
         print('Generating query fasta file ...')
-        query_file = results_path + '/query.fasta'
-        with open(query_file, 'w') as tmp:
-            for query_entry in query_sequences:
-                tmp.write(f'>{query_entry["definition"]}\n')
-                tmp.write(f'{query_entry["query_sequence"]}\n')
+        blast_query_file = results_path + '/query.fasta'
+        blast_tmp = open(blast_query_file, 'w')
+        unique_headers: set[str] = set([])
+        for query_entry in query_sequences:
+            # only keep the seqid 
+            new_definition = query_entry['definition'].split(' ')[0]
+        
+            # parse the seqid to see if organism is specified 
+            metadata = new_definition.split('\t')
+            if len(metadata) >= 2:
+                # set the species name by replacing all non alpha-numeric characters with spaces
+                query_entry['original_species_name'] = re.sub('[^0-9a-zA-Z]+', ' ', metadata[1])
+            else:
+                query_entry['original_species_name'] = None
+            new_definition = metadata[0]
+            query_entry['definition'] = new_definition
 
-        tmp.close()
+            if new_definition in unique_headers:
+                return Response({
+                    'message': f"The sequence identifier in the header '{new_definition}' is not unique. All submitted sequences must have unique sequence identifiers (all text before the first space)."
+                }, status = status.HTTP_400_BAD_REQUEST) 
+            elif not verify_header(new_definition):
+                return Response({
+                    'message': f"The sequence identifier in the header '{new_definition}' has invalid characters. Only letters, digits, hyphens, underscores, periods, colons, asterisks and number signs are allowed."
+                }, status = status.HTTP_400_BAD_REQUEST) 
+            unique_headers.add(new_definition)
+            blast_tmp.write(f'>{new_definition}\n')
+
+            if not verify_dna(query_entry["query_sequence"]):
+                return Response({
+                    'message': f"The sequence provided for '>{new_definition}' has non-DNA nucleotide characters."
+                }, status = status.HTTP_400_BAD_REQUEST) 
+            blast_tmp.write(f'{query_entry["query_sequence"]}\n')
+
+        blast_tmp.close()
 
         print('Running BLAST search ...')
 
@@ -1315,32 +1332,26 @@ class BlastRunRun(generics.CreateAPIView):
         all_query_sequences = [BlastQuerySequence(**query_sequence, owner_run = run_details) for query_sequence in query_sequences]
         BlastQuerySequence.objects.bulk_create(all_query_sequences)
 
-        run_details_id = run_details.id
+        # If we are performing alignment, create the fasta file
+        if create_db_tree or create_hit_tree:
+            aln_tmp = open(results_path + '/alignment_query.fasta', 'w')
+            for query_seq in all_query_sequences:
+                aln_tmp.write(f'>{query_seq.write_tree_identifier()}\n')
+                aln_tmp.write(f'{query_seq.query_sequence}\n')
+            aln_tmp.close()
 
-        message_properties = {
-            'MessageGroupId': str(run_details_id),
-            'MessageDeduplicationId': str(run_details_id),
-        }
+        run_details_id = run_details.id
 
         run_id_str = str(run_details_id)
 
         # How to chain for Docker-hosted RabbitMQ 
-        app.send_task('barcode_blastn.tasks.run_blast_command', 
-            queue='BarcodeQueue.fifo',
-            **message_properties,
-            kwargs={
-                    'ncbi_blast_version': ncbi_blast_version,
-                    'fishdb_id': str(odb.id),
-                    'run_id': run_id_str
-        },
-        chain=[signature('barcode_blastn.tasks.performAlignment', 
-            queue='BarcodeQueue.fifo',
-                kwargs={
-                    'run_id': run_id_str
-                }
-            )])
+        res = chain(run_blast_command.s(ncbi_blast_version, str(odb.id), run_id_str)).apply_async(queue='BarcodeQueue.fifo')
 
         # How to chain for Amazon SQS
+        # message_properties = {
+        #     'MessageGroupId': str(run_details_id),
+        #     'MessageDeduplicationId': str(run_details_id),
+        # }
         # run_blast_command.apply_async(
         #     queue='BarcodeQueue.fifo',
         #     **message_properties, 
@@ -1401,10 +1412,9 @@ class BlastRunInputDownload(generics.GenericAPIView):
     '''
     Return the sequences submitted to a run as a .fasta file
     '''
-    queryset = BlastRun.objects.all()
     serializer_class = BlastRunSerializer
     permission_classes = (AllowAny,)
-    renderer_classes = (BlastRunFastaRenderer,)
+    renderer_classes = [BlastRunFastaRenderer]
     
     @swagger_auto_schema(
         operation_summary='Get query sequence fasta file.',
@@ -1429,17 +1439,12 @@ class BlastRunInputDownload(generics.GenericAPIView):
         except BlastRun.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
         
-        file_name = 'query.fasta'
-        query_path = get_data_run_path(str(run.id)) + '/' + file_name
-        if os.path.exists(query_path) and os.path.isfile(query_path):
-            # return file in response
-            file_handler = open(query_path, 'r')
-            response = Response(file_handler, content_type="text/x-fasta", status=status.HTTP_200_OK)
-            response['Content-Disposition'] = f'attachment; filename="{file_name}";'
-            return response
+        response = Response(self.get_serializer_class()(run).data, status=status.HTTP_200_OK)
+        if request.accepted_media_type.startswith('application/x-fasta'):
+            response['Content-Disposition'] = f'attachment; filename="barrel_{run.id}.input.fasta";'
         else:
-            # return 404 error if the query.fasta file does not exist
-            return Response(status=status.HTTP_404_NOT_FOUND)
+            return Response(status=status.HTTP_406_NOT_ACCEPTABLE)
+        return response
 
 class BlastRunDetailDownload(generics.GenericAPIView):
     '''
@@ -1447,8 +1452,7 @@ class BlastRunDetailDownload(generics.GenericAPIView):
     '''
     queryset = BlastRun.objects.all()
     serializer_class = BlastRunSerializer
-    permission_classes = (AllowAny,)
-    renderer_classes = [BlastRunCSVRenderer, BlastRunTxtRenderer]
+    renderer_classes = [BlastRunHitsCSVRenderer, BlastRunHitsTSVRenderer, BlastRunHitsTxtRenderer]
     
     @swagger_auto_schema(
         operation_summary='Get BLASTN results as a file',
@@ -1474,16 +1478,53 @@ class BlastRunDetailDownload(generics.GenericAPIView):
             return Response(status=status.HTTP_404_NOT_FOUND)
         
         serializer = BlastRunSerializer(run)
-       
         response = Response(serializer.data, status=status.HTTP_200_OK)
-        file_name_root = serializer.data['job_name']
-        if file_name_root is None or len(file_name_root) == 0:
-            file_name_root = 'results'       
-        
         if request.accepted_media_type.startswith('text/csv'):
-            response['Content-Disposition'] = f'attachment; filename="{file_name_root}.csv";'
+            response['Content-Disposition'] = f'attachment; filename="barrel_{run.id}.hits.csv";'
+        elif request.accepted_media_type.startswith('text/tsv'):
+            response['Content-Disposition'] = f'attachment; filename="barrel_{run.id}.hits.tsv";'
         elif request.accepted_media_type.startswith('text/plain'):
-            response['Content-Disposition'] = f'attachment; filename="{file_name_root}.txt";'
+            response['Content-Disposition'] = f'attachment; filename="barrel_{run.id}.hits.txt";'
+
+        return response
+
+class BlastRunTaxonomyDownload(generics.GenericAPIView):
+    '''
+    Download the taxonomic classification results.
+    '''
+    queryset = BlastRun.objects.all()
+    serializer_class = BlastRunSerializer
+    renderer_classes = [BlastRunTaxonomyCSVRenderer, BlastRunTaxonomyTSVRenderer]
+    
+    @swagger_auto_schema(
+        operation_summary='Get taxonomic classification results',
+        operation_description='Returns taxonomic assignments/classifications made by the application according to BLAST hit results. Whether taxonomic assignments are made for a run is determined by the run parameters.',
+        tags = [tag_runs],
+        responses={
+            '200': openapi.Response(
+                description='Returns a file.',
+                schema = openapi.Schema(
+                    type= openapi.TYPE_STRING,
+                    format='binary'
+                ),
+            ),
+            '404': 'Run information or taxonomic assignment data corresponding to the specified ID does not exist'
+        },
+    )
+    def get(self, request, *args, **kwargs):
+        db_primary_key = kwargs['pk']
+
+        try:
+            run = BlastRun.objects.get(id = db_primary_key)
+        except BlastRun.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        
+        serializer = BlastRunSerializer(run)
+        response = Response(serializer.data, status=status.HTTP_200_OK)
+        if request.accepted_media_type.startswith('text/csv'):
+            response['Content-Disposition'] = f'attachment; filename="barrel_{run.id}.taxonomy.csv";'
+        elif request.accepted_media_type.startswith('text/tsv'):
+            response['Content-Disposition'] = f'attachment; filename="barrel_{run.id}.taxonomy.tsv";'
 
         return response
 

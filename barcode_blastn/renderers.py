@@ -227,7 +227,7 @@ class BlastDbCompatibleRenderer(BaseRenderer):
         
         return zip_buffer.getvalue()
 
-def dictWrite(data, delimiter: str = ','):
+def BlastDbDictWriter(data, delimiter: str = ','):
     response = io.StringIO()
     # fields displayed for each sequence entry
     sequence_fields = BlastDbSequenceExportSerializer.Meta.fields[:]
@@ -268,24 +268,25 @@ class BlastDbTSVRenderer(BaseRenderer):
     format = 'tsv'
     charset = 'utf-8'
     def render(self, data, accepted_media_type=None, renderer_context=None):
-        response = dictWrite(data=data, delimiter='\t')
+        response = BlastDbDictWriter(data=data, delimiter='\t')
         return response.getvalue().encode(self.charset)
 
 class BlastRunFastaRenderer(BaseRenderer):
     '''
     Return input file of run in FASTA format 
     '''
-    media_type = 'text/x-fasta'
+    media_type = 'application/x-fasta'
     format = 'fasta'
     charset = 'utf-8'
     
     def render(self, data, accepted_media_type=None, renderer_context: Optional[Dict[Any, Any]] = None):
-        fasta_file = []
-        if not renderer_context is None:
-            fasta_file.append(renderer_context.get('fasta_format', ''))
-        for sequence in data['sequences']:
-            fasta_file.append(f'>{sequence["accession_number"]}\n{sequence["dna_sequence"]}\n')
-        return ''.join(fasta_file).encode(self.charset)
+        sequence_file = []
+        for sequence in data['queries']:
+            if not sequence["original_species_name"] is None:
+                sequence_file.append(f'>{sequence["definition"]}\t{sequence["original_species_name"].replace(" ", "_")}\n{sequence["query_sequence"]}\n')
+            else:
+                sequence_file.append(f'>{sequence["definition"]}\n{sequence["query_sequence"]}\n')
+        return ''.join(sequence_file).encode(self.charset)
 
 class BlastDbCSVRenderer(BaseRenderer):
     '''
@@ -296,45 +297,25 @@ class BlastDbCSVRenderer(BaseRenderer):
     charset = 'utf-8'
 
     def render(self, data, accepted_media_type=None, renderer_context=None):
-        response = dictWrite(data=data, delimiter=',')
+        response = BlastDbDictWriter(data=data, delimiter=',')
         return response.getvalue().encode(self.charset)
 
-class BlastRunTxtRenderer(BaseRenderer):
+class BlastRunHitsTxtRenderer(BaseRenderer):
     '''
-    Return the blast run results in txt format
+    Return the blast run hits in txt format
     '''
     media_type = 'text/plain'
     format = 'txt'
     charset = 'utf-8'
 
     def render(self, data, accepted_media_type=None, renderer_context=None):
-        out_lines = ['# Barcode Identifier API\n']
+        out_lines = []
         run_id = data['id']
-        
-        # get a list of fields to display as comments at the start of the file
-        exclude_fields = ['start_time', 'queries', 'status', 'hits', 'create_hit_tree', 'hit_tree', 'alignment_job_id', 'create_db_tree', 'db_tree', 'complete_alignment_job_id', 'owner_run']
-        comment_fields = [ field for field in BlastRunSerializer.Meta.fields if field not in exclude_fields]
-
-        # write the comments
-        for comment in comment_fields:
-            if comment == 'db_used':
-                out_lines.append(f'# db_used-id={data[comment]["id"]}\n')
-                out_lines.append(f'# db_used-custom_name={data[comment]["library"]["custom_name"]}\n')
-                out_lines.append(f'# db_used-custom_name={data[comment]["version_number"]}\n')
-                out_lines.append(f'# db_used-description={data[comment]["description"]}\n')
-            else:
-                val : str = data[comment]
-                if val is None:
-                    val = 'NULL'
-                out_lines.append(f'# {comment}={val}\n')
-
-        out_lines.append('\n')
-
         run_folder = get_data_run_path(run_id)
 
         # only print results if run is finished and file exists
         if data['status'] == BlastRun.JobStatus.FINISHED:
-            results_file = f'{run_folder}results.txt'
+            results_file = f'{run_folder}/results.txt'
             if os.path.exists(results_file) and os.path.isfile(results_file):
                 with open(results_file, 'r') as results_txt_file:
                     out_lines.extend(results_txt_file.readlines())
@@ -349,56 +330,99 @@ class BlastRunTxtRenderer(BaseRenderer):
 
         return ''.join(out_lines).encode(self.charset)
         
-class BlastRunCSVRenderer(BaseRenderer):
+def blast_run_hit_dict_writer(data, delimiter=',') -> io.StringIO:
     '''
-    Return the information of a blast run in CSV format
+    Given data for all BLAST hits from a blast run, write the data
+    to the response with columns delimited by `delimiter` character using
+    `csv.DictWriter()`. Return the response.
+    '''
+    response = io.StringIO()
+        
+    # get a list of displayed fields to display for each hit
+    hit_fields = HitSerializer.Meta.fields[:]
+    hit_fields = [field for field in hit_fields if field != 'owner_run' and field != 'db_entry']
+    db_entry_fields = ['accession_number', 'organism', 'version', 'country', 'specimen_voucher']
+    hit_fields.extend(db_entry_fields)
+
+    # make a DictWriter to write data
+    writer = csv.DictWriter(response, delimiter=delimiter, fieldnames=hit_fields, extrasaction='ignore', dialect='unix')
+    writer.writeheader()
+    # add the fields under db_entry to the parent dictionary for output
+    for query in data['queries']:
+        for hit in query['hits']:
+            hit.update(hit['db_entry'])
+                
+        writer.writerows(query['hits'])
+    return response
+
+class BlastRunHitsCSVRenderer(BaseRenderer):
+    '''
+    Return the information of a blast run hits in CSV format
     '''
     media_type = 'text/csv'
     format = 'csv'
     charset = 'utf-8'
 
     def render(self, data, accepted_media_type=None, renderer_context=None):
-        response = io.StringIO()
+        return blast_run_hit_dict_writer(data, delimiter=',').getvalue().encode(self.charset)
 
-        # get a list of fields to display as comments at the start of the file
-        exclude_fields = ['start_time', 'queries', 'status', 'hits', 'create_hit_tree', 'hit_tree', 'alignment_job_id', 'create_db_tree', 'db_tree', 'complete_alignment_job_id', 'owner_run']
-        comment_fields = [ field for field in BlastRunSerializer.Meta.fields if field not in exclude_fields]
+class BlastRunHitsTSVRenderer(BaseRenderer):
+    '''
+    Return the information of a blast run hits in TSV format
+    '''
+    media_type = 'text/tsv'
+    format = 'tsv'
+    charset = 'utf-8'
 
-        # write the comments
-        comment_writer = csv.writer(response)
-        comment_writer.writerow([f'# Barcode Identifier API'])
-        for comment in comment_fields:
-            if comment == 'db_used':
-                comment_writer.writerow([f'# db_used-id={data[comment]["id"]}'])
-                comment_writer.writerow([f'# db_used-custom_name={data[comment]["custom_name"]}'])
-                comment_writer.writerow([f'# db_used-description={data[comment]["description"]}'])
-            else:
-                val : str = data[comment]
-                if val is None:
-                    val = 'NULL'
-                comment_writer.writerow([f'# {comment}={val}'])
-        
-        # get a list of displayed fields to display for each hit
-        hit_fields = HitSerializer.Meta.fields[:]
-        hit_fields = [field for field in hit_fields if field != 'owner_run' and field != 'db_entry']
-        db_entry_fields = ['accession_number', 'definition', 'organism', 'isolate', 'country', 'specimen_voucher']
-        hit_fields.extend(db_entry_fields)
+    def render(self, data, accepted_media_type=None, renderer_context=None):
+        return blast_run_hit_dict_writer(data, delimiter='\t').getvalue().encode(self.charset)
 
-        # add the fields under db_entry to the parent dictionary for output
-        for hit in data['hits']:
-            db_entry_values = [hit['db_entry'][field] for field in db_entry_fields]
-            hit.update(zip(db_entry_fields, db_entry_values))
+def blast_run_taxonomy_dict_writer(data, delimiter=','):
+    '''
+    Given data on taxonomic assignments from a blast run, write the data
+    to the response with columns delimited by `delimiter` character using
+    `csv.DictWriter()`. Return the response.
+    '''
+    response = io.StringIO()
+    # get a list of displayed fields to display for each hit
+    query_fields = ['definition', 'tree_query_id', 'original_species_name', 'results_species_name', 'accuracy_category']
 
-        # make a DictWriter to write data
-        writer = csv.DictWriter(response, fieldnames=hit_fields, extrasaction='ignore', dialect='unix')
+    def populate_fields(old_dict: dict):
+        query_id = old_dict.pop('write_tree_identifier')
+        old_dict['tree_query_id'] = query_id
+        return old_dict
 
-        # write csv header row + all hits
-        writer.writeheader()
-        writer.writerows(data['hits'])
+    finalData = [populate_fields(q) for q in data['queries']]
+    # make a DictWriter to write data
+    writer = csv.DictWriter(response, delimiter=delimiter, fieldnames=query_fields, extrasaction='ignore', dialect='unix')
+    writer.writeheader()
+    # add the fields under db_entry to the parent dictionary for output
+    writer.writerows(finalData)
+    return response
 
-        return response.getvalue().encode(self.charset)
+class BlastRunTaxonomyCSVRenderer(BaseRenderer):
+    '''
+    Return information on taxonomic assignments from run in CSV format.
+    '''
+    media_type = 'text/csv'
+    format = 'csv'
+    charset = 'utf-8'
 
-class BlastRunHTMLRenderer(BlastRunTxtRenderer):
+    def render(self, data, accepted_media_type=None, renderer_context=None):
+        return blast_run_taxonomy_dict_writer(data, delimiter=',').getvalue().encode(self.charset)
+
+class BlastRunTaxonomyTSVRenderer(BaseRenderer):
+    '''
+    Return information on taxonomic assignments from run in TSV format.
+    '''
+    media_type = 'text/tsv'
+    format = 'tsv'
+    charset = 'utf-8'
+
+    def render(self, data, accepted_media_type=None, renderer_context=None):
+        return blast_run_taxonomy_dict_writer(data, delimiter='\t').getvalue().encode(self.charset)
+
+class BlastRunHTMLRenderer(BlastRunHitsTxtRenderer):
     '''
     Return BLAST text results as an HTML page
     '''

@@ -100,11 +100,13 @@ class BlastDbShortSerializer(serializers.ModelSerializer):
     class Meta:
         model = BlastDb
         ref_name = blast_db_title + ' summary'
-        fields = ['id', 'description', 'library']
+        fields = ['id', 'description', 'library', 'custom_name', 'version_number']
         example = {
             "id": "66855f2c-f360-4ad9-8c98-998ecb815ff5",
             "description": "This BLAST database is a collection of barcodes from 167 species of Neotropical electric knifefish (Teleostei: Gymnotiformes) which was presented by Janzen et al. 2022. All sequences and related feature data are updated daily at midnight (UTC) from NCBI's Genbank database.",
-            "library": LibraryShortSerializer.Meta.example
+            "custom_name": "Newly Sequenced Species Reference Library",
+            "library": LibraryShortSerializer.Meta.example,
+            "version_number": "2.1.1"
         }
         tags = ['DBS']
 
@@ -493,10 +495,12 @@ class BlastQuerySequenceSerializer(serializers.ModelSerializer):
     '''
     Show a sequence submitted in a run
     '''
+    hits = HitEntrySerializer(many=True, read_only=True)
+
     class Meta:
         model = BlastQuerySequence
         ref_name = query_title
-        fields = ['definition', 'query_sequence']
+        fields = ['definition', 'query_sequence', 'hits', 'results_species_name', 'accuracy_category', 'original_species_name', 'write_tree_identifier']
         example = {
             "definition": "Steatogenys_elegans isolate 8807 cytochrome c oxidase subunit I (COI) gene, partial cds; mitochondrial",
             "query_sequence": "GGCACCCTTTATATAGTGTTTGGTGCCTGAGCCGGAATGGTTGGCACGGCCTTAAGCCTCCTTATTCGAGCCGAGCTAAGCCAACCCGGGGCCCTAATGGGTGATGACCAGATTTACAATGTTA"
@@ -528,13 +532,12 @@ class BlastRunSerializer(serializers.ModelSerializer):
     Show results of a blast run
     '''
     db_used = BlastDbShortSerializer(many=False, read_only=True)
-    hits = HitEntrySerializer(many=True, read_only=True)
     queries = BlastQuerySequenceSerializer(many=True, read_only=True)    
 
     class Meta:
         model = BlastRun    
         ref_name = run_title
-        fields = ['id', 'job_name', 'queries', 'db_used', 'start_time', 'status', 'received_time', 'start_time', 'end_time', 'error_time', 'hits', 'create_hit_tree', 'hit_tree', 'alignment_job_id', 'create_db_tree', 'db_tree', 'complete_alignment_job_id']
+        fields = ['id', 'job_name', 'queries', 'db_used', 'start_time', 'status', 'received_time', 'start_time', 'end_time', 'error_time', 'create_hit_tree', 'hit_tree', 'alignment_job_id', 'create_db_tree', 'db_tree', 'complete_alignment_job_id']
         example = load_run_example()
 
 class BlastRunStatusSerializer(serializers.ModelSerializer):    

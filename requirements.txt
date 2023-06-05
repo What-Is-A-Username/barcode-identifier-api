@@ -1,3 +1,4 @@
+
 amqp==5.1.1
 asgiref==3.5.2
 backports.zoneinfo==0.2.1;python_version<"3.9"
@@ -50,4 +51,5 @@ urllib3==1.26.13
 uWSGI==2.0.21
 vine==5.0.0
 wcwidth==0.2.5
+xmltodict==0.13.0
 xmltramp2==3.1.1

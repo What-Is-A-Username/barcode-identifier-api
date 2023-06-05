@@ -621,7 +621,7 @@ class HitInline(admin.TabularInline):
     Row to show a database hit under a BLAST run.
     '''
     model = Hit
-    fields = ['db_entry', 'owner_run', 'query_accession_version', 'subject_accession_version', 'percent_identity', 'alignment_length', 'mismatches', 'gap_opens', 'query_start', 'query_end', 'sequence_start', 'sequence_end', 'evalue_value', 'bit_score_value']
+    fields = ['db_entry', 'query_sequence', 'query_accession_version', 'subject_accession_version', 'percent_identity', 'alignment_length', 'mismatches', 'gap_opens', 'query_start', 'query_end', 'sequence_start', 'sequence_end', 'evalue_value', 'bit_score_value']
     readonly_fields = ['evalue_value', 'bit_score_value']
 
     show_change_link = True
@@ -646,7 +646,7 @@ class BlastRunAdmin(admin.ModelAdmin):
     '''
     Admin page for showing run information.
     '''
-    inlines = [HitInline, BlastQuerySequenceInline]
+    inlines = [BlastQuerySequenceInline]
     show_change_link = True
     list_display = (
         'id', 'job_name', 'received_time', 'status'
@@ -704,14 +704,14 @@ class HitAdmin(admin.ModelAdmin):
         return super(HitAdmin, self).changelist_view(request, extra_context=extra_context)
 
     def owner_run_link(self, obj):
-        url = reverse("admin:%s_%s_change" % ('barcode_blastn', 'blastrun'), args=(obj.owner_run.id,))
-        return format_html("<a href='{url}'>{obj}</a>", url=url, obj=obj.owner_run)
+        url = reverse("admin:%s_%s_change" % ('barcode_blastn', 'blastrun'), args=(obj.owner_run().id,))
+        return format_html("<a href='{url}'>{obj}</a>", url=url, obj=obj.owner_run())
 
     def get_queryset(self, request: HttpRequest) -> QuerySet[Any]:
         if not request.user.is_authenticated:
             return Hit.objects.none()
         elif isinstance(request.user, User):
-            return Hit.objects.filter(owner_run__in=BlastRun.objects.listable(request.user))
+            return Hit.objects.filter(query_sequence__owner_run__in=BlastRun.objects.listable(request.user))
         else:
             return Hit.objects.none()
 
