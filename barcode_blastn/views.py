@@ -449,14 +449,13 @@ class NuccoreSequenceDetail(mixins.DestroyModelMixin, generics.RetrieveAPIView):
             seq = NuccoreSequence.objects.get(id = db_primary_key)
         except NuccoreSequence.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
-        d: BlastDb = BlastDb.objects.get()
 
         try:
             self.check_object_permissions(request, obj=seq)
         except PermissionDenied:
             # Check if user has permissions to access object
             return Response(status=status.HTTP_403_FORBIDDEN)
-        except:
+        else:
             serializer = NuccoreSequenceSerializer(seq)
             return Response(serializer.data, status = status.HTTP_200_OK)
 
@@ -1026,17 +1025,17 @@ class BlastDbExport(generics.GenericAPIView):
 
         # based on the media type file to be returned, specify attachment and file name
         if request.accepted_media_type.startswith('text/csv'):
-            response['Content-Disposition'] = f'filename="{db.custom_name}.csv";'
+            response['Content-Disposition'] = f'filename="barrel_database_{db.custom_name}_{db.id}.csv";'
         elif request.accepted_media_type.startswith('text/plain'):
-            response['Content-Disposition'] = f'filename="{db.custom_name}.txt";'
+            response['Content-Disposition'] = f'filename="barrel_database_{db.custom_name}_{db.id}.txt";'
         elif request.accepted_media_type.startswith('text/tsv'):
-            response['Content-Disposition'] = f'filename="{db.custom_name}.tsv";'
+            response['Content-Disposition'] = f'filename="barrel_database_{db.custom_name}_{db.id}.tsv";'
         elif request.accepted_media_type.startswith('application/xml'):
-            response['Content-Disposition'] = f'filename="{db.custom_name}.xml";'
+            response['Content-Disposition'] = f'filename="barrel_database_{db.custom_name}_{db.id}.xml";'
         elif request.accepted_media_type.startswith('application/x-fasta'):
-            response['Content-Disposition'] = f'filename="{db.custom_name}.fasta";'
+            response['Content-Disposition'] = f'filename="barrel_database_{db.custom_name}_{db.id}.fasta";'
         elif request.accepted_media_type.startswith('application/zip'):
-            response['Content-Disposition'] = f'attachment; filename="{db.custom_name}.zip";'
+            response['Content-Disposition'] = f'attachment; filename="barrel_database_{db.custom_name}_{db.id}.zip";'
         elif request.accepted_media_type.startswith('application/json'):
             return response
         else:

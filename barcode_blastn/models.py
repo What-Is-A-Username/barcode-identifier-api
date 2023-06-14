@@ -497,5 +497,24 @@ class Hit(models.Model):
         verbose_name = 'BLASTN Run Hit'
         verbose_name_plural = 'BLASTN Run Hits'
 
+class Annotation(models.Model):
+    parent_annotation = models.ForeignKey('self', on_delete=models.CASCADE, null=True, help_text='Parent annotation to which this annotation replies to.', related_query_name='replies', default=None)
+    sequence = models.ForeignKey(NuccoreSequence, related_name='annotations', on_delete=models.CASCADE, help_text='Sequence to which this annotation was made.')
+    poster = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, help_text='User which created of the annotation.')
+    timestamp = models.DateTimeField(help_text='Creation time of annotation', auto_now_add=True)
+    class AnnotationType(models.TextChoices):
+        MISIDENTIFICATION = 'Misidentification'
+        UNVERIFIED_TAXONOMY = 'Unverified Taxonomy'
+        TENTATIVE_NEW_SPECIES = 'Tentative New Species'
+        SEQUENCE_QUALITY = 'Sequence Issue'
+        CONTAMINATION = 'Contamination'
+        METADATA_QUALITY = 'Metadata Issue'
+        VALIDATED_TAXONOMY = 'Validated Taxonomy'
+        FLAG = 'Flag'
+        QUESTIONS = 'Questions'
+        OTHER = 'Other'
+    annotation_type = models.CharField(max_length=32, choices=AnnotationType.choices, help_text='Categorization of content within the annotation.')
+    comment = models.CharField(max_length=512, help_text='User-added comment text for annotation', blank=True, default='')
 
+        
 

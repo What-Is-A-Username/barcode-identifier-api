@@ -14,7 +14,7 @@ from django.utils.html import format_html
 from django.contrib.auth.models import User
 from barcode_blastn.controllers.blastdb_controller import add_sequences_to_database, create_blastdb, delete_blastdb, delete_library, save_blastdb, save_sequence
 from barcode_blastn.helper.parse_gb import GenBankConnectionError, InsufficientAccessionData, retrieve_gb
-from barcode_blastn.models import BlastDb, BlastQuerySequence, DatabaseShare, Library, NuccoreSequence, BlastRun, Hit, TaxonomyNode
+from barcode_blastn.models import Annotation, BlastDb, BlastQuerySequence, DatabaseShare, Library, NuccoreSequence, BlastRun, Hit, TaxonomyNode
 from django.forms import BaseInlineFormSet, ModelForm, ValidationError
 from barcode_blastn.permissions import DatabaseSharePermissions, HitSharePermission, LibrarySharePermissions, NuccoreSharePermission, RunSharePermissions
 
@@ -90,9 +90,10 @@ class NuccoreSequenceInline(admin.TabularInline):
     show_change_link = True     # Show link to page to edit the sequence
     classes = ['collapse']      # Allow the entries to be collapsed
     extra = 0                   # Show one extra row by default
+    fields = ['accession_number', 'version', 'id', 'updated', 'organism', 'specimen_voucher', 'annotation_count']
 
-    def get_fields(self, request: HttpRequest, obj: Union[BlastDb, None]):
-        return [('accession_number'), ('id', 'updated'), ('organism', 'definition', 'organelle'), ('specimen_voucher')]
+    def annotation_count(self, obj):
+        return Annotation.objects.filter(sequence=obj).count()
 
     def get_readonly_fields(self, request: HttpRequest, obj: Union[BlastDb, None] = None):
         base = list(set(
@@ -100,6 +101,7 @@ class NuccoreSequenceInline(admin.TabularInline):
             [field.name for field in self.opts.local_many_to_many]
         ))
         base.remove('accession_number')
+        base.append('annotation_count')
         return base
 
     def has_module_permission(self, request: HttpRequest) -> bool:
@@ -456,40 +458,76 @@ class NuccoreAdminModifyForm(ModelForm):
         '''
 
         cleaned_data = super().clean()
+        instance: NuccoreSequence = self.instance
+        # isAdding = instance._state.adding if not instance is None else 'instance none'
+        # pk = instance.pk is None
+        # raise ValidationError(str(instance is None) + ' ' + str(isAdding) + ' ' + str(pk) + ' ' + str(self.instance.accession_number is None))
 
-        instance: NuccoreSequence = cleaned_data.get('instance', None)
-        # raise ValidationError(f'{wow.owner_database}')
+        # Only check data if we are adding a new entry
+        if instance._state.adding:
+            accession_number: Any = cleaned_data.get('accession_number', None)
+            # check if the form data contains an accession_number
+            if accession_number is None:
+                raise ValidationError(f'Could not locate an accession number in the submitted form data.')
 
-        accession_number: Any = cleaned_data.get('accession_number', None)
-        # check if the form data contains an accession_number
-        if accession_number is None:
-            raise ValidationError(f'Could not locate an accession number in the submitted form data.')
+            owner_database: Union[BlastDb, None] = cleaned_data.get('owner_database', None)
 
-        owner_database: Union[BlastDb, None] = cleaned_data.get('owner_database', None)
+            # check that the sequence will be assigned to a database
+            if owner_database is None:
+                raise ValidationError(f'No owner database specified. Sequence must be associated with a database when being created. If no databases are selectable, contact a superuser to give you edit permission to a database.')
+            else:
+                if owner_database.locked:
+                    raise ValidationError(f'The database {owner_database} ({owner_database.id}) is locked, so changes cannot be made to its sequences and new sequences cannot be added to it.')
 
-        # check that the sequence will be assigned to a database
-        if owner_database is None:
-            raise ValidationError(f'No owner database specified. Sequence must be associated with a database when being created. If no databases are selectable, contact a superuser to give you edit permission to a database.')
-        else:
-            if owner_database.locked:
-                raise ValidationError(f'The database {owner_database} ({owner_database.id}) is locked, so changes cannot be made to its sequences and new sequences cannot be added to it.')
-
-        # check if the accession already exists in the database
-        duplicate_exists: bool = False
-        if instance is None: # if this is an addition
-            duplicate_exists = NuccoreSequence.objects.filter(accession_number = accession_number, owner_database=owner_database).exists()
+            # check if the accession already exists in the database
+            duplicate_exists: bool = False
+            if self.instance.pk is None: # if this is an addition
+                duplicate_exists = NuccoreSequence.objects.filter(accession_number = accession_number, owner_database=owner_database).exists()
+            
+            if duplicate_exists:
+                raise ValidationError(f'Error: Sequence entry for accession number {accession_number} already exists in the same database.')
         
-        if duplicate_exists:
-            raise ValidationError(f'Error: Sequence entry for accession number {accession_number} already exists in the same database.')
-        
-        try:
-            retrieve_gb(accession_numbers=[accession_number], raise_if_missing=True)
-        except GenBankConnectionError as err:
-            raise ValidationError('Encountered connection error while requesting data from GenBank. Please try again.') from err  
-        except InsufficientAccessionData as err:
-            raise ValidationError(f'Could not retrieve a record for {accession_number}, likely due to accession number not matching with an existing and unique record. Check the accession number provided.')  
+            try:
+                retrieve_gb(accession_numbers=[accession_number], raise_if_missing=True)
+            except GenBankConnectionError as err:
+                raise ValidationError('Encountered connection error while requesting data from GenBank. Please try again.') from err  
+            except InsufficientAccessionData as err:
+                raise ValidationError(f'Could not retrieve a record for {accession_number}, likely due to accession number not matching with an existing and unique record. Check the accession number provided.')  
             
         return None
+
+class AnnotationInline(admin.TabularInline):
+    '''
+    Inline for showing annotation under a sequence
+    '''
+    model = Annotation
+    fields = ['user', 'timestamp', 'annotation_type', 'comment']
+    readonly_fields = ['user', 'timestamp']
+    extra = 0
+
+    def user(self, obj: Optional[Annotation]):
+        if obj is None:
+            return '<unspecified_user>'
+        elif obj.poster is None:
+            return '<deleted_user>'
+        else:
+            return obj.poster.username
+
+    def has_module_permission(self, request: HttpRequest) -> bool:
+        return NuccoreSharePermission.has_module_permission(request.user)
+    
+    def has_view_permission(self, request: HttpRequest, obj: Union[NuccoreSequence, None]=None) -> bool:
+        return NuccoreSharePermission.has_view_permission(request.user, obj)
+    
+    def has_change_permission(self, request: HttpRequest, obj: Union[NuccoreSequence, None] = None) -> bool:
+        # Annotations cannot be modified after initial creation
+        return False
+
+    def has_delete_permission(self, request, obj: Union[NuccoreSequence, None] = None) -> bool:
+        return NuccoreSharePermission.has_delete_permission(request.user, obj)
+
+    def has_add_permission(self, request, obj: Union[NuccoreSequence, None] = None) -> bool:
+        return request.user.is_authenticated
 
 @admin.register(NuccoreSequence)
 class NuccoreAdmin(admin.ModelAdmin):
@@ -501,6 +539,7 @@ class NuccoreAdmin(admin.ModelAdmin):
     )
     fields_excluded = ['uuid']
     form = NuccoreAdminModifyForm
+    inlines = [AnnotationInline]
 
     def changelist_view(self, request, extra_context: Optional[Dict[str, str]] = None):
         # Customize the title at the top of the change list
@@ -591,12 +630,23 @@ class NuccoreAdmin(admin.ModelAdmin):
         return NuccoreSharePermission.has_add_permission(request.user, obj)
     
     def save_model(self, request: Any, obj: Any, form: Any, change: bool) -> None:
-        save_sequence(obj, change=change, commit=True)
+        if not change:
+            save_sequence(obj, change=change, commit=True)
+
+    def save_formset(self, request: Any, form: Any, formset: Any, change: Any) -> None:
+        instances = formset.save(commit=False)
+        for instance in instances:
+            # Do something with `instance`
+            if instance._state.adding:
+                instance.poster = request.user
+            instance.save() 
+        formset.save_m2m()
+        return super().save_formset(request, form, formset, change)
 
     def changeform_view(self, request: HttpRequest, object_id: Union[str, None], form_url: str, extra_context: Optional[Dict[str, bool]]) -> Any:
         extra_context = extra_context or {}
 
-        extra_context['show_save_and_continue'] = object_id is None # show Save and Continue button
+        extra_context['show_save_and_continue'] = True # show Save and Continue button
         extra_context['show_save_and_add_another'] = object_id is None # show Save and Add Another button
         extra_context['show_save'] = object_id is None # hide save button
         extra_context['show_delete'] = object_id is not None # show delete button
@@ -623,17 +673,13 @@ class HitInline(admin.TabularInline):
     model = Hit
     fields = ['db_entry', 'query_sequence', 'query_accession_version', 'subject_accession_version', 'percent_identity', 'alignment_length', 'mismatches', 'gap_opens', 'query_start', 'query_end', 'sequence_start', 'sequence_end', 'evalue_value', 'bit_score_value']
     readonly_fields = ['evalue_value', 'bit_score_value']
-
+    extra = 0
     show_change_link = True
 
     def evalue_value(self, obj):
         return '%.4E' % obj.evalue
-
     def bit_score_value(self, obj):
         return '%.4E' % obj.bit_score
-
-    extra = 0
-
     def has_change_permission(self, request, obj=None):
         return False
     def has_add_permission(self, request, obj=None) -> bool:
