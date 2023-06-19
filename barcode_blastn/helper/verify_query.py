@@ -23,4 +23,4 @@ def verify_header(header: str):
 
 def verify_dna(sequence: str):
     # TODO: Add more permissible sequence letters
-    return bool(re.match('^[NCAGTncagt-]+$', sequence))
+    return bool(re.match('^[RYSWKMBDHVNCAGTryswkmbdhvncagt.-]+$', sequence))
