@@ -451,9 +451,9 @@ class BlastQuerySequence(models.Model):
         is_query = len(header) > 2 and header[2] == 'query'
         return HeaderInfo(id, species, is_query)
 
-    query_sequence = models.CharField(max_length=10000, help_text='Sequence text')
+    query_sequence = models.CharField(max_length=50000, help_text='Sequence text')
     # The binomial name of the classification made by nucleotide blast. None if assignment not yet done, empty string if no assignment could be made.
-    results_species_name = models.CharField(max_length=255, help_text='Binomial species identity assigned from nucleotide BLAST hits.', null=True, default=None)
+    results_species_name = models.CharField(max_length=512, help_text='Binomial species identity assigned from nucleotide BLAST hits. If there are multiple best hits, this is a *-delimited list.', null=True, default=None)
     # Classification
     class QueryClassification(models.TextChoices):
         CORRECT_ID = 'Correct ID'

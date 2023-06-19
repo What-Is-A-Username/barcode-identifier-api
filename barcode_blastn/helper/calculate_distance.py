@@ -1,4 +1,5 @@
 from collections import namedtuple
+from datetime import datetime
 from typing import List, Optional
 from django.db.models import QuerySet
 from Bio import AlignIO
@@ -47,10 +48,27 @@ def calculate_genetic_distance(alignment_file_path: str):
             matrix[y.id, x.id] = matrix[x.id, y.id]
     return matrix
 
-def annotate_pair_comparison(matrix: DistanceMatrix, run: BlastRun, threshold: float = 0.01):
+def parse_taxonomic_abbreviations(source_organism: str) -> str:
+    '''
+    Given name of the source organism, remove:
+    -   cf. 
+    -   aff.
+
+    Examples:
+        - 'G cylindricus' => 'G cylindricus'
+        - 'G aff. cylindricus' => 'G cylindricus'
+        - 'G cf. cylindricus' => 'G cylindricus'
+        - 'aff. G cylindricus' => 'G cylindricus'
+    '''
+    delim = source_organism.split(' ')
+    exclude = ['cf.', '.aff']
+    new_delim = [d for d in delim if d not in exclude]
+    return ' '.join(new_delim)
+
+def annotate_pair_comparison(matrix: DistanceMatrix, run: BlastRun, threshold: float = 0.01) -> bool:
     '''
     Annotate each query sequence in the matrix using the categorization proposed in
-    Janzen et al. 2022.
+    Janzen et al. 2022. Return True if operation was successful, False otherwise.
     
     Names in the matrix each correspond to a reference or query sequence. Reference sequences
     take the form of 'version|species_name' while query sequences take the form of 
@@ -81,27 +99,57 @@ def annotate_pair_comparison(matrix: DistanceMatrix, run: BlastRun, threshold: f
     classification_path = f'{output_path}/classification.tsv'
     class_handle = open(classification_path, 'w')
     class_handle.write('query_id\ttree_id\tquery_species\treference_species\taccuracy_category\n')
+
+    function_result = False
+
     try:
         for seq in seqs:
-            best_hit: Optional[Hit] = None
+            # Find the highest rated hits and store them in best hits
+            best_hits: List[Hit] = []
             hit: Hit
             for hit in seq.hits.all():
-                if best_hit is None or compareHits(best_hit, hit):
-                    best_hit = hit
+                if len(best_hits) == 0:
+                    best_hits.append(hit)
+                else:
+                    # Compare the hit with the current best hits
+                    compare = compareHits(best_hits[0], hit)
+                    # If current is better than previous best hit, replace previous
+                    if compare == 1:
+                        best_hits = [hit]
+                    # If current matches the previous best hit, keep all
+                    elif compare == 0:
+                        best_hits.append(hit)
             
+            # Extract the original species name from the sequence information
             query_id = seq.write_tree_identifier()
             query_species = seq.original_species_name if not seq.original_species_name is None else ''
                 
-            if best_hit is None:
-                # If no hits are returned 
+            # If no hits are returned, terminate early and provide a classification
+            if len(best_hits) == 0:
                 seq.accuracy_category = BlastQuerySequence.QueryClassification.NO_HITS
                 class_handle.write(f'{query_id}\t{seq.write_tree_identifier()}\t{query_species}\tNo hits\t{seq.accuracy_category}\n')
                 continue
             
-            reference: NuccoreSequence = best_hit.db_entry
-            ref_id = best_hit.db_entry.write_tree_identifier()
+            # Create a list, ref_species, which is a list of species names corresponding
+            # to the best hits
+            references = [b.db_entry for b in best_hits]
+            ref_ids = [h.write_tree_identifier() for h in references]
+            def extract_ref_species(entry: NuccoreSequence) -> str:
+                return entry.taxon_species.scientific_name if not entry.taxon_species is None else 'Reference_unspecified_species'
+            ref_species = [extract_ref_species(h) for h in references]
+            
+            try:
+                # If the query species name is one of the best hits, only consider that hit
+                index = ref_species.index(query_species)
+                reference: NuccoreSequence = references[index]
+            except ValueError:
+                # If the query species name is missing, just take the very first hit 
+                reference: NuccoreSequence = references[0]
+
+            ref_id = reference.write_tree_identifier()
             debug_handle.write(f'{ref_id}\t{query_id}\n')
 
+            # Retrieve the calculated distance between the query and the reference
             divergence = matrix[query_id, ref_id]
             if not isinstance(divergence, float):
                 raise ValueError('Distance value is not a float.')
@@ -109,6 +157,8 @@ def annotate_pair_comparison(matrix: DistanceMatrix, run: BlastRun, threshold: f
             # sequence information for query sequence
             reference_species = reference.taxon_species.scientific_name if not reference.taxon_species is None else 'Reference_unspecified_species'
             
+            query_species = parse_taxonomic_abbreviations(query_species)
+
             result: str = ''
             if divergence < threshold:
                 # "Correct ID": Query < 1.0/2.0% divergent from reference, and query name matches reference species name
@@ -136,10 +186,18 @@ def annotate_pair_comparison(matrix: DistanceMatrix, run: BlastRun, threshold: f
             class_handle.write(f'{query_id}\t{seq.write_tree_identifier()}\t{query_species}\t{reference_species}\t{result}\n')
             seq.accuracy_category = result
         BlastQuerySequence.objects.bulk_update(seqs, fields=['accuracy_category'])
+        function_result = True
+    except BaseException as err:
+        run.errors = run.errors + '\nErrored while annotating taxonomic assignments.'
+        run.status = BlastRun.JobStatus.ERRORED
+        run.error_time = datetime.now()
+        run.save()
+        function_result = False
     finally:
         class_handle.close()
         debug_handle.close()
-        return
+        return function_result
+
 
             
 

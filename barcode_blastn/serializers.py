@@ -242,6 +242,7 @@ class BlastDbSequenceEntrySerializer(serializers.ModelSerializer):
     taxon_phylum = TaxonomyNodeSerializer(many=False, read_only=True)
     taxon_kingdom = TaxonomyNodeSerializer(many=False, read_only=True)
     taxon_superkingdom = TaxonomyNodeSerializer(many=False, read_only=True)
+    annotations = AnnotationSerializer(many=True, read_only=True)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -252,7 +253,7 @@ class BlastDbSequenceEntrySerializer(serializers.ModelSerializer):
     class Meta:
         model = NuccoreSequence
         ref_name = nuccore_title
-        fields = ['id', 'accession_number', 'version', 'organism', 'organelle', 'isolate', 'country', 'specimen_voucher', 'dna_sequence', 'lat_lon', 'type_material', 'created', 'updated', 'genbank_modification_date', 'taxonomy', 'taxon_superkingdom', 'taxon_kingdom', 'taxon_phylum', 'taxon_class', 'taxon_order', 'taxon_family', 'taxon_genus', 'taxon_species'] 
+        fields = ['id', 'accession_number', 'version', 'organism', 'organelle', 'isolate', 'country', 'specimen_voucher', 'dna_sequence', 'lat_lon', 'type_material', 'created', 'updated', 'genbank_modification_date', 'taxonomy', 'taxon_superkingdom', 'taxon_kingdom', 'taxon_phylum', 'taxon_class', 'taxon_order', 'taxon_family', 'taxon_genus', 'taxon_species', 'annotations'] 
         example = {
             "id": "5100cbd8-2fda-4b42-8aa1-10ede078448b",
             "accession_number": "ON303341",
@@ -480,17 +481,19 @@ class NuccoreSequenceHitSerializer(serializers.ModelSerializer):
     '''
     Show a summary of a sequence, when a query registers a hit on it.
     '''
+
+    annotations = AnnotationSerializer(many=True, read_only=True)
+
     class Meta:
         model = NuccoreSequence
         ref_name = nuccore_title + ' summary'
-        fields = ['accession_number', 'version', 'definition', 'organism', 'isolate', 'country', 'specimen_voucher', 'type_material', 'lat_lon']
+        fields = ['id', 'accession_number', 'version', 'definition', 'organism', 'country', 'specimen_voucher', 'type_material', 'lat_lon', 'annotations']
         example = {
             "db_entry": {
                 "accession_number": "ON303423",
                 "version": "ON303423.1",
                 "definition": "Porotergus duende isolate 2916 cytochrome c oxidase subunit I (COX1) gene, partial cds; mitochondrial",
                 "organism": "Porotergus duende",
-                "isolate": "2916",
                 "country": "Brazil",
                 "specimen_voucher": "MCP 37359",
                 "type_material": "paratype of Porotergus duende",
@@ -573,6 +576,28 @@ class BlastRunSerializer(serializers.ModelSerializer):
         fields = ['id', 'job_name', 'queries', 'db_used', 'start_time', 'status', 'received_time', 'start_time', 'end_time', 'error_time', 'create_hit_tree', 'hit_tree', 'alignment_job_id', 'create_db_tree', 'db_tree', 'complete_alignment_job_id']
         example = load_run_example()
 
+class BlastQuerySequenceTaxonomySerializer(serializers.ModelSerializer):
+    '''
+    Retrieve query sequences, without also retrieving hits, to gather run data
+    pertaining to taxonomic assignment made on the query sequence, as required by 
+    BlastRunTaxonomyCSVRenderer as similar.
+    '''
+    class Meta:
+        model = BlastQuerySequence
+        fields = ['definition', 'query_sequence', 'results_species_name', 'accuracy_category', 'original_species_name', 'write_tree_identifier']
+
+class BlastRunTaxonomySerializer(serializers.ModelSerializer):
+    '''
+    Load run data pertaining to taxonomic assignments made, as required by
+    BlastRunTaxonomyCSVRenderer and similar.
+    '''
+    queries = BlastQuerySequenceTaxonomySerializer(many=True, read_only=True)
+
+    class Meta:
+        model = BlastRun
+        ref_name = f'{run_title} taxonomy'
+        fields = ['id', 'job_name', 'queries']
+
 class BlastRunStatusSerializer(serializers.ModelSerializer):    
     '''
     Show status of a blast run
@@ -593,6 +618,9 @@ class BlastRunStatusSerializer(serializers.ModelSerializer):
         }
 
 class UserSerializer(serializers.ModelSerializer):
+    '''
+    Show basic user information.
+    '''
     class Meta:
         model = User 
         fields = ['id', 'username', 'email', 'is_staff', 'is_superuser']
@@ -619,6 +647,8 @@ class DatabaseShareSerializer(serializers.ModelSerializer):
 
 class NuccoreAnnotationSerializer(serializers.ModelSerializer):
     '''
+    Show a very brief summary of the sequence which is the subject of
+    a user annotation.
     '''
     class Meta:
         model = NuccoreSequence
@@ -632,16 +662,21 @@ class RecursiveField(serializers.Serializer):
 
 class AnnotationPoster(serializers.ModelSerializer):
     '''
-    Required data to post an annotation
+    Required data to post/create an annotation
     '''
-    sequence = NuccoreAnnotationSerializer(many=False, read_only=True)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['id'].read_only = True
-        self.fields['timestamp'].read_only = True
+        required_fields = ['comment', 'annotation_type']
+        readonly_fields = ['id', 'timestamp', 'poster']
+        for field in readonly_fields:
+            self.fields[field].read_only = True
+            self.fields[field].required = True
+        for field in required_fields:
+            self.fields[field].required = True
 
     class Meta:
         model = Annotation
         ref_name = annotation_title
-        fields = ['id', 'sequence', 'poster', 'timestamp', 'annotation_type', 'comment']
+        fields = ['id', 'poster', 'timestamp', 'annotation_type', 'comment']
+        

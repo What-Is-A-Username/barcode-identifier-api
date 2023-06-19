@@ -225,8 +225,6 @@ def save_taxonomy(genbank_info: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     query_ids: List[str] = list(set(taxids))
     query_string: str = ','.join(query_ids)
 
-    print(query_string)
-
     print(f'{datetime.now()} | Fetching from NCBI Taxonomy for ids {query_string}')
     try:
         Entrez.email = "william.huang1212@gmail.com"
@@ -240,7 +238,6 @@ def save_taxonomy(genbank_info: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         print(f'{datetime.now()} | Data successfully received from NCBI Taxonomy for ids {query_string}')
     
     response_data = Entrez.parse(taxonomy_handle)
-    print(response_data)
     response_data = [t for t in response_data]
     taxa_data = [t for t in response_data]
     taxids = [t['TaxId'] for t in response_data]

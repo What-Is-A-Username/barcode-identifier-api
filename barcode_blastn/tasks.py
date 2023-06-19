@@ -35,6 +35,13 @@ def raise_error(run: BlastRun, err: str) -> None:
     run.save()
     return
 
+def mark_run_complete(run: BlastRun) -> None:
+    '''Mark the run status as complete'''
+    run.status = BlastRun.JobStatus.FINISHED
+    run.end_time = datetime.now()
+    run.save()
+    return 
+
 @app.task(time_limit=HARD_TIME_LIMIT_IN_SECONDS)  # hard time limit of 30 seconds 
 def run_blast_command(ncbi_blast_version: str, fishdb_id: str, run_id: str) -> bool:   
     '''Performs a BLASTn search using the specified ncbi_blast_version, database with id fishdb_id, for the run of id run_id
@@ -107,8 +114,6 @@ def run_blast_command(ncbi_blast_version: str, fishdb_id: str, run_id: str) -> b
         raise_error(run_details, f"Errored while retrieving shell output.")
         raise RuntimeError('Errored while retrieving shell output.') from exc
 
-    # print(out)
-
     print('Writing results to file ...')
 
     try:
@@ -140,25 +145,30 @@ def run_blast_command(ncbi_blast_version: str, fishdb_id: str, run_id: str) -> b
     
     # Find the hit with the highest percent identity for each query_accession_version
     # Dictionary mapping query_accession_version -> highest scoring Hits
-    best_hits: Dict[str, Hit] = {}
+    best_hits: Dict[str, List[Hit]] = {}
     for hit in hit_objects:
-        current_hit = best_hits.get(hit.query_accession_version, None)
-        if current_hit is None or current_hit.percent_identity < hit.percent_identity:
-            best_hits[hit.query_accession_version] = hit
+        current_hit = best_hits.get(hit.query_accession_version, [])
+        if len(current_hit) == 0:
+            best_hits[hit.query_accession_version] = [hit]
+        else:
+            if current_hit[0].percent_identity < hit.percent_identity:
+                best_hits[hit.query_accession_version] = [hit]
+            elif current_hit[0].percent_identity == hit.percent_identity:
+                best_hits[hit.query_accession_version].append(hit)
         
     # assign identities to query sequences
     queries: List[BlastQuerySequence] = list(run_details.queries.all())
     for query in queries:
-        best_hit = best_hits.get(query.query_seq_identifier(), None)
-        if not best_hit is None:
-            taxon = best_hit.db_entry.taxon_species
-            if taxon is None:
-                # If the reference sequence is missing species information,
-                # specify the result with the accession and note
-                query.results_species_name = f'{best_hit.db_entry.version}_unspecified_species'
-            else:
-                # Specify the result as the reference sequence species info
-                query.results_species_name = taxon.scientific_name
+        best_hit = best_hits.get(query.query_seq_identifier(), [])
+        if len(best_hit) > 0:
+            taxa = []
+            for hit in best_hit:
+                species: NuccoreSequence = hit.db_entry
+                if species.taxon_species is None:
+                    taxa.append(f'{species.version}_unspecified_species')
+                else:
+                    taxa.append(species.taxon_species.scientific_name)
+            query.results_species_name = '*'.join(taxa)
         else:
             # If there was no hits on the reference sequences,
             # leave the result blank
@@ -175,11 +185,18 @@ def run_blast_command(ncbi_blast_version: str, fishdb_id: str, run_id: str) -> b
 
     print('Queued BLAST search completed.')
     
-    alignment_successful = performAlignment(True, run_id=run_id)
-
-    classification_successful = classify_genetic_distance(alignment_successful=alignment_successful, run_id=run_id)
-
-    return classification_successful
+    if run_details.create_hit_tree or run_details.create_db_tree:
+        alignment_successful = performAlignment(True, run_id=run_id)
+    else:
+        alignment_successful = True
+    if run_details.create_hit_tree:
+        classification_successful = classify_genetic_distance(alignment_successful=alignment_successful, run_id=run_id)
+    else:
+        classification_successful = True
+    
+    if classification_successful and alignment_successful:
+        mark_run_complete(run_details)
+    return classification_successful and alignment_successful 
 
 PERIOD = 3500 # Time between calls, in number of seconds
 @limits(calls = 1, period = PERIOD)
@@ -225,15 +242,12 @@ def update_database() -> None:
 # @app.task(time_limit=HARD_TIME_LIMIT_IN_SECONDS)
 def performAlignment(blast_successful: bool, run_id: str) -> bool:
     '''Perform tree construction for the given run specified by run_id.
-        Return a three item tuple, representing the status message and status number.
-        The job was successful if status number is 201 or 200.
+        Return True if the operation was successful, False otherwise.
     '''
     print(f'Performing alignment for {run_id}')
 
     if not blast_successful:
-        print('Error 500')
         return False
-        # return ('BLAST returned error code', status.HTTP_500_INTERNAL_SERVER_ERROR)
     else:
         print(f"Starting alignment submission for run {run_id}")
 
@@ -241,18 +255,12 @@ def performAlignment(blast_successful: bool, run_id: str) -> bool:
     try:
         run : BlastRun = BlastRun.objects.get(id=run_id)
     except BlastRun.DoesNotExist:
-        print('DNE')
+        print(f'Could not find run object with id {run_id} when performing alignment.')
         return False
-        # return ('Could not find a run result with the given id.', status.HTTP_400_BAD_REQUEST)
         
     # Return if no construction needs to occur
     if not run.create_db_tree and not run.create_hit_tree:
-        run.status = BlastRun.JobStatus.FINISHED
-        run.end_time = datetime.now()
-        run.save()
-        print('No const')
-        return False
-        # return ('', status.HTTP_200_OK)
+        return True
 
     # Gather sequences (query sequences + hit sequences) into a single list
     run_folder = get_data_run_path(run_id=run_id)
@@ -282,7 +290,6 @@ def performAlignment(blast_successful: bool, run_id: str) -> bool:
         hits = []
         hit_query = Hit.objects.filter(query_sequence__owner_run_id=run_id)
         hits = [h.db_entry for h in hit_query]
-        print(hits)
         queryAndHitSequences = gatherSequences(hits, query_sequences)
 
         sequence_string = StringIO()
@@ -292,9 +299,8 @@ def performAlignment(blast_successful: bool, run_id: str) -> bool:
         run.alignment_job_id = hit_job_result[0]
         if hit_job_result[-1] != status.HTTP_200_OK:
             run.throw_error(hit_job_result[1])
-            print('Err on create hit tree')
+            raise_error(run, 'Encountered error creating hit alignment/tree')
             return False
-            # return (hit_job_result[1], hit_job_result[2]) 
     
     if run.create_db_tree:
     # Construct a list of query sequences and all database sequences
@@ -310,22 +316,29 @@ def performAlignment(blast_successful: bool, run_id: str) -> bool:
         run.complete_alignment_job_id = all_job_result[0]
         if all_job_result[-1] != status.HTTP_200_OK:
             run.throw_error(all_job_result[1])
-            print('Err on create db tree')
+            raise_error(run, 'Encountered error creating db alignment/tree')
             return False
-            # return (all_job_result[1], all_job_result[2]) 
 
     try:
-        run.status = BlastRun.JobStatus.FINISHED
-        run.db_tree = readDbTreeFromFile(run) if run.create_db_tree else ''
-        run.hit_tree = readHitTreeFromFile(run) if run.create_hit_tree else ''
-        run.end_time = datetime.now()
+        hit_tree = readDbTreeFromFile(run) if run.create_db_tree else ''
+        if hit_tree is None:
+            raise_error(run, 'Could not locate result file to read hit tree string from.')
+            return False
+        else:
+            run.hit_tree = hit_tree
+        db_tree = readHitTreeFromFile(run) if run.create_hit_tree else ''
+        if db_tree is None:
+            raise_error(run, 'Could not locate result file to read db tree string from.')
+            return False
+        else:
+            run.db_tree = db_tree
         run.save()
     except BaseException as exc:
-        raise_error(run, f"Errored while updating run status.")
-        raise RuntimeError('Errored while updating run status.') from exc
-    print('Successfully finished tree construction')
-    return True
-    # return ('', status.HTTP_201_CREATED)
+        raise_error(run, f"Errored while reading alignment trees from file.")
+        return False
+    else:
+        print('Successfully finished tree construction')
+        return True
 
 def completeAlignment(sequence_string: str, run_id: str) -> Tuple[str, str, int]:
     '''
@@ -355,11 +368,7 @@ def completeAlignment(sequence_string: str, run_id: str) -> Tuple[str, str, int]
         job_id = submitMultipleAlignmentAsync(sequence=sequence_string, run_id=run_id)
     except BaseException:
         return ('', 'Encountered unexpected error submitting job', status.HTTP_500_INTERNAL_SERVER_ERROR)
-        # tree.internal_status = ResultTree.TreeStatus.ERRORED
-        # tree.save()
 
-    # tree.internal_status = ResultTree.TreeStatus.PROCESSING
-    # tree.save()
     # save clustal files locally
     try:
         getMultipleAlignmentResult(job_id=job_id, run_id=run_id)
@@ -378,13 +387,9 @@ def completeAlignment(sequence_string: str, run_id: str) -> Tuple[str, str, int]
                 if any([file.endswith(extension) for extension in files_to_transfer]):
                     print(f"Moving {file}")
                     shutil.copy(f'{parent_folder}/{file}', destination_dir)
-            # tree.internal_status = ResultTree.TreeStatus.FINISHED
         except BaseException as exc:
             return (job_id, 'Failed to process output files', status.HTTP_500_INTERNAL_SERVER_ERROR)
-        # except BaseException:
-            # tree.internal_status = ResultTree.TreeStatus.ERRORED
-        # tree.save()
-
+        
     # return success
     return (job_id, 'Successfully ran alignment job', status.HTTP_200_OK)
 
@@ -410,17 +415,10 @@ def classify_genetic_distance(alignment_successful: bool, run_id: str) -> bool:
     alignment_file_path = f'{get_static_run_path(run_id)}/{run.alignment_job_id}.aln-clustal_num.clustal_num'
     if os.path.exists(alignment_file_path) and os.path.isfile(alignment_file_path):
         matrix = calculate_genetic_distance(alignment_file_path)
-        annotate_pair_comparison(matrix, run)
-        
-        run.status = BlastRun.JobStatus.FINISHED
-        run.end_time = datetime.now()
-        run.save()
+        annotation_result = annotate_pair_comparison(matrix, run)
+        if annotation_result:
+            print('Successfully finished annotating accuracy')
+        return annotation_result
     else:
-        print(f'Could not find multiple alignment file at {alignment_file_path}\n')
-        run.errors = f'Could not find multiple alignment file at {alignment_file_path}\n' + run.errors
-        run.error_time = datetime.now()
-        run.status = BlastRun.JobStatus.ERRORED
-        run.save()
-    
-    print('Successfully finished annotating accuracy')
-    return True
+        raise_error(run, f'Could not find multiple alignment file at {alignment_file_path}\n' + run.errors)
+        return False

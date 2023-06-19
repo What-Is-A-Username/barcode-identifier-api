@@ -22,10 +22,6 @@ def parse_results(results_string: str):
         return data
 
     parsed_hits = [extract_hit(h) for h in hits]
-
-    # establish relation between hit and sequence
-    
-       
     # For outfmt = 15
     # Convert all hits to Hit entries and save them
     # hits = results["BlastOutput2"][0]["report"]["results"]["search"]["hits"]
@@ -45,7 +41,4 @@ def parse_results(results_string: str):
     #     'evalue': Decimal(h["hsps"][0]["evalue"]),
     #     'bit_score': Decimal(h["hsps"][0]["bit_score"])
     # } for h in hits]
-
-    print(parsed_hits)
-
     return parsed_hits

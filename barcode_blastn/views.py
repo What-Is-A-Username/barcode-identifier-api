@@ -60,7 +60,7 @@ from barcode_blastn.serializers import (BlastDbCreateSerializer,
                                         BlastDbSerializer,
                                         BlastRunRunSerializer,
                                         BlastRunSerializer,
-                                        BlastRunStatusSerializer,
+                                        BlastRunStatusSerializer, BlastRunTaxonomySerializer,
                                         LibraryCreateSerializer,
                                         LibraryEditSerializer,
                                         LibraryListSerializer,
@@ -1295,8 +1295,8 @@ class BlastRunRun(generics.CreateAPIView):
             # parse the seqid to see if organism is specified 
             metadata = new_definition.split('\t')
             if len(metadata) >= 2:
-                # set the species name by replacing all non alpha-numeric characters with spaces
-                query_entry['original_species_name'] = re.sub('[^0-9a-zA-Z]+', ' ', metadata[1])
+                # set the species name by replacing all non alpha-numeric characters and non-periods with spaces
+                query_entry['original_species_name'] = re.sub('[^0-9a-zA-Z.]+', ' ', metadata[1])
             else:
                 query_entry['original_species_name'] = None
             new_definition = metadata[0]
@@ -1492,7 +1492,7 @@ class BlastRunTaxonomyDownload(generics.GenericAPIView):
     Download the taxonomic classification results.
     '''
     queryset = BlastRun.objects.all()
-    serializer_class = BlastRunSerializer
+    serializer_class = BlastRunTaxonomySerializer
     renderer_classes = [BlastRunTaxonomyCSVRenderer, BlastRunTaxonomyTSVRenderer]
     
     @swagger_auto_schema(
@@ -1518,7 +1518,7 @@ class BlastRunTaxonomyDownload(generics.GenericAPIView):
         except BlastRun.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
         
-        serializer = BlastRunSerializer(run)
+        serializer = self.get_serializer(run)
         response = Response(serializer.data, status=status.HTTP_200_OK)
         if request.accepted_media_type.startswith('text/csv'):
             response['Content-Disposition'] = f'attachment; filename="barrel_{run.id}.taxonomy.csv";'
