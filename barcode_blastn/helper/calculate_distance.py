@@ -14,6 +14,9 @@ def parse_id_from_msa_id(id: str):
     return id.split('|')
 
 def calculate_genetic_distance_for_sequence(x_seq: str, y_seq: str) -> float:
+    '''
+    Return the Kimura-2-parameter distance between sequences x_seq and y_seq.
+    '''
     num_transitions = 0
     num_transversions = 0
     num_bases = 0
@@ -35,11 +38,16 @@ def calculate_genetic_distance_for_sequence(x_seq: str, y_seq: str) -> float:
     result = -0.5 * log(1 - 2*freq_transitions - freq_transversions) - 0.25 * log(1 - 2*freq_transversions)
     return result
 
-def calculate_genetic_distance(alignment_file_path: str):
+def calculate_genetic_distance(alignment_file_path: str) -> DistanceMatrix:
+    '''
+    Return a matrix of all pairwise Kimura-2-parameter distances for the sequences contained
+    in the alignment file specified by `alignment_file_path`. 
+    '''
+    # Read sequences and identifiers from MSA file
     alignment: AlignIO.MultipleSeqAlignment = AlignIO.read(open(alignment_file_path), "clustal")
-    print("Alignment length %i" % alignment.get_alignment_length())
     records: List[SeqRecord] = [record for record in alignment]       
     matrix: DistanceMatrix = DistanceMatrix(names=[record.id for record in records])
+    # Loop through all pairs of sequences
     for x_index in range(0, len(records) - 1, 1):
         for y_index in range(x_index + 1, len(records)):
             x: SeqRecord = records[x_index]

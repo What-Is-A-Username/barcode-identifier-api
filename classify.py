@@ -14,6 +14,9 @@ def get_static_run_path(run_id: str = ''):
     return os.path.abspath(f'/vol/static/runs/{run_id}/')
 
 def calculate_genetic_distance_for_sequence(x_seq: str, y_seq: str) -> float:
+    '''
+    Return the Kimura-2-parameter distance between sequences x_seq and y_seq.
+    '''
     num_transitions = 0
     num_transversions = 0
     num_bases = 0
@@ -35,12 +38,13 @@ def calculate_genetic_distance_for_sequence(x_seq: str, y_seq: str) -> float:
     result = -0.5 * log(1 - 2*freq_transitions - freq_transversions) - 0.25 * log(1 - 2*freq_transversions)
     return result
 
-def classify_genetic_distance(alignment_successful: bool, alignment_job_id, run_id: str):
+def classify_genetic_distance(alignment_job_id, run_id: str):
+    # Read sequences and identifiers from MSA file
     alignment_file_path = f'{get_static_run_path(run_id)}/{alignment_job_id}.aln-clustal_num.clustal_num'
     alignment: AlignIO.MultipleSeqAlignment = AlignIO.read(open(alignment_file_path), "clustal")
-    print("Alignment length %i" % alignment.get_alignment_length())
     records: List[SeqRecord] = [record for record in alignment]       
     matrix: DistanceMatrix = DistanceMatrix(names=[record.id for record in records])
+    # Loop through all pairs of sequences
     for x_index in range(0, len(records) - 1, 1):
         for y_index in range(x_index + 1, len(records)):
             x: SeqRecord = records[x_index]

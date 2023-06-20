@@ -16,7 +16,8 @@ RUN apt-get update && \
     libpcre3-dev \
     libpq-dev \
     python3-dev \
-    libffi-dev
+    libffi-dev \
+    libmagic1
 
 # note: gcompat necessary to run our ncbi binaries on an alpine image
 # RUN apk add --no-cache postgresql-dev \ 

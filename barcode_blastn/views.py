@@ -1,6 +1,4 @@
 # TODO: Install Python 3.10.6 to match EC2
-# TODO: Add endpoint to give create, edit and remove DatabaseShare permissions
-# TODO: Guard endpoints to only allow signed in users
 
 from datetime import datetime
 import io
@@ -1166,8 +1164,17 @@ class BlastRunRun(generics.CreateAPIView):
                 'message': 'Insufficient permissions to run BLAST on this database.'
             }, status=status.HTTP_403_FORBIDDEN)
 
+        # Validate the request
+        serializer = BlastRunRunSerializer(data=request.data)
+        if serializer.is_valid():
+            r = serializer.data
+            full_query = r.get('query_sequence', None)
+            query_file = request.FILES.get('query_file', None)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
         # Bad request if no query_sequence is given
-        if not 'query_sequence' in request.data and not 'query_file' in request.FILES:
+        if full_query is None and query_file is None:
             return Response({
                 'message': 'Request did not have raw sequence text or file upload specified to run with.'
             }, status = status.HTTP_400_BAD_REQUEST)
@@ -1208,15 +1215,18 @@ class BlastRunRun(generics.CreateAPIView):
         query_sequences : List = []
         # obtain the query sequence, either from raw text or from the file upload
         # take precedence for the raw text
-        if 'query_sequence' in request.data and len(request.data['query_sequence']) > 0:
-            full_query : str = request.data['query_sequence']
+        if not full_query is None:
             # try parsing with fasta first
             with io.StringIO(full_query) as query_string_io:
+                query_no = 1
                 query_records = SeqIO.parse(query_string_io, 'fasta')
                 query_record : SeqIO.SeqRecord
                 
                 for query_record in query_records:
                     seq = str(query_record.seq).strip()
+                    if len(query_record.description) == 0:
+                        query_record.description = f'query_sequence_{query_no}'
+                        query_no = query_no + 1
                     query_sequences.append({
                         'definition': query_record.description,
                         'query_sequence': seq
@@ -1230,17 +1240,13 @@ class BlastRunRun(generics.CreateAPIView):
                     'definition': 'query_sequence', 
                     'query_sequence': full_query
                 })
-        else:
-            blast_query_file = request.FILES.get('query_file', False)
+        elif query_file is None:
             # return an error if no file of name 'query_file' was found in the request
-            if not blast_query_file:
-                return Response({'message': 'No submitted sequences were found. Either upload a .fasta file or paste raw text for a single sequence.'}, status = status.HTTP_400_BAD_REQUEST)
-
-            # TODO: Check file type uploaded
-
+            return Response({'message': 'No submitted sequences were found. Either upload a .fasta file or paste raw text for a single sequence.'}, status = status.HTTP_400_BAD_REQUEST)
+        else:
             # parse the file with Biopython
             try:
-                query_file_io = io.StringIO(blast_query_file.file.read().decode('UTF-8'))
+                query_file_io = io.StringIO(query_file.file.read().decode('UTF-8'))
                 query_file_seqs = SeqIO.parse(query_file_io, 'fasta')
             except BaseException:
                 return Response({'message': 'The fasta file received was unable to be parsed with Biopython SeqIO using the "fasta" format. Double check the fasta contents.'}, status = status.HTTP_400_BAD_REQUEST)
@@ -1285,8 +1291,8 @@ class BlastRunRun(generics.CreateAPIView):
 
         # Perform blast search
         print('Generating query fasta file ...')
-        blast_query_file = results_path + '/query.fasta'
-        blast_tmp = open(blast_query_file, 'w')
+        query_file = results_path + '/query.fasta'
+        blast_tmp = open(query_file, 'w')
         unique_headers: set[str] = set([])
         for query_entry in query_sequences:
             # only keep the seqid 
@@ -1294,11 +1300,12 @@ class BlastRunRun(generics.CreateAPIView):
         
             # parse the seqid to see if organism is specified 
             metadata = new_definition.split('\t')
+            
             if len(metadata) >= 2:
                 # set the species name by replacing all non alpha-numeric characters and non-periods with spaces
                 query_entry['original_species_name'] = re.sub('[^0-9a-zA-Z.]+', ' ', metadata[1])
             else:
-                query_entry['original_species_name'] = None
+                query_entry['original_species_name'] = ''
             new_definition = metadata[0]
             query_entry['definition'] = new_definition
 
@@ -1306,17 +1313,17 @@ class BlastRunRun(generics.CreateAPIView):
                 return Response({
                     'message': f"The sequence identifier in the header '{new_definition}' is not unique. All submitted sequences must have unique sequence identifiers (all text before the first space)."
                 }, status = status.HTTP_400_BAD_REQUEST) 
-            elif not verify_header(new_definition):
-                return Response({
-                    'message': f"The sequence identifier in the header '{new_definition}' has invalid characters. Only letters, digits, hyphens, underscores, periods, colons, asterisks and number signs are allowed."
-                }, status = status.HTTP_400_BAD_REQUEST) 
+            try:
+                verify_header(new_definition, query_entry["query_sequence"])
+            except ValueError as value_error:
+                return Response({'message': value_error.args}, status = status.HTTP_400_BAD_REQUEST) 
             unique_headers.add(new_definition)
             blast_tmp.write(f'>{new_definition}\n')
 
-            if not verify_dna(query_entry["query_sequence"]):
-                return Response({
-                    'message': f"The sequence provided for '>{new_definition}' has non-DNA nucleotide characters."
-                }, status = status.HTTP_400_BAD_REQUEST) 
+            try:
+                verify_dna(new_definition, query_entry["query_sequence"])
+            except ValueError as value_error:
+                return Response({'message': value_error.args}, status = status.HTTP_400_BAD_REQUEST) 
             blast_tmp.write(f'{query_entry["query_sequence"]}\n')
 
         blast_tmp.close()

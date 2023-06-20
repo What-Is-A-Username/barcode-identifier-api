@@ -2,7 +2,7 @@ import copy
 from io import StringIO
 import os
 import shutil
-from typing import Tuple, Union
+from typing import Tuple
 from ratelimit import limits
 from shlex import quote
 from Bio import SeqIO
@@ -184,19 +184,12 @@ def run_blast_command(ncbi_blast_version: str, fishdb_id: str, run_id: str) -> b
         raise RuntimeError('Errored while updating run errors.') from exc
 
     print('Queued BLAST search completed.')
+    print('Next parameters: ', run_details.create_hit_tree, run_details.create_db_tree)
     
     if run_details.create_hit_tree or run_details.create_db_tree:
-        alignment_successful = performAlignment(True, run_id=run_id)
-    else:
-        alignment_successful = True
-    if run_details.create_hit_tree:
-        classification_successful = classify_genetic_distance(alignment_successful=alignment_successful, run_id=run_id)
-    else:
-        classification_successful = True
-    
-    if classification_successful and alignment_successful:
-        mark_run_complete(run_details)
-    return classification_successful and alignment_successful 
+        performAlignment(True, run=run_details)
+    mark_run_complete(run_details)
+    return True
 
 PERIOD = 3500 # Time between calls, in number of seconds
 @limits(calls = 1, period = PERIOD)
@@ -237,26 +230,17 @@ def update_database() -> None:
         print(f"Finished updating database {str(db.id)}")
     print("Finished updating all databases.")
         
-# TODO (IMPORTANT): ON ERROR, MAKE IT RETURN FALSE AND PROPERLY SET ERRORS
-# @limits(calls = 1, period = 10)
-# @app.task(time_limit=HARD_TIME_LIMIT_IN_SECONDS)
-def performAlignment(blast_successful: bool, run_id: str) -> bool:
+def performAlignment(blast_successful: bool, run: BlastRun) -> bool:
     '''Perform tree construction for the given run specified by run_id.
         Return True if the operation was successful, False otherwise.
     '''
+    run_id = str(run.id)
     print(f'Performing alignment for {run_id}')
 
     if not blast_successful:
         return False
     else:
         print(f"Starting alignment submission for run {run_id}")
-
-    # Check that the run exists
-    try:
-        run : BlastRun = BlastRun.objects.get(id=run_id)
-    except BlastRun.DoesNotExist:
-        print(f'Could not find run object with id {run_id} when performing alignment.')
-        return False
         
     # Return if no construction needs to occur
     if not run.create_db_tree and not run.create_hit_tree:
@@ -320,24 +304,27 @@ def performAlignment(blast_successful: bool, run_id: str) -> bool:
             return False
 
     try:
-        hit_tree = readDbTreeFromFile(run) if run.create_db_tree else ''
-        if hit_tree is None:
-            raise_error(run, 'Could not locate result file to read hit tree string from.')
-            return False
-        else:
-            run.hit_tree = hit_tree
-        db_tree = readHitTreeFromFile(run) if run.create_hit_tree else ''
+        db_tree = readDbTreeFromFile(run) if run.create_db_tree else ''
         if db_tree is None:
             raise_error(run, 'Could not locate result file to read db tree string from.')
             return False
         else:
             run.db_tree = db_tree
-        run.save()
+            run.save()
+        hit_tree = readHitTreeFromFile(run) if run.create_hit_tree else ''
+        if hit_tree is None:
+            raise_error(run, 'Could not locate result file to read hit tree string from.')
+            return False
+        else:
+            run.hit_tree = hit_tree
+            run.save()
     except BaseException as exc:
         raise_error(run, f"Errored while reading alignment trees from file.")
         return False
     else:
         print('Successfully finished tree construction')
+        if run.create_hit_tree:
+            classify_genetic_distance(alignment_successful=True, run=run)
         return True
 
 def completeAlignment(sequence_string: str, run_id: str) -> Tuple[str, str, int]:
@@ -374,9 +361,7 @@ def completeAlignment(sequence_string: str, run_id: str) -> Tuple[str, str, int]
         getMultipleAlignmentResult(job_id=job_id, run_id=run_id)
     except BaseException:
         return (job_id, 'Encountered unexpected error retrieving results', status.HTTP_500_INTERNAL_SERVER_ERROR)
-    else:
-        # TODO: Confirm operation was successful by checking for network error, exceptions
-        
+    else:       
         # move files to be downloaded
         try:
             destination_dir = get_static_run_path(run_id)
@@ -395,17 +380,13 @@ def completeAlignment(sequence_string: str, run_id: str) -> Tuple[str, str, int]
 
 # @limits(calls = 1, period = 10)
 # @app.task(time_limit=HARD_TIME_LIMIT_IN_SECONDS)
-def classify_genetic_distance(alignment_successful: bool, run_id: str) -> bool:
+def classify_genetic_distance(alignment_successful: bool, run: BlastRun) -> bool:
+    run_id = str(run.id)
     if alignment_successful:
         print(f'Running db accuracy classification for {run_id}')
     else:
         print(f'Skipping db classification for {run_id} because alignment was unsuccessful')
         return True
-    try:
-        run: BlastRun = BlastRun.objects.get(id=run_id)
-    except BlastRun.DoesNotExist:
-        return False
-        # return ('While calculating distance, could not find a run result with the given id.', status.HTTP_400_BAD_REQUEST)
 
     # we can only calculate distances with a complete alignment of hits with query sequences
     if not run.create_hit_tree:

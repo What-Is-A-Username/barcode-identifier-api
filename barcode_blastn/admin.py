@@ -59,11 +59,12 @@ class SequenceFormset(BaseInlineFormSet):
         Callback when a new sequence is added through a save button on the admin form.
         '''
         obj = super(SequenceFormset, self).save_new(form, commit=False)
-        # TODO: Catch errors and/or enable validation
-        return save_sequence(obj, change=False, commit=commit, raise_if_missing=True) 
+        # Save the sequence information to the database.
+        # Since save_new() generally cannot terminate with an
+        # error, disable error checking for save_sequence()
+        return save_sequence(obj, change=False, commit=commit, raise_if_missing=False, raise_errors=False) 
 
     def clean(self) -> None:
-        # TODO: validate in bulk
         super().clean()
         valid_forms = [
             form
@@ -658,6 +659,7 @@ class BlastQuerySequenceInline(admin.StackedInline):
     '''
     model = BlastQuerySequence
     extra = 0
+    show_change_link = True
 
     def has_change_permission(self, request, obj=None):
         return False
@@ -671,7 +673,7 @@ class HitInline(admin.TabularInline):
     Row to show a database hit under a BLAST run.
     '''
     model = Hit
-    fields = ['db_entry', 'query_sequence', 'query_accession_version', 'subject_accession_version', 'percent_identity', 'alignment_length', 'mismatches', 'gap_opens', 'query_start', 'query_end', 'sequence_start', 'sequence_end', 'evalue_value', 'bit_score_value']
+    fields = ['db_entry', 'subject_accession_version', 'percent_identity', 'alignment_length', 'mismatches', 'gap_opens', 'query_start', 'query_end', 'sequence_start', 'sequence_end', 'evalue_value', 'bit_score_value']
     readonly_fields = ['evalue_value', 'bit_score_value']
     extra = 0
     show_change_link = True
@@ -687,6 +689,40 @@ class HitInline(admin.TabularInline):
     def has_delete_permission(self, request, obj=None) -> bool:
         return False
 
+@admin.register(BlastQuerySequence)
+class BlastQuerySequenceAdmin(admin.ModelAdmin):
+    inlines = [HitInline]
+    fields = ['definition', 'query_sequence', 'original_species_name', 'results_species_name', 'accuracy_category']
+    list_display = ['definition', 'length', 'number_of_hits', 'owner_run']
+    list_display_links = ['owner_run']
+
+    def number_of_hits(self, obj: Optional[BlastQuerySequence]):
+        if not obj is None:
+            return Hit.objects.filter(query_sequence=obj).count()
+        else:
+            return 0
+
+    def length(self, obj: Optional[BlastQuerySequence]):
+        if not obj is None:
+            return len(obj.query_sequence)
+        else:
+            return 0
+
+    def has_module_permission(self, request: HttpRequest) -> bool:
+        return RunSharePermissions.has_module_permission(request.user)
+
+    def has_view_permission(self, request: HttpRequest, obj: Union[BlastQuerySequence, None]=None) -> bool:
+        return RunSharePermissions.has_view_permission(request.user, obj.owner_run if not obj is None else None)
+
+    def has_change_permission(self, request, obj: Union[BlastQuerySequence, None]=None):
+        return RunSharePermissions.has_change_permission(request.user, obj.owner_run if not obj is None else None)
+
+    def has_delete_permission(self, request, obj: Union[BlastQuerySequence, None]=None):
+        return RunSharePermissions.has_delete_permission(request.user, obj.owner_run if not obj is None else None)
+
+    def has_add_permission(self, request, obj: Union[BlastQuerySequence, None]=None):
+        return RunSharePermissions.has_add_permission(request.user, obj.owner_run if not obj is None else None)
+
 @admin.register(BlastRun)
 class BlastRunAdmin(admin.ModelAdmin):
     '''
@@ -694,9 +730,14 @@ class BlastRunAdmin(admin.ModelAdmin):
     '''
     inlines = [BlastQuerySequenceInline]
     show_change_link = True
-    list_display = (
-        'id', 'job_name', 'received_time', 'status'
-    )
+    list_display = ('id', 'job_name', 'received_time', 'status', 'db_used_link')
+
+    def db_used_link(self, obj: Optional[BlastRun]):
+        if obj is None:
+            return ''
+        else:
+            url = reverse("admin:%s_%s_change" % ('barcode_blastn', 'blastdb'), args=(obj.db_used.id,))
+            return format_html("<a href='{url}'>{obj}</a>", url=url, obj=obj.db_used)
 
     def changelist_view(self, request, extra_context: Optional[Dict[str, str]] = None):
         # Customize the title at the top of the change list
@@ -740,9 +781,7 @@ class HitAdmin(admin.ModelAdmin):
     '''
     inlines = []
     show_change_link = True
-    list_display = (
-        'db_entry', 'id', 'owner_run_link'
-    )
+    list_display = ['db_entry', 'id', 'owner_run_link']
 
     def changelist_view(self, request, extra_context: Optional[Dict[str, str]] = None):
         # Customize the title at the top of the change list

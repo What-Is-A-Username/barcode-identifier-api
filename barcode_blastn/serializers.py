@@ -5,6 +5,7 @@ from typing import Union
 from django.contrib.auth.models import User
 from rest_framework import serializers
 from barcode_blastn.models import Annotation, BlastQuerySequence, BlastRun, DatabaseShare, Hit, Library, NuccoreSequence, BlastDb, TaxonomyNode
+from barcode_blastn.validators import QueryFileValidator
 
 library_title = 'Reference Library'
 blast_db_title = 'BLAST Database Version'
@@ -192,8 +193,8 @@ class NuccoreSequenceBulkAddSerializer(serializers.Serializer):
         child=serializers.CharField(),
         required=False
     )
-    # TODO: Specify max length https://www.django-rest-framework.org/api-guide/fields/#filefield
-    accession_file = serializers.FileField(allow_empty_file=True, required=False)
+    # Allow bulk addition of sequences by uploading file. Limit file size to 512KB
+    accession_file = serializers.FileField(allow_empty_file=True, required=False,validators=[QueryFileValidator(max_size=524288)])
 
     class Meta:
         ref_name = nuccore_title
@@ -546,13 +547,19 @@ class BlastRunRunSerializer(serializers.ModelSerializer):
     '''
     Required fields for submitting a blast run
     '''
-    query_sequence = serializers.CharField()
-    # query_file = serializers.FileField()
+    query_sequence = serializers.CharField(allow_blank=False, min_length=10)
+    query_file = serializers.FileField(max_length=2621440, validators=[QueryFileValidator()])
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['query_file'].required = False
+        self.fields['query_sequence'].required = False
+        self.fields['id'].read_only = True 
 
     class Meta:
         model = BlastRun
         ref_name = run_title + ' submission'
-        fields = ['id', 'job_name', 'query_sequence', 'create_hit_tree', 'create_db_tree']
+        fields = ['id', 'job_name', 'query_sequence', 'create_hit_tree', 'create_db_tree', 'query_file']
 
 def load_run_example():
     '''

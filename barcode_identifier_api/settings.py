@@ -41,9 +41,7 @@ ALLOWED_HOSTS = [
 
 ALLOWED_HOSTS.extend(filter(None,os.environ.get('ALLOWED_HOSTS', '').split(',')))
 
-
 # Application definition
-
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -233,3 +231,10 @@ SWAGGER_SETTINGS = {
         }
     },
 }
+
+
+# FILE UPLOAD
+FILE_UPLOAD_MAX_MEMORY_SIZE = 2621440 # = 2.5MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 2621440 # = 2.5MB
+DATA_UPLOAD_MAX_NUMBER_FILES = 1 # Only allow one file upload via POST in a multipart/form-data request
+FILE_UPLOAD_MAX_NUMBER_FILES = 0 # Ensure that we disable file uploads to the file system

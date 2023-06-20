@@ -414,12 +414,12 @@ def add_sequences_to_database(database: BlastDb, desired_numbers: List[str]) -> 
     created_sequences = NuccoreSequence.objects.bulk_create(to_create)
     return created_sequences
 
-def save_sequence(obj: NuccoreSequence, change: bool=True, commit: bool = False, raise_if_missing: bool = False):
+def save_sequence(obj: NuccoreSequence, commit: bool = False, raise_if_missing: bool = False, raise_errors: bool = True):
     '''
     Save an accession by fetching data from GenBank again and populating the instance. Used for both saving and updating an accession.
     Obj should already have id, accession_number and owner_database values.
-    If change is to False, raise AccessionsAlreadyExist if a query returns a entry in the same database with the same accession_number
     If commit is set to True, also save the instance. If set to False, you will need to call save manually after this function.
+    If raise_errors is set to False, no errors will be raised. Default: True.
 
     Raises:
         ValueError does not have accession_number and owner_database values.
@@ -432,13 +432,13 @@ def save_sequence(obj: NuccoreSequence, change: bool=True, commit: bool = False,
 
         InsufficientAccessionData: If data from GenBank is insufficient for populating the fields.
     '''
-    #TODO: Decide whether to keep 'change' parameter
-    if not obj.accession_number or len(obj.accession_number) == 0:
-        raise ValueError()
-    if not obj.owner_database:
-        raise ValueError()
-    if obj.owner_database.locked:
-        raise ValueError('Database locked')
+    if raise_errors:
+        if not obj.accession_number or len(obj.accession_number) == 0:
+            raise ValueError()
+        if not obj.owner_database:
+            raise ValueError()
+        if obj.owner_database.locked:
+            raise ValueError('Database locked')
 
     accession_number = obj.accession_number
 
@@ -449,7 +449,8 @@ def save_sequence(obj: NuccoreSequence, change: bool=True, commit: bool = False,
         pass
     else:
         # raise error if duplicate accession already exists
-        raise AccessionsAlreadyExist([existing.accession_number]) 
+        if raise_errors:
+            raise AccessionsAlreadyExist([existing.accession_number]) 
 
     # fetch GenBank data
     currentData: Dict[str, Any]
@@ -457,29 +458,42 @@ def save_sequence(obj: NuccoreSequence, change: bool=True, commit: bool = False,
         currentData = retrieve_gb(accession_numbers=[accession_number],
                                   raise_if_missing=raise_if_missing)[0]
     except GenBankConnectionError as exc:
+        if not raise_errors:
+            pass
         raise exc
     except InsufficientAccessionData as exc:
+        if not raise_errors:
+            pass
+        raise exc
+    except BaseException as exc: 
+        if not raise_errors:
+            pass
         raise exc
 
     # check that the GenBank data is valid
-    currentData = save_taxonomy([currentData])[0]
-    taxon_fields = ['taxon_species', 'taxon_genus', 'taxon_family', 'taxon_order', 'taxon_class', 'taxon_phylum', 'taxon_kingdom', 'taxon_superkingdom']
-    for taxon_field in taxon_fields:
-        setattr(obj, taxon_field, currentData[taxon_field])
-    serializer = NuccoreSequenceSerializer(obj, data=currentData, partial=True)
-
-    if serializer.is_valid():
-        if commit:
-            # only save if commit specified
-            return serializer.save()
+    try:
+        currentData = save_taxonomy([currentData])[0]
+        taxon_fields = ['taxon_species', 'taxon_genus', 'taxon_family', 'taxon_order', 'taxon_class', 'taxon_phylum', 'taxon_kingdom', 'taxon_superkingdom']
+        for taxon_field in taxon_fields:
+            setattr(obj, taxon_field, currentData[taxon_field])
+        serializer = NuccoreSequenceSerializer(obj, data=currentData, partial=True)
+        if serializer.is_valid():
+            if commit:
+                # only save if commit specified
+                return serializer.save()
+            else:
+                # only update instance key values and don't save
+                for key, value in currentData.items():
+                    setattr(obj, key, str(value))
+                return obj
         else:
-            # only update instance key values and don't save
-            for key, value in currentData.items():
-                setattr(obj, key, str(value))
+            raise AssertionError(serializer.errors)
+    except BaseException as exc:
+        if raise_errors:
+            raise exc
+        else:
             return obj
-    else:
-        # raise an error if the genbank data format is not valid
-        raise AssertionError(serializer.errors)
+    
 
         
         

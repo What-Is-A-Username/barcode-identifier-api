@@ -174,8 +174,7 @@ def retrieve_gb(accession_numbers: List[str], raise_if_missing: bool = False) ->
 
     handle.close()
 
-    # TODO: Return which accessions were missing in the data (to account for accessions being deleted from GenBank)
-    # check if we are missing any data
+    # Check if we are missing any data
     if raise_if_missing:
         successful_queries : List[str]
         successful_queries = [entry["accession_number"] for entry in all_data]
