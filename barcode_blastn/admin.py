@@ -234,6 +234,7 @@ class LibraryAdmin(admin.ModelAdmin):
 class BlastDbForm(ModelForm):
     accession_list_upload = forms.FileField(help_text='Add large numbers of sequences at once by uploading a .txt file, with each accession number on a separate line.', required=False)
     accession_list_text = forms.CharField(widget=forms.Textarea, help_text='Add multiple sequences by pasting in a list of accession numbers, one per line.', required=False)
+    search_term = forms.CharField(widget=forms.Textarea, help_text='Add sequences by GenBank search terms.', required=False)
     base_library = forms.ModelChoiceField(queryset=BlastDb.objects.none(), help_text='Inherit all accession numbers from an existing BLAST database in order to populate the current.', required=False)
 
     def __init__(self, *args, **kwargs) -> None:
@@ -251,8 +252,8 @@ class BlastDbForm(ModelForm):
         accessions_to_add = []
 
         # Check that the accesson numbers or accession.versions in the list_text are not duplicates
-        accession_file_upload = cleaned_data.get('accession_list_upload')
-        if accession_file_upload:
+        accession_file_upload = cleaned_data.get('accession_list_upload', None)
+        if not accession_file_upload is None:
             accession_file_upload.seek(0)
             file_numbers = [line.decode('utf-8') for line in accession_file_upload.readlines()]
             # remove whitespace and newline characters
@@ -275,16 +276,19 @@ class BlastDbForm(ModelForm):
             if exists_duplicate.exists():
                 raise ValidationError({'accession_list_text': 'The raw text list given for "accession list text" contains accession numbers or accession.versions already in the database.'})
             accessions_to_add.extend(list_text)
+        
+        # Get search string
+        search_term = cleaned_data.get('search_term', None)
 
         # Check that accessions actually correspond with GenBank records
         try:
-            retrieve_gb(accession_numbers=accessions_to_add, raise_if_missing=True)
+            retrieve_gb(accession_numbers=accessions_to_add, raise_if_missing=True, term=search_term)
         except InsufficientAccessionData as exc:
             raise ValidationError(f'One or more accession numbers or accession.versions do not match a GenBank record: {", ".join(exc.missing_accessions)}')
         except ValueError:
             pass
-        except BaseException as exc:
-            raise ValidationError('None of the accession numbers or accession.versions match a GenBank record.')
+        # except BaseException as exc:
+        #     raise ValidationError('None of the accession numbers or accession.versions match a GenBank record.')
 
         return cleaned_data
 
@@ -326,10 +330,10 @@ class BlastDbAdmin(admin.ModelAdmin):
     def get_fieldsets(self, request: HttpRequest, obj: Optional[BlastDb] = None) -> List[Tuple[Optional[str], Dict[str, Any]]]:
         f = super().get_fieldsets(request, obj).copy()
         if obj is None:
-            f.append(('Accessions Included', { 'fields': ('base_library', 'accession_list_upload', 'accession_list_text')}))
+            f.append(('Accessions Included', { 'fields': ('base_library', 'accession_list_upload', 'accession_list_text', 'search_term')}))
         else:
             if not obj.locked and isinstance(request.user, User) and DatabaseSharePermissions.has_change_permission(request.user, obj=obj):
-                f.append(('Add additional accessions', { 'fields': ('accession_list_upload', 'accession_list_text')}))
+                f.append(('Add additional accessions', { 'fields': ('accession_list_upload', 'accession_list_text', 'search_term')}))
         return f
 
     def save_formset(self, request: Any, form: Any, formset: Any, change: Any) -> None:
@@ -352,6 +356,7 @@ class BlastDbAdmin(admin.ModelAdmin):
 
         base = form.cleaned_data.get('base_library', None)
 
+        # Add accessions from the file upload
         accession_file_upload = form.cleaned_data.get('accession_list_upload')
         if accession_file_upload:
             accession_file_upload.seek(0)
@@ -360,6 +365,7 @@ class BlastDbAdmin(admin.ModelAdmin):
             file_numbers = [t for t in file_numbers if len(t) > 0]
             accessions.extend(file_numbers)
 
+        # Add other accessions specified manually
         accession_list_text = form.cleaned_data.get('accession_list_text')
         if len(accession_list_text) > 0:
             list_text = accession_list_text.replace('\r\n', '\n').split('\n')
@@ -369,13 +375,14 @@ class BlastDbAdmin(admin.ModelAdmin):
         
         blastdb_fields = {
             'custom_name': form.cleaned_data.get('custom_name'),
-            'description': form.cleaned_data.get('description')
+            'description': form.cleaned_data.get('description'),
         }
+        search_term = form.cleaned_data.get('search_term', None)
         if not change:
-            create_blastdb(additional_accessions=accessions, base=base, database=obj, **blastdb_fields, library=obj.library)
+            create_blastdb(additional_accessions=accessions, base=base, database=obj, search_term=search_term, **blastdb_fields, library=obj.library)
         else:
             if len(accessions) > 0:
-                add_sequences_to_database(obj, desired_numbers=accessions)
+                add_sequences_to_database(obj, desired_numbers=accessions, search_term=search_term)
             else:
                 obj.save()
 
@@ -447,13 +454,6 @@ class NuccoreAdminModifyForm(ModelForm):
     Form for changing and editing accessions.
     '''
 
-    def __init__(self, *args, **kwargs):
-        super(NuccoreAdminModifyForm, self).__init__(*args, **kwargs)
-        instance = getattr(self, 'instance', None)
-        # if instance and instance.pk:
-        #     self.fields['accession_number'].widget.attrs['readonly'] = True
-        #     self.fields['owner_database'].widget.attrs['readonly'] = True
-
     def clean(self):
         '''
         Validate new data in the form before saving it.
@@ -465,9 +465,6 @@ class NuccoreAdminModifyForm(ModelForm):
 
         cleaned_data = super().clean()
         instance: NuccoreSequence = self.instance
-        # isAdding = instance._state.adding if not instance is None else 'instance none'
-        # pk = instance.pk is None
-        # raise ValidationError(str(instance is None) + ' ' + str(isAdding) + ' ' + str(pk) + ' ' + str(self.instance.accession_number is None))
 
         # Only check data if we are adding a new entry
         if instance._state.adding:
@@ -622,12 +619,13 @@ class NuccoreAdmin(admin.ModelAdmin):
         return fields
 
     def get_fieldsets(self, request: HttpRequest, obj: Optional[NuccoreSequence] = None) -> List[Tuple[Optional[str], Dict[str, Any]]]:
-        return [('Summary', { 'fields': ['id', 'accession_number', 'version', 'definition', 'taxonomy', 'owner_database']}), 
-        ('Source Information', {'fields': ['specimen_voucher', 'type_material', 'organelle', 'isolate', 'country', 'lat_lon']}),
-        ('History', { 'fields': ['created', 'updated']}),
-        ('Taxonomy', { 'fields': ['taxonomy', 'taxon_species', 'taxon_genus', 'taxon_family', 'taxon_order', 'taxon_class', 'taxon_phylum', 'taxon_kingdom', 'taxon_superkingdom']}),
-        ('Reference', { 'fields': ['title', 'authors', 'journal']}),
-        ('Sequence', { 'fields': ['dna_sequence'] })
+        return [
+            ('Summary', { 'fields': ['id', 'accession_number', 'version', 'definition', 'taxonomy', 'owner_database']}), 
+            ('Source Information', {'fields': ['specimen_voucher', 'type_material', 'organelle', 'isolate', 'country', 'lat_lon']}),
+            ('History', { 'fields': ['created', 'updated']}),
+            ('Taxonomy', { 'fields': ['taxonomy', 'taxon_species', 'taxon_genus', 'taxon_family', 'taxon_order', 'taxon_class', 'taxon_phylum', 'taxon_kingdom', 'taxon_superkingdom']}),
+            ('Reference', { 'fields': ['title', 'authors', 'journal']}),
+            ('Sequence', { 'fields': ['dna_sequence'] })
         ]
      
     @admin.display(description='Database')

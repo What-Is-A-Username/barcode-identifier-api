@@ -214,12 +214,10 @@ class NuccoreSequenceAdd(mixins.UpdateModelMixin, mixins.DestroyModelMixin, gene
 
         # Check if accession numbers provided
         serialized_data = NuccoreSequenceBulkAddSerializer(data=request.data)
-        if serialized_data.is_valid():
-            desired_numbers.extend(request.data.get('accession_numbers', []))
-
-        # Respond with error if accessions empty
-        if len(desired_numbers) == 0:
-            return Response({'message': 'The list of numbers to add cannot be empty.', 'accession_numbers': str(desired_numbers)}, status.HTTP_400_BAD_REQUEST)
+        if not serialized_data.is_valid():
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+        desired_numbers.extend(request.data.get('accession_numbers', []))
+        search_term = request.data.get('search_term', None)
 
         # Deny user if user has insufficient permissions
         if not NuccoreSharePermission.has_add_permission(user=request.user, obj=None):
@@ -230,7 +228,7 @@ class NuccoreSequenceAdd(mixins.UpdateModelMixin, mixins.DestroyModelMixin, gene
             return Response({'message': 'The database is locked and its accession numbers cannot be added, edited or removed.'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            created_sequences = add_sequences_to_database(db, desired_numbers)
+            created_sequences = add_sequences_to_database(db, desired_numbers=desired_numbers, search_term=search_term)
         except DatabaseLocked as exc:
             return Response({'message': f"Cannot modify sequences in a locked database."}, status=status.HTTP_400_BAD_REQUEST)
         except AccessionsAlreadyExist as exc:
@@ -240,7 +238,7 @@ class NuccoreSequenceAdd(mixins.UpdateModelMixin, mixins.DestroyModelMixin, gene
                     status=status.HTTP_400_BAD_REQUEST)
         except AccessionLimitExceeded as exc:
             return Response({
-                    'message': f"Bulk addition of sequences requires a list of accession numbers and the list length must have 1 to {exc.max_accessions} elements (inclusive).", 
+                    'message': f"Bulk addition of sequences limited to 1 to {exc.max_accessions} records per operation (inclusive). Current number: {exc.curr_accessions}",
                     "accession_numbers": desired_numbers 
                 }, 
                 status=status.HTTP_400_BAD_REQUEST)
@@ -323,7 +321,7 @@ class NuccoreSequenceAdd(mixins.UpdateModelMixin, mixins.DestroyModelMixin, gene
             return Response({'message': "Every accession number specified to be added already exists in the database.", 'accession_numbers': desired_numbers}, status=status.HTTP_200_OK)
         except AccessionLimitExceeded as exc:
             return Response({
-                    'message': f"Bulk addition of sequences requires a list of accession numbers and the list length must have 1 to {exc.max_accessions} elements (inclusive).", 
+                    'message': f"Bulk addition of sequences limited to 1 to {exc.max_accessions} records per operation (inclusive). Current number: {exc.curr_accessions}",
                     "accession_numbers": desired_numbers 
                 }, 
                 status=status.HTTP_400_BAD_REQUEST)
@@ -822,7 +820,7 @@ class LibraryBlastDbList(mixins.ListModelMixin, generics.CreateAPIView):
                 new_database: BlastDb = create_blastdb(additional_accessions=additional_accessions, base=base, **serializer_data, library=library)
             except AccessionLimitExceeded as exc:
                 return Response({
-                        'message': f"Bulk addition of sequences requires a list of accession numbers and the list length must have 1 to {exc.max_accessions} elements (inclusive)." 
+                        'message': f"Bulk addition of sequences limited to 1 to {exc.max_accessions} accessions (inclusive). Current number: {exc.curr_accessions}", 
                     }, 
                     status=status.HTTP_400_BAD_REQUEST)
             except GenBankConnectionError as exc:
@@ -1167,8 +1165,7 @@ class BlastRunRun(generics.CreateAPIView):
         # Validate the request
         serializer = BlastRunRunSerializer(data=request.data)
         if serializer.is_valid():
-            r = serializer.data
-            full_query = r.get('query_sequence', None)
+            full_query = serializer.data.get('query_sequence', None)
             query_file = request.FILES.get('query_file', None)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -1189,25 +1186,15 @@ class BlastRunRun(generics.CreateAPIView):
             }, status = status.HTTP_400_BAD_REQUEST)
 
         # Bad request if create_hit_tree and create_db_tree are not boolean values
-        create_hit_tree = False
-        create_db_tree = False 
-        if 'create_hit_tree' in request.data:
-            val = request.data['create_hit_tree']
-            if val is bool:
-                create_hit_tree = val
-            elif isinstance(val, str):
-                create_hit_tree = (val == 'true')
-            else:
-                return Response({'message': 'Could not parse parameters for create_hit_tree'},
+        try:
+            create_db_tree = request.data.pop('create_db_tree', False) 
+        except BaseException:
+            return Response({'message': 'Could not parse parameters for create_db_tree'},
                 status=status.HTTP_400_BAD_REQUEST)
-        if 'create_db_tree' in request.data:
-            val = request.data['create_db_tree']
-            if val is bool:
-                create_db_tree = val 
-            elif isinstance(val, str):
-                create_db_tree = (val == 'true')
-            else:
-                return Response({'message': 'Could not parse parameters for create_db_tree'},
+        try:
+            create_hit_tree = serializer.data.pop('create_hit_tree', False)
+        except BaseException:
+            return Response({'message': 'Could not parse parameters for create_hit_tree'},
                 status=status.HTTP_400_BAD_REQUEST)
 
         print("Beginning to parse sequences")

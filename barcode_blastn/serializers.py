@@ -191,10 +191,13 @@ class NuccoreSequenceBulkAddSerializer(serializers.Serializer):
     '''
     accession_numbers = serializers.ListField(
         child=serializers.CharField(),
-        required=False
+        required=False,
+        min_length=1
     )
     # Allow bulk addition of sequences by uploading file. Limit file size to 512KB
     accession_file = serializers.FileField(allow_empty_file=True, required=False,validators=[QueryFileValidator(max_size=524288)])
+    # Allow addition using GenBank query
+    search_term = serializers.CharField(required=False, allow_blank=False)
 
     class Meta:
         ref_name = nuccore_title
@@ -547,13 +550,13 @@ class BlastRunRunSerializer(serializers.ModelSerializer):
     '''
     Required fields for submitting a blast run
     '''
-    query_sequence = serializers.CharField(allow_blank=False, min_length=10)
-    query_file = serializers.FileField(max_length=2621440, validators=[QueryFileValidator()])
+    query_sequence = serializers.CharField(allow_blank=False, min_length=10, required=False)
+    query_file = serializers.FileField(max_length=2621440, validators=[QueryFileValidator()], required=False)
+    create_hit_tree = serializers.BooleanField(required=False)
+    create_db_tree = serializers.BooleanField(required=False)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['query_file'].required = False
-        self.fields['query_sequence'].required = False
         self.fields['id'].read_only = True 
 
     class Meta:

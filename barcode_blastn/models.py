@@ -288,7 +288,7 @@ class NuccoreSequence(models.Model):
     
     
     title = models.CharField(max_length=512, help_text='Title of a publication by the authors of the sequence record.', blank=True, default='')
-    journal = models.CharField(max_length=128, help_text='The journal of a publication, expressed with the MEDLINE abbreviation.', blank=True, default='')
+    journal = models.CharField(max_length=512, help_text='The journal of a publication, expressed with the MEDLINE abbreviation.', blank=True, default='')
     authors = models.CharField(max_length=512, help_text='Author list from the publication.', blank=True, default='')
     taxonomy = models.CharField(max_length=512,help_text='Comma-separated list of taxonomic lineage from GenBank', blank=True, default='')
     
