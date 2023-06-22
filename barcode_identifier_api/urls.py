@@ -17,7 +17,7 @@ from django.urls import path, include
 from django.contrib import admin
 
 admin.site.site_title = 'Admin'
-admin.site.site_header = 'Barcode Identifier API Console'
+admin.site.site_header = 'Barrel API Console'
 admin.site.index_title = 'Database Console'
 
 urlpatterns = [

@@ -10,7 +10,7 @@ from django.conf import settings
 
 schema_view = get_schema_view(
     openapi.Info(
-        title="Barcode Identifier API",
+        title="Barrel API",
         default_version="v0.0.1",
         description="This web-based API compares DNA sequence input against curated sequence libraries using a streamlined multi-step workflow with nucleotide BLAST (BLASTN), multiple sequence alignment and tree construction.",
         # TODO: Add terms of service?

@@ -326,6 +326,19 @@ class NuccoreSequence(models.Model):
         is_query = len(header) > 2 and header[2] == 'query'
         return HeaderInfo(id, species, is_query)
 
+    def sequence_length(self):
+        '''
+        Return the number of characters in the dna sequence.
+        '''
+        return len(self.dna_sequence)
+
+    def reference(self):
+        '''
+        Return a string representation of the reference paper / source on GenBank, including
+        the journal, author list, and paper title.
+        '''
+        return f'{self.journal} ({self.authors})'
+
     class Meta:
         ordering = ['accession_number']
         verbose_name = 'GenBank Accession'
@@ -370,6 +383,12 @@ class BlastRun(models.Model):
     hit_tree = models.TextField(blank=True, default='', help_text='Newick/phylip tree string of hit tree.')
     # Newick string of tree with query sequences + all database sequences
     db_tree = models.TextField(blank=True, default='', help_text='Newick/phylip tree string of database tree.')
+
+    def query_sequence_count(self):
+        '''
+        Return the number of query sequences returned by the result
+        '''
+        return self.queries.count()
 
     def __str__(self) -> str:
         return f'Run {self.id}'
@@ -472,6 +491,9 @@ class BlastQuerySequence(models.Model):
         verbose_name = 'BLASTN Query Sequence'
         verbose_name_plural = 'BLASTN Query Sequences'
 
+    def __str__(self) -> str:
+        return self.definition
+
 class Hit(models.Model):
     db_entry = models.ForeignKey(NuccoreSequence, on_delete=models.CASCADE, help_text='BLAST database used in the run')
     query_sequence = models.ForeignKey(BlastQuerySequence, related_name='hits', on_delete=models.CASCADE, help_text='Query sequence to which this hit was registered.')
@@ -498,7 +520,6 @@ class Hit(models.Model):
         verbose_name_plural = 'BLASTN Run Hits'
 
 class Annotation(models.Model):
-    parent_annotation = models.ForeignKey('self', on_delete=models.CASCADE, null=True, help_text='Parent annotation to which this annotation replies to.', related_query_name='replies', default=None)
     sequence = models.ForeignKey(NuccoreSequence, related_name='annotations', on_delete=models.CASCADE, help_text='Sequence to which this annotation was made.')
     poster = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, help_text='User which created of the annotation.')
     timestamp = models.DateTimeField(help_text='Creation time of annotation', auto_now_add=True)

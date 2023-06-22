@@ -1,4 +1,5 @@
 import io
+from django.db.models.functions import Length
 from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
 from django.contrib import admin
 from django.db import models
@@ -12,6 +13,7 @@ from django.urls import reverse
 
 from django.utils.html import format_html
 from django.contrib.auth.models import User
+from barcode_blastn.admin_list_filters import BlastRunLibraryFilter, NuccoreSequencePublicationFilter
 from barcode_blastn.controllers.blastdb_controller import add_sequences_to_database, create_blastdb, delete_blastdb, delete_library, save_blastdb, save_sequence
 from barcode_blastn.helper.parse_gb import GenBankConnectionError, InsufficientAccessionData, retrieve_gb
 from barcode_blastn.models import Annotation, BlastDb, BlastQuerySequence, DatabaseShare, Library, NuccoreSequence, BlastRun, Hit, TaxonomyNode
@@ -20,36 +22,11 @@ from barcode_blastn.permissions import DatabaseSharePermissions, HitSharePermiss
 
 from barcode_blastn.serializers import LibraryEditSerializer, library_title, blast_db_title, run_title, nuccore_title, hit_title
 
-@admin.register(TaxonomyNode)
-class TaxonomyNodeAdmin(admin.ModelAdmin):
-    list_display = ('scientific_name', 'rank', 'id')
-    readonly_fields = ('scientific_name', 'rank', 'id')
-
-    def has_module_permission(self, request: HttpRequest) -> bool:
-        return True 
-    
-    def has_view_permission(self, request: HttpRequest, obj: Optional[TaxonomyNode] = None) -> bool:
-        return isinstance(request.user, User) and request.user.is_superuser
-
-    def has_add_permission(self, request: HttpRequest, obj: Optional[TaxonomyNode] = None) -> bool:
-        return False
-    
-    def has_delete_permission(self, request: HttpRequest, obj: Optional[TaxonomyNode] = None) -> bool:
-        return isinstance(request.user, User) and request.user.is_superuser
-
-    def has_change_permission(self, request: HttpRequest, obj: Optional[TaxonomyNode] = None) -> bool:
-        return isinstance(request.user, User) and request.user.is_superuser
-
-    def changeform_view(self, request: HttpRequest, object_id: Union[str, None], form_url: str, extra_context: Optional[Dict[str, bool]]) -> Any:
-        extra_context = extra_context or {}
-
-        extra_context['show_save_and_continue'] = False # show Save and Continue button
-        extra_context['show_save_and_add_another'] = False # hide Save and Add Another button
-        extra_context['show_save'] = False # hide save button
-        extra_context['show_delete'] = True # show delete button
-        return super().changeform_view(request, object_id, form_url, extra_context)
-
 class SequenceFormset(BaseInlineFormSet):
+    '''
+    Formset used to add new sequences through the inline viewer
+    on the database version page.
+    '''
 
     def save(self, commit: bool = False) -> Any:
         return super().save(commit)
@@ -58,11 +35,11 @@ class SequenceFormset(BaseInlineFormSet):
         '''
         Callback when a new sequence is added through a save button on the admin form.
         '''
-        obj = super(SequenceFormset, self).save_new(form, commit=False)
+        obj = super(SequenceFormset, self).save_new(form, commit=commit)
         # Save the sequence information to the database.
         # Since save_new() generally cannot terminate with an
         # error, disable error checking for save_sequence()
-        return save_sequence(obj, change=False, commit=commit, raise_if_missing=False, raise_errors=False) 
+        return save_sequence(obj, commit=True, raise_if_missing=False, raise_errors=False) 
 
     def clean(self) -> None:
         super().clean()
@@ -91,10 +68,22 @@ class NuccoreSequenceInline(admin.TabularInline):
     show_change_link = True     # Show link to page to edit the sequence
     classes = ['collapse']      # Allow the entries to be collapsed
     extra = 0                   # Show one extra row by default
-    fields = ['accession_number', 'version', 'id', 'updated', 'organism', 'specimen_voucher', 'annotation_count']
+    fields = ['accession_number', 'version', 'id', 'organism', 'specimen_voucher', 'seq_len', 'annot_count', 'updated']
+    ordering = ['version']
 
-    def annotation_count(self, obj):
-        return Annotation.objects.filter(sequence=obj).count()
+    @admin.display(description='Annotation count')
+    def annot_count(self, obj):
+        return obj.annot_count
+ 
+    @admin.display(description='Length (bp)')
+    def seq_len(self, obj):
+        return obj.seq_len
+
+    def get_queryset(self, request: HttpRequest) -> QuerySet[NuccoreSequence]:
+        # Get all sequences to display, and compute the length and
+        # number of annotations per sequence.
+        qs = super().get_queryset(request).annotate(seq_len=Length('dna_sequence'), annot_count=models.Count('annotations'))
+        return qs
 
     def get_readonly_fields(self, request: HttpRequest, obj: Union[BlastDb, None] = None):
         base = list(set(
@@ -102,7 +91,8 @@ class NuccoreSequenceInline(admin.TabularInline):
             [field.name for field in self.opts.local_many_to_many]
         ))
         base.remove('accession_number')
-        base.append('annotation_count')
+        base.append('annot_count')
+        base.append('seq_len')
         return base
 
     def has_module_permission(self, request: HttpRequest) -> bool:
@@ -191,6 +181,8 @@ class LibraryAdmin(admin.ModelAdmin):
     '''
     inlines = [UserPermissionsInline, VersionInline]
     list_display = ('custom_name', 'owner', 'public', 'latest_version', 'sequence_count', 'id')
+    search_fields = ['description', 'id', 'custom_name']
+    list_filter = ['public', 'owner__username']
 
     def changelist_view(self, request, extra_context: Optional[Dict[str, str]] = None):
         # Customize the title at the top of the change list
@@ -303,9 +295,10 @@ class BlastDbAdmin(admin.ModelAdmin):
     '''
     inlines = [NuccoreSequenceInline]
     form = BlastDbForm
-    list_display = ('custom_name', 'library', 'version_number', 'sequence_count', 'id', 'locked')
+    list_display = ('custom_name', 'library', 'version_number', 'sequences_admin_count', 'id', 'locked')
     fieldsets = [('Details', { 'fields': ['library', 'library_owner', 'custom_name', 'description', 'version_number']}), ('Visibility', { 'fields': ['locked', 'library_is_public']})]
-
+    search_fields = ['custom_name', 'id', 'library__custom_name', 'library__owner__username', 'library__description', 'description']
+    list_filter = ['library__custom_name', 'genbank_version', 'locked']
 
     def library_is_public(self, obj: BlastDb):
         return not obj.library is None and obj.library.public
@@ -392,9 +385,12 @@ class BlastDbAdmin(admin.ModelAdmin):
         else:
             return ['library', 'version_number', 'library_is_public', 'library_owner']
 
-    def sequence_count(self, obj):
-        num_seqs: int = NuccoreSequence.objects.filter(owner_database=obj).count()
-        return num_seqs
+    @admin.display(
+        ordering="sequences__count",
+        description="Sequences",
+    )
+    def sequence_count(self, obj: BlastDb):
+        return obj.sequence_count()
 
     def formfield_for_foreignkey(self, db_field: models.ForeignKey[BlastDb], request: HttpRequest, **kwargs):
         if request is None:
@@ -408,10 +404,18 @@ class BlastDbAdmin(admin.ModelAdmin):
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
         
     def get_queryset(self, request: HttpRequest) -> QuerySet[Any]:
+        qs : QuerySet[BlastDb]
         if not isinstance(request.user, User) or not request.user.is_authenticated:
-            return BlastDb.objects.none()
+            qs = BlastDb.objects.none()
         else:
-            return BlastDb.objects.viewable(request.user)
+            qs = BlastDb.objects.viewable(request.user)
+            # Introduce "seqences__count" by counting the number of related sequences
+        qs = qs.annotate(sequences__count=models.Count('sequences'))
+        return qs
+
+    @admin.display(ordering="sequences__count", description='Sequences')
+    def sequences_admin_count(self, obj: BlastDb):
+        return obj.sequences__count
 
     def has_module_permission(self, request: HttpRequest) -> bool:
         return DatabaseSharePermissions.has_module_permission(request.user)
@@ -535,12 +539,22 @@ class NuccoreAdmin(admin.ModelAdmin):
     '''
     Admin page for showing accession instances.
     '''
-    list_display = (
-        'accession_number', 'version', 'organism', 'specimen_voucher', 'id', 'owner_database_link'
-    )
+    list_display = ('version', 'organism', 'specimen_voucher', 'id', 'owner_database_link', 'seq_length')
     fields_excluded = ['uuid']
     form = NuccoreAdminModifyForm
     inlines = [AnnotationInline]
+    list_filter = ['owner_database', NuccoreSequencePublicationFilter]
+
+    def get_search_fields(self, request: HttpRequest) -> List[str]:
+        search_fields = ['version', 'organism', 'specimen_voucher', 'id', 'taxonomy', 'owner_database__custom_name']
+        # Allow search of taxon scientific names
+        for taxon_level in ['species', 'genus', 'family', 'order', 'class', 'kingdom', 'superkingdom']:
+            search_fields.extend([f'taxon_{taxon_level}__scientific_name', f'taxon_{taxon_level}__id'])
+        return search_fields
+
+    @admin.display(ordering='dna_sequence__len', description='Length (bp)')
+    def seq_length(self, obj: NuccoreSequence):
+        return obj.dna_sequence__len
 
     def changelist_view(self, request, extra_context: Optional[Dict[str, str]] = None):
         # Customize the title at the top of the change list
@@ -548,12 +562,15 @@ class NuccoreAdmin(admin.ModelAdmin):
         return super(NuccoreAdmin, self).changelist_view(request, extra_context=extra_context)
 
     def get_queryset(self, request: HttpRequest) -> QuerySet[Any]:
-        # Restrict the sequences visible based on which databases they belong to, and
-        # which libraries the user can see
+        qs: QuerySet[NuccoreSequence]
+        # Restrict the sequences visible based on which databases they belong to, and which libraries the user can see
         if not isinstance(request.user, User) or not request.user.is_authenticated:
-            return NuccoreSequence.objects.none()
+            qs = NuccoreSequence.objects.none()
         else:
-            return NuccoreSequence.objects.viewable(request.user)
+            qs = NuccoreSequence.objects.viewable(request.user)
+        # Compute the lengths of all sequences
+        qs = qs.annotate(dna_sequence__len=Length('dna_sequence'))
+        return qs
 
     def formfield_for_foreignkey(self, db_field, request: Optional[HttpRequest], **kwargs):
         if request is None:
@@ -611,6 +628,7 @@ class NuccoreAdmin(admin.ModelAdmin):
         ('Sequence', { 'fields': ['dna_sequence'] })
         ]
      
+    @admin.display(description='Database')
     def owner_database_link(self, obj):
         url = reverse("admin:%s_%s_change" % ('barcode_blastn', 'blastdb'), args=(obj.owner_database.id,))
         return format_html("<a href='{url}'>{obj}</a>", url=url, obj=obj.owner_database)
@@ -632,7 +650,7 @@ class NuccoreAdmin(admin.ModelAdmin):
     
     def save_model(self, request: Any, obj: Any, form: Any, change: bool) -> None:
         if not change:
-            save_sequence(obj, change=change, commit=True)
+            save_sequence(obj, commit=True)
 
     def save_formset(self, request: Any, form: Any, formset: Any, change: Any) -> None:
         instances = formset.save(commit=False)
@@ -730,8 +748,15 @@ class BlastRunAdmin(admin.ModelAdmin):
     '''
     inlines = [BlastQuerySequenceInline]
     show_change_link = True
-    list_display = ('id', 'job_name', 'received_time', 'status', 'db_used_link')
+    list_display = ('id', 'query_sequences', 'job_name', 'received_time', 'status', 'db_used_link', 'create_hit_tree', 'create_db_tree')
+    search_fields = ['id', 'job_name', 'db_used__custom_name', 'alignment_job_id', 'complete_alignment_job_id', 'errors']
+    list_filter = ['status', 'blast_version', 'create_hit_tree', 'create_db_tree', BlastRunLibraryFilter]
 
+    @admin.display(ordering='queries__count', description='Queries')
+    def query_sequences(self, obj: BlastDb):
+        return obj.queries__count
+
+    @admin.display(ordering='db_used__custom_name', description='Database used')
     def db_used_link(self, obj: Optional[BlastRun]):
         if obj is None:
             return ''
@@ -745,13 +770,16 @@ class BlastRunAdmin(admin.ModelAdmin):
         return super(BlastRunAdmin, self).changelist_view(request, extra_context=extra_context)
     
     def get_queryset(self, request: HttpRequest) -> QuerySet[Any]:
+        qs : QuerySet[BlastDb]
         if not request.user.is_authenticated:
-            return BlastRun.objects.none()
+            qs = BlastRun.objects.none()
         elif isinstance(request.user, User):
-            return BlastRun.objects.listable(request.user)
+            qs = BlastRun.objects.listable(request.user)
         else:
-            return BlastRun.objects.none()        
-
+            qs = BlastRun.objects.none()    
+        qs = qs.annotate(queries__count=models.Count('queries'))
+        return qs
+                
     def has_module_permission(self, request: HttpRequest) -> bool:
         # allow module access if they can access databases
         return RunSharePermissions.has_module_permission(request.user)
@@ -781,13 +809,26 @@ class HitAdmin(admin.ModelAdmin):
     '''
     inlines = []
     show_change_link = True
-    list_display = ['db_entry', 'id', 'owner_run_link']
+    list_display = ['id', 'query_link', 'db_entry_link', 'owner_run_link']
+    search_fields = ('id', 'db_entry__version', 'db_entry__organism', 'query_sequence__definition')
 
     def changelist_view(self, request, extra_context: Optional[Dict[str, str]] = None):
         # Customize the title at the top of the change list
         extra_context = {'title': f'Select a {hit_title} to view or change'}
         return super(HitAdmin, self).changelist_view(request, extra_context=extra_context)
 
+    @admin.display(description='Query')
+    def query_link(self, obj):
+        url = reverse("admin:%s_%s_change" % ('barcode_blastn', 'blastquerysequence'), args=(obj.query_sequence.id,))
+        return format_html("<a href='{url}'>{obj}</a>", url=url, obj=obj.query_sequence) 
+
+    @admin.display(description='Reference')
+    def db_entry_link(self, obj):
+        url = reverse("admin:%s_%s_change" % ('barcode_blastn', 'nuccoresequence'), args=(obj.db_entry.id,))
+        source = obj.db_entry.taxon_species.scientific_name if not obj.db_entry.taxon_species is None else obj.db_entry.organism
+        return format_html("<a href='{url}'>{obj}</a>", url=url, obj=f'{obj.db_entry.version}, {source}') 
+
+    @admin.display(description='Run')
     def owner_run_link(self, obj):
         url = reverse("admin:%s_%s_change" % ('barcode_blastn', 'blastrun'), args=(obj.owner_run().id,))
         return format_html("<a href='{url}'>{obj}</a>", url=url, obj=obj.owner_run())
@@ -824,3 +865,34 @@ class HitAdmin(admin.ModelAdmin):
             [field.name for field in self.opts.local_fields] +
             [field.name for field in self.opts.local_many_to_many]
         ))
+
+@admin.register(TaxonomyNode)
+class TaxonomyNodeAdmin(admin.ModelAdmin):
+    list_display = ('scientific_name', 'rank', 'id')
+    readonly_fields = ('scientific_name', 'rank', 'id')
+    search_fields = ('scientific_name', 'id')
+    list_filter = ('rank',)
+
+    def has_module_permission(self, request: HttpRequest) -> bool:
+        return True 
+    
+    def has_view_permission(self, request: HttpRequest, obj: Optional[TaxonomyNode] = None) -> bool:
+        return isinstance(request.user, User) and request.user.is_superuser
+
+    def has_add_permission(self, request: HttpRequest, obj: Optional[TaxonomyNode] = None) -> bool:
+        return False
+    
+    def has_delete_permission(self, request: HttpRequest, obj: Optional[TaxonomyNode] = None) -> bool:
+        return isinstance(request.user, User) and request.user.is_superuser
+
+    def has_change_permission(self, request: HttpRequest, obj: Optional[TaxonomyNode] = None) -> bool:
+        return isinstance(request.user, User) and request.user.is_superuser
+
+    def changeform_view(self, request: HttpRequest, object_id: Union[str, None], form_url: str, extra_context: Optional[Dict[str, bool]]) -> Any:
+        extra_context = extra_context or {}
+
+        extra_context['show_save_and_continue'] = False # show Save and Continue button
+        extra_context['show_save_and_add_another'] = False # hide Save and Add Another button
+        extra_context['show_save'] = False # hide save button
+        extra_context['show_delete'] = True # show delete button
+        return super().changeform_view(request, object_id, form_url, extra_context)
