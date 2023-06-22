@@ -6,7 +6,7 @@
 sudo su postgres
 psql
 drop database barcode_identifier_db;
-create database barcode_identifier_db with owner <user_name>;
+create database barcode_identifier_db with owner admin;
 \q
 exit
 python manage.py makemigrations

@@ -54,7 +54,7 @@ class SequenceFormset(BaseInlineFormSet):
         try:
             retrieve_gb(accession_numbers=accession_numbers, raise_if_missing=True)
         except InsufficientAccessionData as exc:
-            raise ValidationError(f'One or more accession numbers do not match a GenBank record: {", ".join(exc.missing_accessions)}')
+            raise ValidationError(f'Some number of following the accession numbers and search terms do not match any record. Accessions: {", ".join(exc.missing_accessions)}. Terms: {exc.term}.')
         except ValueError:
             pass
         except BaseException as exc:
@@ -284,7 +284,7 @@ class BlastDbForm(ModelForm):
         try:
             retrieve_gb(accession_numbers=accessions_to_add, raise_if_missing=True, term=search_term)
         except InsufficientAccessionData as exc:
-            raise ValidationError(f'One or more accession numbers or accession.versions do not match a GenBank record: {", ".join(exc.missing_accessions)}')
+            raise ValidationError(f'Some number of following the accession numbers and search terms do not match any record. Accessions: {", ".join(exc.missing_accessions)}. Terms: {exc.term}.')
         except ValueError:
             pass
         # except BaseException as exc:
@@ -381,7 +381,7 @@ class BlastDbAdmin(admin.ModelAdmin):
         if not change:
             create_blastdb(additional_accessions=accessions, base=base, database=obj, search_term=search_term, **blastdb_fields, library=obj.library)
         else:
-            if len(accessions) > 0:
+            if len(accessions) > 0 or not search_term is None:
                 add_sequences_to_database(obj, desired_numbers=accessions, search_term=search_term)
             else:
                 obj.save()
@@ -495,7 +495,7 @@ class NuccoreAdminModifyForm(ModelForm):
             except GenBankConnectionError as err:
                 raise ValidationError('Encountered connection error while requesting data from GenBank. Please try again.') from err  
             except InsufficientAccessionData as err:
-                raise ValidationError(f'Could not retrieve a record for {accession_number}, likely due to accession number not matching with an existing and unique record. Check the accession number provided.')  
+                raise ValidationError(f'Some number of following the accession numbers and search terms do not match any record. Accessions: {", ".join(err.missing_accessions)}. Terms: {err.term}.')
             
         return None
 

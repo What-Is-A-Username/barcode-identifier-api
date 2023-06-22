@@ -10,6 +10,7 @@ from Bio.SeqFeature import SeqFeature
 from Bio.SeqIO import SeqRecord
 from ratelimit import limits
 from ratelimit.decorators import sleep_and_retry
+from Bio.Seq import UndefinedSequenceError
 
 # NCBI Rate limit without an API key is 3 requests per second
 PERIOD = 1 # Time between calls, in number of seconds
@@ -19,9 +20,11 @@ MAX_ACCESSIONS = 1500 # Place a limit on the number of accessions that can be ad
 class InsufficientAccessionData(BaseException):
     """Raised if the number of accessions returned from GenBank does not equal the number of accessions queried for."""
     missing_accessions: List[str] = []
-    def __init__(self, missing_accessions: List[str], *args: object) -> None:
+    term: str = ''
+    def __init__(self, missing_accessions: List[str], term: str = '', *args: object) -> None:
         super().__init__(*args)
         self.missing_accessions = missing_accessions
+        self.term = term
 
 class AccessionLimitExceeded(BaseException):
     """Raised if number of accessions is more than the maximum specified by MAX_ACCESSIONS"""
@@ -54,10 +57,14 @@ def parse_gb_handle(handle) -> List[Dict[Any, Any]]:
 
     seq_record : SeqRecord
     for seq_record in seq_records:
+        try:
+            dna_sequence = str(seq_record.seq)
+        except UndefinedSequenceError:
+            continue
         current_data : Dict = {
             'accession_number': seq_record.name,
             'definition': seq_record.description,
-            'dna_sequence': str(seq_record.seq),
+            'dna_sequence': dna_sequence,
             'version': seq_record.id,
             'journal': '',
             'authors': '',
@@ -154,13 +161,21 @@ def send_gb_request(accession_numbers: List[str] = [], raise_if_missing: bool = 
         kwargs['id'] = ','.join(accession_numbers)
     
     print(f'{request_time_str} | Fetching from GenBank for accessions {kwargs.get("id", [])}, webenv {kwargs.get("webenv", [])}')
+    term = kwargs.get('term', '')
+    accs = accession_numbers
 
     # Raises URLError if there is a network error
     try:
         handle = Entrez.efetch(db="nucleotide", rettype="gb", retmode="text", **kwargs)
+    except HTTPError as exc:
+        ex = exc
+        accs = accession_numbers
+        if exc.code == 400:
+            raise InsufficientAccessionData(missing_accessions=accession_numbers, term= kwargs.get('term', ''))
+        else:
+            raise GenBankConnectionError(queried_accessions=accession_numbers, term=kwargs.get('term', ''))
     except:
-        # TODO: This fetch returns a different error if NONE of the accessions match a record. So add functionality to distinguish these cases from a network error.
-        raise GenBankConnectionError(accession_numbers)
+        raise GenBankConnectionError(queried_accessions=accession_numbers, term=kwargs.get('term', ''))
     response_time_str = datetime.now().strftime("%H:%M:%S.%f")
     print(f'{response_time_str} | Response received from GenBank for accessions {kwargs.get("id", [])}, webenv {kwargs.get("webenv", [])}')
 
@@ -212,8 +227,8 @@ def retrieve_gb(accession_numbers: List[str], term: Optional[str] = None, raise_
 
     # aggregate all data across all batches in a list
     all_data: List[Dict[str, Any]]= []
-
-    if not term is None:
+    term = term.strip()
+    if not term is None and len(term) > 0:
         # Run a ESearch to identify how many records there are
         try:
             search_handle = Entrez.esearch(db='nucleotide', term=term, retmax=20, usehistory='y')

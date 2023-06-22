@@ -421,7 +421,7 @@ def add_sequences_to_database(database: BlastDb, desired_numbers: List[str] = []
         raise ValueError('No accessions or search terms given')
     desired_numbers = list(set(desired_numbers))
     # Retrieve what accession numbers are already existing in the database
-    existing: Set[str] = set(NuccoreSequence.objects.distinct().values_list('accession_number', flat=True))
+    existing: Set[str] = set(NuccoreSequence.objects.distinct().filter(owner_database=database).values_list('accession_number', flat=True))
     # raise error if any the numbers to be added already exist
     conflicts = [e for e in desired_numbers if e in existing]
     if len(conflicts) > 0:

@@ -251,9 +251,10 @@ class NuccoreSequenceAdd(mixins.UpdateModelMixin, mixins.DestroyModelMixin, gene
                 status=status.HTTP_502_BAD_GATEWAY)
         except InsufficientAccessionData as exc:
             return Response({
-                    'message': f"The GenBank database failed to return some accession numbers so no numbers were added at all.", 
+                    'message': f"Could not find a matching record for at least one accession number, or no records could be returned from the query.", 
                     "accession_numbers": desired_numbers,
-                    "missing_accessions": exc.missing_accessions
+                    "missing_accessions": exc.missing_accessions,
+                    "term": exc.term,
                 }, 
                 status=status.HTTP_400_BAD_REQUEST)
         else:
@@ -334,9 +335,10 @@ class NuccoreSequenceAdd(mixins.UpdateModelMixin, mixins.DestroyModelMixin, gene
                 status=status.HTTP_502_BAD_GATEWAY)
         except InsufficientAccessionData as exc:
             return Response({
-                    'message': f"The GenBank database failed to return some accession numbers so no numbers were added at all.", 
+                    'message': f"Could not find a matching record for at least one accession number, or no records could be returned from the query.", 
                     "accession_numbers": desired_numbers,
-                    "missing_accessions": exc.missing_accessions
+                    "missing_accessions": exc.missing_accessions,
+                    "term": exc.term,
                 }, 
                 status=status.HTTP_400_BAD_REQUEST)
         else:
@@ -831,8 +833,9 @@ class LibraryBlastDbList(mixins.ListModelMixin, generics.CreateAPIView):
                     status=status.HTTP_502_BAD_GATEWAY)
             except InsufficientAccessionData as exc:
                 return Response({
-                        'message': f"The GenBank database failed to return some accession numbers so no numbers were added at all.", 
-                        "missing_accessions": exc.missing_accessions
+                        'message': f"Could not find a matching record for at least one accession number, or no records could be returned from the query.", 
+                        "missing_accessions": exc.missing_accessions,
+                        "term": exc.term,
                     }, 
                     status=status.HTTP_400_BAD_REQUEST)
             except BaseException as exc:
