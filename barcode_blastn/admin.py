@@ -415,6 +415,7 @@ class BlastDbAdmin(admin.ModelAdmin):
 
     @admin.display(ordering="sequences__count", description='Sequences')
     def sequences_admin_count(self, obj: BlastDb):
+        # Return value computed in self.get_queryset()
         return obj.sequences__count
 
     def has_module_permission(self, request: HttpRequest) -> bool:
@@ -554,6 +555,7 @@ class NuccoreAdmin(admin.ModelAdmin):
 
     @admin.display(ordering='dna_sequence__len', description='Length (bp)')
     def seq_length(self, obj: NuccoreSequence):
+        # Return value computed in self.get_queryset()
         return obj.dna_sequence__len
 
     def changelist_view(self, request, extra_context: Optional[Dict[str, str]] = None):
@@ -754,6 +756,7 @@ class BlastRunAdmin(admin.ModelAdmin):
 
     @admin.display(ordering='queries__count', description='Queries')
     def query_sequences(self, obj: BlastDb):
+        # Return value computed in self.get_queryset()
         return obj.queries__count
 
     @admin.display(ordering='db_used__custom_name', description='Database used')

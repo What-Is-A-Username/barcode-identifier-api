@@ -1,19 +1,20 @@
-from typing import Any, Dict, Generator, List
-from Bio import Entrez 
-from Bio import SeqIO
-from Bio.SeqIO import SeqRecord
-from Bio.SeqFeature import SeqFeature
-from Bio.GenBank.Record import Reference
-from ratelimit import limits
-from ratelimit.decorators import sleep_and_retry
 from datetime import datetime
-from urllib.error import URLError, HTTPError
+from time import sleep
+from typing import Any, Dict, Generator, List
+from urllib.error import HTTPError, URLError
 
 from barcode_blastn.models import TaxonomyNode
+from Bio import Entrez, SeqIO
+from Bio.GenBank.Record import Reference
+from Bio.SeqFeature import SeqFeature
+from Bio.SeqIO import SeqRecord
+from ratelimit import limits
+from ratelimit.decorators import sleep_and_retry
 
 # NCBI Rate limit without an API key is 3 requests per second
-PERIOD = 3 # Time between calls, in number of seconds
-MAX_ACCESSIONS_PER_REQUEST = 300 # Limit each request to only return a max number of accessions
+PERIOD = 1 # Time between calls, in number of seconds
+ACCESSIONS_PER_REQUEST = 300 # Place a limit on the number of accession ids requested per request to GenBank
+MAX_ACCESSIONS = 1500 # Place a limit on the number of accessions that can be added in one operation
 
 class InsufficientAccessionData(BaseException):
     """Raised if the number of accessions returned from GenBank does not equal the number of accessions queried for."""
@@ -23,9 +24,9 @@ class InsufficientAccessionData(BaseException):
         self.missing_accessions = missing_accessions
 
 class AccessionLimitExceeded(BaseException):
-    """Raised if number of accessions is more than the maximum specified by MAX_ACCESSIONS_PER_REQUEST"""
-    max_accessions: int = MAX_ACCESSIONS_PER_REQUEST
-    def __init__(self, max_accessions: int, *args: object) -> None:
+    """Raised if number of accessions is more than the maximum specified by MAX_ACCESSIONS"""
+    max_accessions: int
+    def __init__(self, max_accessions: int = MAX_ACCESSIONS, *args: object) -> None:
         super().__init__(*args)
         self.max_accessions = max_accessions
 
@@ -45,48 +46,32 @@ class TaxonomyConnectionError(BaseException):
 
 @sleep_and_retry
 @limits(calls = 1, period = PERIOD)
-def retrieve_gb(accession_numbers: List[str], raise_if_missing: bool = False) -> List[Dict[str, Any]]: 
+def send_gb_request(accession_numbers: List[str], batch_no: int = 1, raise_if_missing: bool = False) -> List[Dict[Any, Any]]:
     """
-        Retrieve from GenBank the nucleotide entries for the given accession numbers.
+        Create and send a single web request to GenBank requesting the specified accession identifiers.
         
     Raises:
-        ValueError: If no accession numbers are provided.
 
         GenBankConnectionError: If there is a network error when retrieving data from GenBank using Bio.Entrez
 
-        AccessionLimitExceeded: If the number of accessions is more than the maximum specified by MAX_ACCESSIONS_PER_REQUEST 
-
         InsufficientAccessionData: If the number of records sent by GenBank does not match the number of accession numbers requested. This indicates that there are accession numbers that do not match with a GenBank record.
     """
-    if accession_numbers is None:
-        raise ValueError(f'List of accession numbers to query is None.')
-    if len(accession_numbers) == 0:
-        raise ValueError(f'List of accession numbers to query is empty.')
-    # TODO: Instead of having a hard limit, do not raise an error and instead implement batch request if the number of accessions in large
-    if len(accession_numbers) > MAX_ACCESSIONS_PER_REQUEST:
-        raise AccessionLimitExceeded(max_accessions=MAX_ACCESSIONS_PER_REQUEST)
-
-    desired_numbers = list(set(accession_numbers))
-    accessions_query_string = ','.join(desired_numbers) 
-
-    Entrez.email = "william.huang1212@gmail.com"
-    Entrez.max_tries = 1
-    Entrez.tool = "barcode_identifier"
-
     request_time_str = datetime.now().strftime("%H:%M:%S.%f")
-    print(f'{request_time_str} | Fetching from GenBank for accessions {accessions_query_string}')
+    id_query_string = ','.join(accession_numbers)
+    
+    print(f'{request_time_str} | Batch #{batch_no} | Fetching from GenBank for accessions {id_query_string}')
 
     # Raises URLError if there is a network error
     try:
-        handle = Entrez.efetch(db="nucleotide", rettype="gb", retmode="text", id=accessions_query_string)
+        handle = Entrez.efetch(db="nucleotide", rettype="gb", retmode="text", id=id_query_string)
     except:
         # TODO: This fetch returns a different error if NONE of the accessions match a record. So add functionality to distinguish these cases from a network error.
         raise GenBankConnectionError(accession_numbers)
     response_time_str = datetime.now().strftime("%H:%M:%S.%f")
-    print(f'{response_time_str} | Response received from GenBank for accessions {accessions_query_string}')
+    print(f'{response_time_str} | Batch #{batch_no} | Response received from GenBank for accessions {id_query_string}')
     seq_records : Generator = SeqIO.parse(handle, "genbank")
 
-    all_data: List[Dict[str, Any]]= []
+    result: List[Dict[Any, Any]] = []
 
     seq_record : SeqRecord
     for seq_record in seq_records:
@@ -166,23 +151,69 @@ def retrieve_gb(accession_numbers: List[str], raise_if_missing: bool = False) ->
                             print(f'Inferred type material from notes since it contained "paratype" or "holotype". It did not start with "type: ". Consider checking /type_material and/or /note info for {seq_record.name} in GenBank.')
                 finally:
                     current_data['type_material'] = notes
-
-            # Parse taxonomy
         finally:
-            all_data.append(current_data)
-
-
-    handle.close()
-
+            result.append(current_data)
+    
     # Check if we are missing any data
     if raise_if_missing:
         successful_queries : List[str]
-        successful_queries = [entry["accession_number"] for entry in all_data]
-        successful_queries.extend([entry["version"] for entry in all_data])
-        failed_queries = [d for d in desired_numbers if d not in successful_queries]
+        successful_queries = [entry["accession_number"] for entry in result]
+        successful_queries.extend([entry["version"] for entry in result])
+        failed_queries = [d for d in accession_numbers if d not in successful_queries]
         # stop execution if data not complete
         if len(failed_queries) > 0:
             raise InsufficientAccessionData(failed_queries)
+
+    # Close the data handle
+    handle.close()
+    return result
+
+@sleep_and_retry
+@limits(calls = 1, period = PERIOD)
+def retrieve_gb(accession_numbers: List[str], raise_if_missing: bool = False) -> List[Dict[str, Any]]: 
+    """
+        Request sequences record GenBank requesting the specified accession identifiers and return a list of records indexed by the accession id.
+        Data is requested in batches, depending on the number of records requested, in order to comply with GenBank API limits. There is a hard
+        limit on the number of records requested with one call, specified by MAX_ACCESSIONS
+        
+    Raises:
+        ValueError: If there are missing records for any number of accession identifiers.
+
+        GenBankConnectionError: If there is a network error when retrieving data from GenBank using Bio.Entrez
+
+        AccessionLimitExceeded: If the number of accessions is more than the maximum specified by MAX_ACCESSIONS
+
+        InsufficientAccessionData: If the number of records sent by GenBank does not match the number of accession numbers requested. This indicates that there are accession numbers that do not match with a GenBank record.
+    """
+    if accession_numbers is None:
+        raise ValueError(f'List of accession numbers to query is None.')
+    if len(accession_numbers) == 0:
+        raise ValueError(f'List of accession numbers to query is empty.')
+    if len(accession_numbers) > MAX_ACCESSIONS:
+        raise AccessionLimitExceeded(max_accessions=MAX_ACCESSIONS)
+
+    desired_numbers = list(set(accession_numbers))
+
+    Entrez.email = "william.huang1212@gmail.com"
+    Entrez.max_tries = 1
+    Entrez.tool = "barrel"
+
+    # aggregate all data across all batches in a list
+    all_data: List[Dict[str, Any]]= []
+    # keep track of batch numbers
+    batch_no = 1
+
+    # Request all the data in batches
+    while len(desired_numbers) > 0:
+        # Pop the first n number of accession numbers and form a query string
+        next_numbers = desired_numbers[:ACCESSIONS_PER_REQUEST]
+        desired_numbers = desired_numbers[ACCESSIONS_PER_REQUEST:] 
+        batch_no = batch_no + 1
+        batch_result = send_gb_request(next_numbers, batch_no=batch_no, raise_if_missing=raise_if_missing)
+        all_data.extend(batch_result)
+        # If we require another batch, wait some number of seconds
+        if len(desired_numbers) > 0:
+            sleep(1)
 
     return all_data
 

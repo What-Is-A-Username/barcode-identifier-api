@@ -1,12 +1,15 @@
+import uuid
 from collections import namedtuple
 from datetime import datetime
-from typing import Optional, Union
+from typing import Union
+
+from django.contrib.auth.models import AbstractBaseUser, AnonymousUser, User
+from django.core.validators import MaxValueValidator
 from django.db import models
 from django.utils.translation import gettext_lazy as _
-from django.contrib.auth.models import User, AnonymousUser, AbstractBaseUser
-import uuid
-from django.core.validators import MaxValueValidator, MinValueValidator
+
 from barcode_blastn.database_permissions import DatabasePermissions
+
 
 class TaxonomyNode(models.Model):
     class TaxonomyRank(models.TextChoices):
@@ -136,7 +139,7 @@ class Library(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, help_text='Unique identifier of this Reference Library')
 
     # The user-customized title
-    custom_name = models.CharField(max_length=255, help_text='Name of Reference Library')
+    custom_name = models.CharField(max_length=255, help_text='Name of Reference Library', unique=True)
 
     # Time of first creation
     created = models.DateTimeField(auto_now_add=True, help_text='Date and time at which reference library was first created')
@@ -150,9 +153,11 @@ class Library(models.Model):
         verbose_name_plural = 'Reference Libraries'
 
     def latest(self):
+        '''Retrieve the instance of the latest database version of the library'''
         return self.blastdb_set.latest(self)
 
     def latest_version(self):
+        '''Return the name of the latest database version'''
         db = self.latest()
         if db is None:
             return ""
@@ -490,6 +495,8 @@ class BlastQuerySequence(models.Model):
     class Meta:
         verbose_name = 'BLASTN Query Sequence'
         verbose_name_plural = 'BLASTN Query Sequences'
+        # Prevent two query sequences in the same run from having the same definition
+        unique_together = ('owner_run', 'definition')
 
     def __str__(self) -> str:
         return self.definition

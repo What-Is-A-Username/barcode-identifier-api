@@ -202,6 +202,7 @@ def create_blastdb(additional_accessions: List[str], base: Optional[BlastDb] = N
                     # Skip annotations if the sequence was not from base database
                     pass
                 else:
+                    # Get all annotations from the old sequence entry
                     old_annotations = existing.annotations.all()
                     old: Annotation
                     # Clone all old annotations
@@ -363,7 +364,7 @@ def update_sequences_in_database(database: BlastDb, desired_numbers: List[str]) 
         DatabaseLocked: If database is locked for editing.
         ValueError: If no accession numbers are specified
         AccessionsNotFound: If a given accession number is not present in the database.
-        AccessionLimitExceeded: If the number of accessions to add exceeds the maximum allowed
+        AccessionLimitExceeded: If the number of accessions to update exceeds the maximum allowed
         GenbankConnectionError: Could not connect to GenBank or the request sent was bad
         InsufficientAccessionData: If all accession numbers could not be identified by GenBank 
     '''
@@ -500,6 +501,7 @@ def save_sequence(obj: NuccoreSequence, commit: bool = False, raise_if_missing: 
     except (GenBankConnectionError, InsufficientAccessionData, BaseException) as exc:
         if not raise_errors:
             print(f'WARN: Suppressed error {exc}')
+            currentData = {}
         else:
             raise exc
 

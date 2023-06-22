@@ -34,7 +34,7 @@ from barcode_blastn.controllers.blastdb_controller import (
     save_blastdb, update_sequences_in_database)
 from barcode_blastn.file_paths import (get_data_fishdb_path, get_data_run_path,
                                        get_ncbi_folder, get_static_run_path)
-from barcode_blastn.helper.parse_gb import (MAX_ACCESSIONS_PER_REQUEST,
+from barcode_blastn.helper.parse_gb import (ACCESSIONS_PER_REQUEST,
                                             AccessionLimitExceeded,
                                             GenBankConnectionError)
 from barcode_blastn.helper.verify_query import verify_dna, verify_header
@@ -165,7 +165,7 @@ class NuccoreSequenceAdd(mixins.UpdateModelMixin, mixins.DestroyModelMixin, gene
     
     @swagger_auto_schema(
         operation_summary='Add accession numbers to database.',
-        operation_description=f'From a list of accession numbers, add them to an existing database. List must contain between 1-{MAX_ACCESSIONS_PER_REQUEST} accession numbers inclusive.',
+        operation_description=f'From a list of accession numbers, add them to an existing database. List must contain between 1-{ACCESSIONS_PER_REQUEST} accession numbers inclusive.',
         tags = [tag_blastdbs, tag_sequences],
         manual_parameters=[openapi.Parameter(
             name='id',
@@ -265,7 +265,7 @@ class NuccoreSequenceAdd(mixins.UpdateModelMixin, mixins.DestroyModelMixin, gene
 
     @swagger_auto_schema(
         operation_summary='Update accessions from GenBank data.',
-        operation_description=f'From a list of accession numbers, update their accessions by refetching data from GenBank. List must contain between 1-{MAX_ACCESSIONS_PER_REQUEST} accession numbers inclusive.',
+        operation_description=f'From a list of accession numbers, update their accessions by refetching data from GenBank. List must contain between 1-{ACCESSIONS_PER_REQUEST} accession numbers inclusive.',
         tags = [tag_blastdbs, tag_sequences],
         manual_parameters=[openapi.Parameter(
             name='id',
