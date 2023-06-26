@@ -192,6 +192,11 @@ class BlastDbManager(models.Manager):
 class BlastDb(models.Model):
     objects = BlastDbManager()
 
+    class MarkerGenes(models.TextChoices):
+        MARKER_COI = 'COI'
+        MARKER_16S = '16S'
+        MARKER_12S = '12S'
+
     custom_name = models.CharField(max_length=255, help_text='Name of the database version')
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, help_text='Unique identifier of this database version of the library')
 
