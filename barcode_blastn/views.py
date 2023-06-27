@@ -6,6 +6,7 @@ import os
 import re
 import uuid
 from typing import Any, Dict, List
+from barcode_blastn.tests import LibraryListTest, SequenceTester
 
 from barcode_identifier_api.celery import app
 from Bio import SeqIO
@@ -180,7 +181,7 @@ class NuccoreSequenceAdd(mixins.UpdateModelMixin, mixins.DestroyModelMixin, gene
                 description='All accession numbers added to the database.',
                 schema=BlastDbSequenceEntrySerializer(many=True),
                 examples={
-                    'application/json': [ BlastDbSequenceEntrySerializer.Meta.example ]
+                    'application/json': SequenceTester.post_blastdbs_id_sequences_201_response
                 }
             ),
             '400': 'Bad parameters in request. Example reasons: list may be empty or too long (>100); accession numbers may be invalid or duplicate; database may be locked',
@@ -279,10 +280,10 @@ class NuccoreSequenceAdd(mixins.UpdateModelMixin, mixins.DestroyModelMixin, gene
                 description='All accession numbers updated.',
                 schema=BlastDbSequenceEntrySerializer(many=True),
                 examples={
-                    'application/json': [ BlastDbSequenceEntrySerializer.Meta.example ]
+                    'application/json': SequenceTester.post_blastdbs_id_sequences_201_response
                 }
             ),
-            '400': 'Bad parameters in request. Example reasons: list may be empty or too long (>100); accession numbers may not exist in database yet; database may be locked',
+            '400': 'Bad parameters in request. Example reasons: list is too long (>100); accession numbers may not exist in database yet; database may be locked',
             '403': 'Insufficient permissions.',
             '404': 'BLAST database matching the specified ID was not found.',
             '500': 'Unexpected error.',
@@ -301,10 +302,7 @@ class NuccoreSequenceAdd(mixins.UpdateModelMixin, mixins.DestroyModelMixin, gene
         except BlastDb.DoesNotExist:
             return Response({'message': 'Database does not exist', 'requested': pk}, status.HTTP_404_NOT_FOUND)
         
-        # Check if accession numbers provided
-        if not 'accession_numbers' in request.data:
-            return Response({'message': 'Missing required list of accession numbers to update.', 'accession_numbers': []}, status.HTTP_400_BAD_REQUEST)
-        desired_numbers = request.data['accession_numbers']
+        desired_numbers = request.data.pop('accession_numbers', [])
 
         # Deny user if user has insufficient permissions
         if not NuccoreSharePermission.has_change_permission(user=request.user, obj=None):
@@ -432,7 +430,7 @@ class NuccoreSequenceDetail(mixins.DestroyModelMixin, generics.RetrieveAPIView):
                 description='Successfully returned sequence information',
                 schema=NuccoreSequenceSerializer(read_only=True),
                 examples={
-                    'application/json': NuccoreSequenceSerializer.Meta.example
+                    'application/json': SequenceTester.get_nuccores_id_200_response
                 }
             ),
             '403': 'Insufficient permissions.',            
@@ -504,7 +502,7 @@ class LibraryListView(mixins.ListModelMixin, generics.CreateAPIView):
                 description='A list of all reference libraries viewable and runnable.',
                 schema=LibraryListSerializer(many=True, read_only=True),
                 examples={
-                    'application/json': LibraryListSerializer.Meta.example,
+                    'application/json': LibraryListTest.get_libraries_200_response
                 }
             )
         }
@@ -530,11 +528,11 @@ class LibraryListView(mixins.ListModelMixin, generics.CreateAPIView):
         tags = [tag_libraries],
         request_body=LibraryCreateSerializer,
         responses={
-            '200': openapi.Response(
+            '201': openapi.Response(
                 description='Creation was successful.',
-                schema=LibraryCreateSerializer(),
+                schema=LibraryCreateSerializer,
                 examples={
-                    'application/json': LibraryCreateSerializer.Meta.example
+                    'application/json': LibraryListTest.post_libraries_201_request
                 }
             ),
             '403': 'Insufficient permissions.',
@@ -552,8 +550,6 @@ class LibraryListView(mixins.ListModelMixin, generics.CreateAPIView):
         if serializer.is_valid():
             serializer.validated_data['owner'] = request.user
             library_instance: Library = serializer.save()
-            blast_db: BlastDb = BlastDb(library=library_instance)
-            blast_db.save()
             library_data = LibrarySerializer(library_instance)
             return Response(library_data.data, status=status.HTTP_201_CREATED) 
             
@@ -584,7 +580,7 @@ class LibraryDetailView(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixi
                 description='Reference library updated successfully.',
                 schema=LibrarySerializer(),
                 examples={
-                    'application/json': LibrarySerializer.Meta.example
+                    'application/json': LibraryListTest.get_libraries_id_200_response
                 }
             ),
             '400': 'Bad request parameters.',
@@ -622,7 +618,7 @@ class LibraryDetailView(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixi
                 description='Reference library updated successfully.',
                 schema=LibraryEditSerializer(),
                 examples={
-                    'application/json': LibraryEditSerializer.Meta.example
+                    'application/json': LibraryListTest.patch_libraries_id_204_response
                 }
             ),
             '400': 'Bad request parameters.',
@@ -703,17 +699,17 @@ class LibraryBlastDbList(mixins.ListModelMixin, generics.CreateAPIView):
         tags = [tag_blastdbs],
         responses={
             '200': openapi.Response(
-                description='A list of all accession numbers saved to all databases.',
+                description='List all database versions under a reference library.',
                 schema=BlastDbListSerializer(many=True, read_only=True),
                 examples={
-                    'application/json': BlastDbListSerializer.Meta.example,
+                    'application/json': LibraryListTest.get_libraries_id_versions_200_response,
                 }
             )
         }
     )
     def get(self, request, *args, **kwargs):
         '''
-        List all blast databases
+        List all blast databases under a specific library
         '''
 
         library_pk: str = kwargs['library']     
@@ -750,12 +746,12 @@ class LibraryBlastDbList(mixins.ListModelMixin, generics.CreateAPIView):
                 'description': openapi.Schema(
                     type=openapi.TYPE_STRING,
                     description='Description of the reference library version',
-                    example='Sequences gathered as of January 2022'
+                    # example=LibraryListTest.post_libraries_id_versions_request['description']
                 ),
                 'locked': openapi.Schema(
                     type=openapi.TYPE_BOOLEAN,
                     description='Whether the version will be published and thus locked for future edits',
-                    example=False
+                    # example=LibraryListTest.post_libraries_id_versions_request['locked']
                 ),
                 'base': openapi.Schema(
                     type=openapi.TYPE_STRING,
@@ -767,7 +763,7 @@ class LibraryBlastDbList(mixins.ListModelMixin, generics.CreateAPIView):
                     type=openapi.TYPE_ARRAY,
                     items=openapi.Schema(type=openapi.TYPE_STRING),
                     description='List of accession numbers to add to the database',
-                    example=['ON303390', 'ON303391']
+                    # example=LibraryListTest.post_libraries_id_versions_request['accession_numbers']
                 )
             }
         ),
@@ -776,7 +772,7 @@ class LibraryBlastDbList(mixins.ListModelMixin, generics.CreateAPIView):
                 description='Creation was successful.',
                 schema=BlastDbCreateSerializer(),
                 examples={
-                    'application/json': BlastDbCreateSerializer.Meta.example
+                    'application/json': LibraryListTest.post_libraries_id_versions_201_response
                 }
             ),
             '400': 'Bad request.',
@@ -872,7 +868,7 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
                 description='Information on the BLAST database matching the given ID.',
                 schema=BlastDbSerializer(),
                 examples={
-                    'application/json': BlastDbSerializer.Meta.example
+                    'application/json': LibraryListTest.get_blastdbs_id_200_response
                 }
             ),
             '403': 'Insufficient permissions.',
@@ -916,7 +912,7 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
                 description='Database updated successfully.',
                 schema=BlastDbSerializer(),
                 examples={
-                    'application/json': BlastDbSerializer.Meta.example
+                    'application/json': LibraryListTest.patch_blastdbs_id_204_response
                 }
             ),
             '400': 'Bad request parameters.',
@@ -938,13 +934,12 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
             return Response(status=status.HTTP_403_FORBIDDEN)
 
         updated_data: Dict[str, Any] = request.data.copy()
-        new_lock: bool = False
+        was_locked: bool = db.locked
         if not db.locked and 'locked' in updated_data:
             # We want to set 'locked' to false first
             # so we can lock it later on if needed
-            locked = updated_data.pop('locked', 'False')[0]
-            new_lock = (locked.lower() == 'true')
-            updated_data['locked'] = False
+            locked = updated_data.pop('locked', False)
+            updated_data['locked'] = locked
         
         serializer = self.get_serializer_class()(db, data=updated_data, partial=True) 
         if serializer.is_valid():
@@ -952,7 +947,7 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
         else:
             return Response(status=status.HTTP_400_BAD_REQUEST)
 
-        if new_lock:
+        if was_locked and serializer.data.get('locked', False):
             # If the request locks the database, we need to save the version
             updated = save_blastdb(updated, perform_lock=True)
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -998,7 +993,8 @@ class BlastDbExport(generics.GenericAPIView):
     '''
     serializer_class = BlastDbExportSerializer
     renderer_classes = [JSONRenderer, BrowsableAPIRenderer, BlastDbCSVRenderer, BlastDbTSVRenderer, BlastDbXMLRenderer, BlastDbFastaRenderer, BlastDbCompatibleRenderer]
-    
+    queryset = BlastDb.objects.all()
+
     def get_renderer_context(self):
         context = super().get_renderer_context()
         context['export_format'] = self.request.GET.get('export_format', '')
@@ -1190,7 +1186,7 @@ class BlastRunRun(generics.CreateAPIView):
 
         # Bad request if create_hit_tree and create_db_tree are not boolean values
         try:
-            create_db_tree = request.data.pop('create_db_tree', False) 
+            create_db_tree = serializer.data.pop('create_db_tree', False) 
         except BaseException:
             return Response({'message': 'Could not parse parameters for create_db_tree'},
                 status=status.HTTP_400_BAD_REQUEST)
@@ -1365,6 +1361,10 @@ class BlastRunRun(generics.CreateAPIView):
 
         # create response 
         serializer = BlastRunSerializer(run_details)
+        print("REQUEST IN:")
+        print(request.data)
+        print("SERIALIZER OUT:")
+        print(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 class BlastRunDetail(mixins.DestroyModelMixin, generics.GenericAPIView):
@@ -1411,6 +1411,7 @@ class BlastRunInputDownload(generics.GenericAPIView):
     serializer_class = BlastRunSerializer
     permission_classes = (AllowAny,)
     renderer_classes = [BlastRunFastaRenderer]
+    queryset = BlastRun.objects.all()
     
     @swagger_auto_schema(
         operation_summary='Get query sequence fasta file.',
@@ -1532,20 +1533,20 @@ class BlastRunStatus(generics.RetrieveAPIView):
     serializer_class = BlastRunStatusSerializer
     permission_classes = (AllowAny,)
 
-    @swagger_auto_schema(
-        operation_summary='Get status of run',
-        operation_description='Returns a minimal set of information useful for polling/checking the status of run.\n\nHow to interpret status:\n"QUE" (Queued): The run is currently waiting in the queue for its turn to be processed.\n"STA" (Started): The run is currently being processed.\n"FIN" (Finished): The run successfully completed and complete results are now visible.\n"ERR" (Errored): The run encountered an unexpected error and terminated.\n"UNK" (Unknown): The status is unknown, likely because there was an unexpected database or server error. Please submit another run.\n"DEN" (Denied): The run submission was received by the server, but it was denied from being processed.',
-        tags = [tag_runs],
-        responses={
-            '200': openapi.Response(
-                description='Results retrieved successfully and a file attachment is returned.',
-                schema=BlastRunStatusSerializer(),
-                examples={
-                    'application/json': BlastRunStatusSerializer.Meta.example
-                }
-            ),
-            '404': 'Run data corresponding to the specified ID does not exist'
-        },
-    )
+    # @swagger_auto_schema(
+    #     operation_summary='Get status of run',
+    #     operation_description='Returns a minimal set of information useful for polling/checking the status of run.\n\nHow to interpret status:\n"QUE" (Queued): The run is currently waiting in the queue for its turn to be processed.\n"STA" (Started): The run is currently being processed.\n"FIN" (Finished): The run successfully completed and complete results are now visible.\n"ERR" (Errored): The run encountered an unexpected error and terminated.\n"UNK" (Unknown): The status is unknown, likely because there was an unexpected database or server error. Please submit another run.\n"DEN" (Denied): The run submission was received by the server, but it was denied from being processed.',
+    #     tags = [tag_runs],
+    #     responses={
+    #         '200': openapi.Response(
+    #             description='Results retrieved successfully and a file attachment is returned.',
+    #             schema=BlastRunStatusSerializer(),
+    #             examples={
+    #                 'application/json': BlastRunStatusSerializer.Meta.example
+    #             }
+    #         ),
+    #         '404': 'Run data corresponding to the specified ID does not exist'
+    #     },
+    # )
     def get(self, request, *args, **kwargs):
         return super().get(request, *args, **kwargs)

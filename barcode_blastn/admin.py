@@ -57,8 +57,8 @@ class SequenceFormset(BaseInlineFormSet):
             raise ValidationError(f'Some number of following the accession numbers and search terms do not match any record. Accessions: {", ".join(exc.missing_accessions)}. Terms: {exc.term}.')
         except ValueError:
             pass
-        except BaseException as exc:
-            raise ValidationError('Error validating accession numbers with GenBank.')
+        # except BaseException as exc:
+            # raise ValidationError('Error validating accession numbers with GenBank.')
         else:
             return None
 
@@ -381,7 +381,7 @@ class BlastDbAdmin(admin.ModelAdmin):
         if not change:
             create_blastdb(additional_accessions=accessions, base=base, database=obj, search_term=search_term, **blastdb_fields, library=obj.library)
         else:
-            if len(accessions) > 0 or not search_term is None:
+            if len(accessions) > 0 or not search_term is None or len(search_term) == 0:
                 add_sequences_to_database(obj, desired_numbers=accessions, search_term=search_term)
             else:
                 obj.save()

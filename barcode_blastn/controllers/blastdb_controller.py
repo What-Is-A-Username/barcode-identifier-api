@@ -3,7 +3,7 @@ import os
 import shutil
 from typing import Any, Dict, List, Optional, Set, Tuple
 from barcode_blastn.file_paths import get_data_fishdb_path, get_data_library_path, get_ncbi_folder
-from barcode_blastn.helper.parse_gb import AccessionLimitExceeded, GenBankConnectionError, InsufficientAccessionData, retrieve_gb, save_taxonomy
+from barcode_blastn.helper.parse_gb import GenBankConnectionError, InsufficientAccessionData, retrieve_gb, save_taxonomy
 from barcode_blastn.models import Annotation, BlastDb, Hit, Library, NuccoreSequence
 from barcode_blastn.serializers import NuccoreSequenceSerializer 
 from django.db.models import QuerySet
@@ -188,34 +188,35 @@ def create_blastdb(additional_accessions: List[str], base: Optional[BlastDb] = N
 
     # ensure all accessions are unique
     accessions_to_add = list(set(accessions_to_add))
-    
-    new_sequences = add_sequences_to_database(new_database, desired_numbers=accessions_to_add, search_term=search_term)
-    if not seqs is None:
-        # Carry over the annotations from the old database
-        annotations_to_save = []
-        sequence: NuccoreSequence
-        for sequence in new_sequences:
-            try:
-                existing: NuccoreSequence = seqs.get(version=sequence.version)
-            except NuccoreSequence.DoesNotExist:
-                # Skip annotations if the sequence was not from base database
-                pass
-            else:
-                # Get all annotations from the old sequence entry
-                old_annotations = existing.annotations.all()
-                old: Annotation
-                # Clone all old annotations
-                for old in old_annotations:
-                    annotations_to_save.append(
-                        Annotation(
-                            sequence=sequence,
-                            poster=old.poster,
-                            annotation_type=old.annotation_type,
-                            comment=old.comment
+    # add sequences if there are accessions to add
+    if len(accessions_to_add) > 0: 
+        new_sequences = add_sequences_to_database(new_database, desired_numbers=accessions_to_add, search_term=search_term)
+        if not seqs is None:
+            # Carry over the annotations from the old database
+            annotations_to_save = []
+            sequence: NuccoreSequence
+            for sequence in new_sequences:
+                try:
+                    existing: NuccoreSequence = seqs.get(version=sequence.version)
+                except NuccoreSequence.DoesNotExist:
+                    # Skip annotations if the sequence was not from base database
+                    pass
+                else:
+                    # Get all annotations from the old sequence entry
+                    old_annotations = existing.annotations.all()
+                    old: Annotation
+                    # Clone all old annotations
+                    for old in old_annotations:
+                        annotations_to_save.append(
+                            Annotation(
+                                sequence=sequence,
+                                poster=old.poster,
+                                annotation_type=old.annotation_type,
+                                comment=old.comment
+                            )
                         )
-                    )
-        # Bulk save all annotations
-        Annotation.objects.bulk_create(annotations_to_save)
+            # Bulk save all annotations
+            Annotation.objects.bulk_create(annotations_to_save)
 
     # If the database is to be locked, lock it. Else just return
     if locked:
@@ -355,30 +356,31 @@ def delete_sequences_in_database(database: BlastDb, desired_nums: List[str]) -> 
 
 def update_sequences_in_database(database: BlastDb, desired_numbers: List[str]) -> List[NuccoreSequence]:
     ''''
-    Bulk update the given accession numbers in the database and return the resulting list of NuccoreSequences. If a number doesn't exists, then an AccessionsNotFound Error is raised.
+    Bulk update the given accession numbers (`desired_numbers`) in the database and return the resulting list of NuccoreSequences. 
+    If `desired_numbers` empty, update all accessions in the database.
 
     Returns a tuple of two lists. The first list contains the saved NuccoreSequence objects, as returned by `.bulk_create()`. The second list contains the updated objects, as returned by `.bulk_update()`.
 
     Raises:
         DatabaseLocked: If database is locked for editing.
-        ValueError: If no accession numbers are specified
-        AccessionsNotFound: If a given accession number is not present in the database.
+        AccessionsNotFound: If a given accession number in `desired_numbers` is not present in the database.
         AccessionLimitExceeded: If the number of accessions to update exceeds the maximum allowed
         GenbankConnectionError: Could not connect to GenBank or the request sent was bad
         InsufficientAccessionData: If all accession numbers could not be identified by GenBank 
     '''
     if database.locked:
         raise DatabaseLocked()
-    if len(desired_numbers) == 0:
-        raise ValueError('No accessions given')
     desired_numbers = list(set(desired_numbers))
     # Check what accession numbers are duplicate (i.e. already existing in the datab)
-    existing: QuerySet[NuccoreSequence] = NuccoreSequence.objects.filter(owner_database=database, accession_number__in=desired_numbers) # type: ignore        
-    # raise error if not all numbers exist
-    if existing.count() < len(desired_numbers):
-        e: NuccoreSequence
-        existing_nums: List[str] = [e.accession_number for e in existing]
-        raise AccessionsNotFound([d for d in desired_numbers if d not in existing_nums])
+    if len(desired_numbers) > 0:
+        existing: QuerySet[NuccoreSequence] = NuccoreSequence.objects.filter(owner_database=database, accession_number__in=desired_numbers) # type: ignore        
+        # raise error if not all numbers exist
+        if existing.count() < len(desired_numbers):
+            e: NuccoreSequence
+            existing_nums: List[str] = [e.accession_number for e in existing]
+            raise AccessionsNotFound([d for d in desired_numbers if d not in existing_nums])
+    else:
+        existing: QuerySet[NuccoreSequence] = NuccoreSequence.objects.filter(owner_database=database) # type: ignore        
 
     # retrieve data
     genbank_data = retrieve_gb(accession_numbers=desired_numbers)

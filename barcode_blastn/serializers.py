@@ -1,10 +1,10 @@
-from datetime import datetime
 import json
 import os
 from typing import Union
 from django.contrib.auth.models import User
 from rest_framework import serializers
 from barcode_blastn.models import Annotation, BlastQuerySequence, BlastRun, DatabaseShare, Hit, Library, NuccoreSequence, BlastDb, TaxonomyNode
+from barcode_blastn.tests import LibraryListTest
 from barcode_blastn.validators import QueryFileValidator
 
 library_title = 'Reference Library'
@@ -83,7 +83,7 @@ class BlastDbTinySerializer(serializers.ModelSerializer):
             "library": LibraryShortSerializer.Meta.example,
             "version_number": "1.1.1",
             "sequence_count": 2,
-            "created": datetime.now(),
+            "created": '2023-05-25T08:10:42.020Z',
             "locked": True
         }
 
@@ -218,6 +218,7 @@ class LibraryCreateSerializer(serializers.ModelSerializer):
             self.fields[name].required = True
         self.fields['id'].read_only = True
         self.fields['public'].required = False
+        self.fields['custom_name'].example = 'the'
 
     '''
     Create a new blastdb
@@ -226,12 +227,7 @@ class LibraryCreateSerializer(serializers.ModelSerializer):
         model = Library
         ref_name = library_title + ' creation'
         fields = ['id', 'custom_name', 'description', 'public']
-        example = {
-            "id": "66855f2c-f360-4ad9-8c98-998ecb815ff5",
-            "custom_name": "Newly Sequenced Species Reference Library",
-            "description": "A collection of new sequences from several species of interest.",
-            "public": True
-        }
+        # example = LibraryListTest.post_libraries_201_response
 
 class BlastDbSequenceEntrySerializer(serializers.ModelSerializer):
     f'''
@@ -280,7 +276,7 @@ class BlastDbCreateSerializer(serializers.ModelSerializer):
     f"""Information required when creating a {blast_db_title}"""
 
     accession_numbers = serializers.ListField(child=serializers.CharField(), required=False)
-    base = serializers.UUIDField()
+    base = serializers.UUIDField(required=False)
     library = LibraryShortSerializer(many=False, read_only=True, required=False)
     sequences = BlastDbSequenceEntrySerializer(many=True, read_only=True)
 
@@ -373,7 +369,7 @@ class LibrarySerializer(serializers.ModelSerializer):
     Show detailed information about a specific {library_title}
     '''
     owner = LibraryOwnerSerializer(many=False, read_only=True)
-    latest = BlastDbTinySerializer(many=False)
+    latest = BlastDbTinySerializer(many=False, read_only=True)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -387,14 +383,6 @@ class LibrarySerializer(serializers.ModelSerializer):
         model = Library
         ref_name = library_title
         fields = ['id', 'custom_name', 'description', 'owner', 'public', 'latest']
-        example = {
-            "id": "66855f2c-f360-4ad9-8c98-998ecb815ff5",
-            "custom_name": "Neotropical electric knifefish",
-            "description": "This BLAST database is a collection of barcodes from 167 species of Neotropical electric knifefish (Teleostei: Gymnotiformes) which was presented by Janzen et al. 2022. All sequences and related feature data are updated daily at midnight (UTC) from NCBI's Genbank database.",
-            "owner": LibraryOwnerSerializer.Meta.example,
-            "latest": BlastDbTinySerializer.Meta.example,
-            "public": True,
-        }
 
 class LibraryEditSerializer(serializers.ModelSerializer):
     f'''
@@ -430,7 +418,6 @@ class LibraryListSerializer(serializers.ModelSerializer):
         model = Library
         ref_name = library_title 
         fields = ['id', 'custom_name', 'description', 'owner', 'public']
-        example = [ LibrarySerializer.Meta.example ]
 
 class BlastDbListSerializer(serializers.ModelSerializer):
     '''
@@ -664,11 +651,6 @@ class NuccoreAnnotationSerializer(serializers.ModelSerializer):
         model = NuccoreSequence
         ref_name = nuccore_title + ' entry'
         fields = ['version', 'organism']
-
-class RecursiveField(serializers.Serializer):
-    def to_representation(self, value):
-        serializer = self.parent.parent.__class__(value, context=self.context)
-        return serializer.data
 
 class AnnotationPoster(serializers.ModelSerializer):
     '''

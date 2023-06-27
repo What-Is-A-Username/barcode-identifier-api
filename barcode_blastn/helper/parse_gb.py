@@ -226,34 +226,35 @@ def retrieve_gb(accession_numbers: List[str], term: Optional[str] = None, raise_
     Entrez.tool = "barrel"
 
     # aggregate all data across all batches in a list
-    all_data: List[Dict[str, Any]]= []
-    term = term.strip()
-    if not term is None and len(term) > 0:
-        # Run a ESearch to identify how many records there are
-        try:
-            search_handle = Entrez.esearch(db='nucleotide', term=term, retmax=20, usehistory='y')
-            resp = Entrez.read(search_handle)
-            search_handle.close()
-        except BaseException:
-            print(f'{datetime.now()} | Error received from NCBI GenBank ESearch for term {term}')
-            raise GenBankConnectionError(queried_accessions=[], term=term)
-        else:
-            print(f'{datetime.now()} | Data successfully received NCBI GenBank ESearch for term {term}')
-        
-        count: int = int(resp['Count'])
-        webenv: str = resp['WebEnv']
-        query_key: str = resp['QueryKey']
-        # Limit the number of accessions that can be added in this operation
-        if count > MAX_ACCESSIONS:
-            raise AccessionLimitExceeded(curr_accessions=count, max_accessions=MAX_ACCESSIONS)
-        retmax = ACCESSIONS_PER_REQUEST # Max number of records per batch
-        retstart = 0 # Starting index of the current batch
-        # Retrieve the sequence records in batches, using the web environment and query keys from the ESearch
-        while count > 0:
-            all_data.extend(send_gb_request(raise_if_missing=False, webenv=webenv, retstart=retstart, retmax=retmax, query_key=query_key))
-            retstart = retstart + retmax
-            count = count - retmax
-            sleep(1)
+    all_data: List[Dict[str, Any]] = []
+    if not term is None:
+        term = term.strip()
+        if len(term) > 0:
+            # Run a ESearch to identify how many records there are
+            try:
+                search_handle = Entrez.esearch(db='nucleotide', term=term, retmax=20, usehistory='y')
+                resp = Entrez.read(search_handle)
+                search_handle.close()
+            except BaseException:
+                print(f'{datetime.now()} | Error received from NCBI GenBank ESearch for term {term}')
+                raise GenBankConnectionError(queried_accessions=[], term=term)
+            else:
+                print(f'{datetime.now()} | Data successfully received NCBI GenBank ESearch for term {term}')
+            
+            count: int = int(resp['Count'])
+            webenv: str = resp['WebEnv']
+            query_key: str = resp['QueryKey']
+            # Limit the number of accessions that can be added in this operation
+            if count > MAX_ACCESSIONS:
+                raise AccessionLimitExceeded(curr_accessions=count, max_accessions=MAX_ACCESSIONS)
+            retmax = ACCESSIONS_PER_REQUEST # Max number of records per batch
+            retstart = 0 # Starting index of the current batch
+            # Retrieve the sequence records in batches, using the web environment and query keys from the ESearch
+            while count > 0:
+                all_data.extend(send_gb_request(raise_if_missing=False, webenv=webenv, retstart=retstart, retmax=retmax, query_key=query_key))
+                retstart = retstart + retmax
+                count = count - retmax
+                sleep(1)
 
     # keep track of batch numbers
     batch_no = 1
@@ -299,15 +300,18 @@ def get_rank(ncbi_rank: str) -> str:
 
 @sleep_and_retry
 @limits(calls = 1, period = PERIOD)
-def save_taxonomy(genbank_info: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def save_taxonomy(taxonomy_info: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
         Retrieve taxonomic lineages from NCBI taxonomy and save taxonomic ranks into the database.
     """
 
     # Extract list of taxonomic ids from genbank data
-    taxids = [gb['taxid'] for gb in genbank_info]
+    taxids = [gb['taxid'] for gb in taxonomy_info]
     query_ids: List[str] = list(set(taxids))
     query_string: str = ','.join(query_ids)
+
+    if len(query_string) == 0:
+        return []
 
     print(f'{datetime.now()} | Fetching from NCBI Taxonomy for ids {query_string}')
     try:
@@ -330,13 +334,13 @@ def save_taxonomy(genbank_info: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
     taxids = {}
 
-    for i in range(len(genbank_info)):
-        entry = taxa_data.get(genbank_info[i]['taxid'], None)
+    for i in range(len(taxonomy_info)):
+        entry = taxa_data.get(taxonomy_info[i]['taxid'], None)
         if entry is None:
-            genbank_info[i]['taxid'] = -2
+            taxonomy_info[i]['taxid'] = -2
             continue
         else:
-            genbank_info[i]['taxid'] = int(genbank_info[i]['taxid'])
+            taxonomy_info[i]['taxid'] = int(taxonomy_info[i]['taxid'])
         lineage = entry['LineageEx']
         for level in lineage:
             id = level['TaxId']
@@ -378,14 +382,14 @@ def save_taxonomy(genbank_info: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 'rank': rank,
                 'scientific_name': level['ScientificName']
             })               
-            genbank_info[i][key] = object
+            taxonomy_info[i][key] = object
 
         # assign species based on outermost taxon
         object, created = TaxonomyNode.objects.get_or_create(id=entry['TaxId'], defaults={
                 'rank': TaxonomyNode.TaxonomyRank.SPECIES,
                 'scientific_name': entry['ScientificName']
             })
-        genbank_info[i]['taxon_species'] = object
+        taxonomy_info[i]['taxon_species'] = object
     
-    return genbank_info
+    return taxonomy_info
 
