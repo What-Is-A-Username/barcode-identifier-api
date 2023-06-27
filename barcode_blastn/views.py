@@ -1,17 +1,16 @@
 # TODO: Install Python 3.10.6 to match EC2
 
-from datetime import datetime
 import io
 import os
 import re
 import uuid
 from typing import Any, Dict, List
-from barcode_blastn.tests import LibraryListTest, SequenceTester
+from barcode_blastn.tests import LibraryListTest, SequenceTester, LibraryCreateTest
 
 from barcode_identifier_api.celery import app
 from Bio import SeqIO
 from celery import signature, chain
-from barcode_blastn.tasks import run_blast_command, performAlignment, classify_genetic_distance
+from barcode_blastn.tasks import run_blast_command
 from django.contrib.auth import login
 from django.contrib.auth.models import User
 from drf_yasg import openapi
@@ -532,7 +531,7 @@ class LibraryListView(mixins.ListModelMixin, generics.CreateAPIView):
                 description='Creation was successful.',
                 schema=LibraryCreateSerializer,
                 examples={
-                    'application/json': LibraryListTest.post_libraries_201_request
+                    'application/json': LibraryCreateTest.post_libraries_201_request
                 }
             ),
             '403': 'Insufficient permissions.',
@@ -721,7 +720,7 @@ class LibraryBlastDbList(mixins.ListModelMixin, generics.CreateAPIView):
         if not LibrarySharePermissions.has_view_permission(request.user, library):
             return Response(status=status.HTTP_403_FORBIDDEN) 
 
-        queryset = BlastDb.objects.viewable(request.user).filter(library=library_pk).reverse()
+        queryset = BlastDb.objects.runnable(request.user).filter(library=library_pk).reverse()
 
         page = self.paginate_queryset(queryset)
         if page is not None:

@@ -62,6 +62,31 @@ class AuthTestCase(TestCase):
         super().tearDown()
         self.client.logout()
 
+class LibraryCreateTest(AuthTestCase):
+
+    post_libraries_201_request = {
+        'custom_name': 'Newly Sequenced Species Reference Library',
+        'description': 'A collection of new sequences from several species of interest.',
+        'public': True,
+        'marker_gene': 'CO1'
+    }
+
+    post_libraries_201_response = {
+            "id": "66855f2c-f360-4ad9-8c98-998ecb815ff5",
+            "owner": AuthTestCase.owner_serializer,
+            "custom_name": "Newly Sequenced Species Reference Library",
+            "marker_gene": "CO1",
+            "description": "A collection of new sequences from several species of interest.",
+            "public": True,
+            "latest": None
+        }
+
+    def test_post_libraries(self):
+        response = self.client.post('/libraries/', self.post_libraries_201_request, content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqualIgnoreId(json.loads(response.content), self.post_libraries_201_response)
+        self.assertEqual(Library.objects.count(), 3)
+
 class LibraryListTest(AuthTestCase):
     '''
     Setup: Two libraries A and B. A has two databases.
@@ -71,13 +96,15 @@ class LibraryListTest(AuthTestCase):
     dummy_library_1 = {
         'custom_name': 'Library of South American Fishes',
         'description': 'A collection of voucher specimens from the literature.',
-        'public': True
+        'public': True,
+        'marker_gene': 'CO1'
     }
 
     dummy_library_2 = {
         'custom_name': 'Library of European Fishes',
         'description': 'A collection of European voucher specimens from the literature.',
-        'public': True
+        'public': True,
+        'marker_gene': 'CO1'
     }
 
     dummy_db_1 = {
@@ -114,6 +141,7 @@ class LibraryListTest(AuthTestCase):
         time.sleep(1)
         db_1 = self.client.post(f'/libraries/{self.library_id}/versions/', self.dummy_db_1, content_type='application/json')
         self.assertEqual(BlastDb.objects.all().count(), 1)
+        time.sleep(1)
         db_2 = self.client.post(f'/libraries/{self.library_id}/versions/', self.dummy_db_2, content_type='application/json')
         self.assertEqual(BlastDb.objects.all().count(), 2)
         time.sleep(1)
@@ -127,27 +155,6 @@ class LibraryListTest(AuthTestCase):
         self.db_id = self.db['id']
         self.db_3 = json.loads(db_3.content)
 
-    post_libraries_201_request = {
-        'custom_name': 'Newly Sequenced Species Reference Library',
-        'description': 'A collection of new sequences from several species of interest.',
-        'public': True
-    }
-
-    post_libraries_201_response = {
-            "id": "66855f2c-f360-4ad9-8c98-998ecb815ff5",
-            "owner": AuthTestCase.owner_serializer,
-            "custom_name": "Newly Sequenced Species Reference Library",
-            "description": "A collection of new sequences from several species of interest.",
-            "public": True,
-            "latest": None
-        }
-
-    def test_post_libraries(self):
-        response = self.client.post('/libraries/', self.post_libraries_201_request, content_type='application/json')
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqualIgnoreId(json.loads(response.content), self.post_libraries_201_response)
-        self.assertEqual(Library.objects.count(), 3)
-
     get_libraries_200_response = [
         {
             "owner": AuthTestCase.owner_serializer,
@@ -155,7 +162,8 @@ class LibraryListTest(AuthTestCase):
             'custom_name': 'Library of European Fishes',
             'description': 'A collection of European voucher specimens from the literature.',
             'public': True,
-            "latest": None
+            "latest": None,
+            "marker_gene": "CO1"
         },
         {
             "owner": AuthTestCase.owner_serializer,
@@ -166,12 +174,14 @@ class LibraryListTest(AuthTestCase):
             "latest": {
                 "id": "d83fc783-0a61-4b2f-94a8-d04d094e2a6c",
                 "description": "Sequences gathered as of February 2022",
-                "version_number": "2.1.1",
+                "version_number": "2.0.0",
                 "custom_name": "February Release",
                 "sequence_count": 2,
                 "created": "2023-06-26T20:04:43.113904Z",
-                "locked": True
-            }
+                "modified": "2023-06-27T20:04:43.113904Z",
+                "locked": True,
+            },
+            "marker_gene": "CO1"
         },
     ]
 
@@ -195,16 +205,30 @@ class LibraryListTest(AuthTestCase):
     patch_libraries_id_204_request = {
         "custom_name": "Updated title for library of South American Fishes",
         "description": "Updated description describing the library.",
-        "public": False
+        "public": False,
+        "marker_gene": "CO1"
     }
 
     patch_libraries_id_204_response = {
+        "id": "22fe11c0-1626-45fb-af20-79be7ca943e6",
         "custom_name": "Updated title for library of South American Fishes",
         "description": "Updated description describing the library.",
-        "public": False
+        "owner": {"username": "John Doe", "email": "johndoe@email.com"},
+        "marker_gene": "CO1",
+        "public": False,
+        "latest": {
+            "id": "11ec8889-9454-48b3-ae8c-0a369862aca3",
+            "description": "Sequences gathered as of February 2022",
+            "version_number": "2.0.0",
+            "custom_name": "February Release",
+            "sequence_count": 2,
+            "created": "2023-06-27T18:31:27.945234Z",
+            "modified": "2023-06-27T18:31:30.953519Z",
+            "locked": True,
+        },
     }
 
-    def test_patch_libraries_id(self):
+    def test_patch_delete_libraries_id(self):
         response = self.client.patch(f'/libraries/{self.library_id}', self.patch_libraries_id_204_request, content_type='application/json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         response = self.client.get(f'/libraries/{self.library_id}', content_type='application/json')
@@ -212,7 +236,6 @@ class LibraryListTest(AuthTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqualIgnoreId(data, self.patch_libraries_id_204_response)
 
-    def test_delete_libraries_id(self):
         response = self.client.delete(f'/libraries/{self.library_id}', content_type='application/json')
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
@@ -225,27 +248,23 @@ class LibraryListTest(AuthTestCase):
     get_libraries_id_versions_200_response = [
         {
             "id": "d83fc783-0a61-4b2f-94a8-d04d094e2a6c",
-            "version_number": "2.1.1",
+            "version_number": "2.0.0",
             "custom_name": "February Release",
             "sequence_count": 2,
             "description": "Sequences gathered as of February 2022",
-            "locked": True
+            "locked": True,
+            "created": "2023-06-26T14:04:43.879214Z",
+            "modified": "2023-06-27T14:08:20.879214Z",
         },
         {
             "id": "5f377bd9-6a98-4071-ab13-3197077815db",
-            "version_number": "1.1.1",
+            "version_number": "1.0.0",
             "custom_name": "January Release",
             "sequence_count": 1,
             "description": "Sequences gathered as of January 2022",
-            "locked": True
-        },
-        {
-            "id": "71f5d9f3-6df2-4b49-bad7-1a388e928e95",
-            "version_number": "0.0.0",
-            "custom_name": "March Release",
-            "sequence_count": 3,
-            "description": "Sequences gathered as of March 2022",
-            "locked": False
+            "locked": True,
+            "created": "2023-06-26T14:04:43.879214Z",
+            "modified": "2023-06-27T14:08:20.879214Z",
         }
     ]
 
@@ -254,7 +273,7 @@ class LibraryListTest(AuthTestCase):
         response = self.client.get(f'/libraries/{self.library_id}/versions/', content_type='application/json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         data = json.loads(response.content)
-        self.assertEqual(len(data), 3)
+        self.assertEqual(len(data), 2)
         self.assertEqualIgnoreId(data, self.get_libraries_id_versions_200_response)
 
     get_blastdbs_id_200_response = {
@@ -264,112 +283,113 @@ class LibraryListTest(AuthTestCase):
             "custom_name": "Library of South American Fishes",
             "description": "A collection of voucher specimens from the literature.",
             "public": True,
-            "owner": AuthTestCase.owner_serializer
+            "owner": AuthTestCase.owner_serializer,
+            "marker_gene": "CO1"
         },
         "custom_name": "February Release",
-        "version_number": "2.1.1",
+        "version_number": "2.0.0",
         "description": "Sequences gathered as of February 2022",
         "locked": True,
         "sequences": [
             {
-            "id": "232e3b26-f347-4b09-88aa-2dcb52080d80",
-            "accession_number": "ON303390",
-            "version": "ON303390.1",
-            "organism": "Gymnotus cylindricus",
-            "organelle": "mitochondrion",
-            "isolate": "2094",
-            "country": "Costa Rica",
-            "specimen_voucher": "ROM:84772",
-            "dna_sequence": "ATAGTATTTGGTGCCTGAGCCGGAATAGTTGGCACAGCTTTAAGCCTCCTTATCCGAGCAGAACTAAGTCAACCCGGAGCCCTCCTCGGGGACGACCAAATTTATAATGTAATTGTTACTGCCCACGCTTTCGTAATAATTTTTTTTATAGTAATACCCATTATAATTGGAGGCTTCGGAAATTGATTAACTCCACTAATAATTGGAGCCCCAGACATAGCATTTCCCCGAATAAATAATATAAGCTTTTGACTCCTTCCTCCTTCTTTTTTACTTCTCCTTGCATCATCCGGAGTTGAAGCAGGGGCCGGAACAGGCTGAACAGTATACCCCCCTCTTGCAGGCAATCTTGCCCATGCAGGAGCCTCAGTAGATCTAACTATTTTCTCTCTTCATCTAGCCGGAGTTTCTTCAATTCTAGGATCCATTAACTTTATTACCACAATTATTAATATAAAACCTCCAGCCATTTCTCAATATCAAACCCCACTATTTATTTGATCACTTCTAGTAACCACTGTCCTTTTACTCCTCTCTCTTCCAGTACTAGCTGCTGGTATCACCATACTACTAACAGATCGAAACTTAAACACAACATTCTTTGACCCGGCGGGCGGAGGAGATCCTATTTTATATCAACATTTA",
-            "lat_lon": "10.54 N 83.50 W",
-            "type_material": "",
-            "created": "2023-06-26T20:04:45.016196Z",
-            "updated": "2023-06-26T20:04:45.016200Z",
-            "genbank_modification_date": "2022-07-04",
-            "taxonomy": "Eukaryota,Metazoa,Chordata,Craniata,Vertebrata,Euteleostomi,Actinopterygii,Neopterygii,Teleostei,Ostariophysi,Gymnotiformes,Gymnotoidei,Gymnotidae,Gymnotus",
-            "taxon_superkingdom": {
-                "id": 2759,
-                "scientific_name": "Eukaryota"
-            },
-            "taxon_kingdom": {
-                "id": 33208,
-                "scientific_name": "Metazoa"
-            },
-            "taxon_phylum": {
-                "id": 7711,
-                "scientific_name": "Chordata"
-            },
-            "taxon_class": {
-                "id": 186623,
-                "scientific_name": "Actinopteri"
-            },
-            "taxon_order": {
-                "id": 8002,
-                "scientific_name": "Gymnotiformes"
-            },
-            "taxon_family": {
-                "id": 30771,
-                "scientific_name": "Gymnotidae"
-            },
-            "taxon_genus": {
-                "id": 36670,
-                "scientific_name": "Gymnotus"
-            },
-            "taxon_species": {
-                "id": 699532,
-                "scientific_name": "Gymnotus cylindricus"
-            },
-            "annotations": []
+                "id": "232e3b26-f347-4b09-88aa-2dcb52080d80",
+                "accession_number": "ON303390",
+                "version": "ON303390.1",
+                "organism": "Gymnotus cylindricus",
+                "organelle": "mitochondrion",
+                "isolate": "2094",
+                "country": "Costa Rica",
+                "specimen_voucher": "ROM:84772",
+                "dna_sequence": "ATAGTATTTGGTGCCTGAGCCGGAATAGTTGGCACAGCTTTAAGCCTCCTTATCCGAGCAGAACTAAGTCAACCCGGAGCCCTCCTCGGGGACGACCAAATTTATAATGTAATTGTTACTGCCCACGCTTTCGTAATAATTTTTTTTATAGTAATACCCATTATAATTGGAGGCTTCGGAAATTGATTAACTCCACTAATAATTGGAGCCCCAGACATAGCATTTCCCCGAATAAATAATATAAGCTTTTGACTCCTTCCTCCTTCTTTTTTACTTCTCCTTGCATCATCCGGAGTTGAAGCAGGGGCCGGAACAGGCTGAACAGTATACCCCCCTCTTGCAGGCAATCTTGCCCATGCAGGAGCCTCAGTAGATCTAACTATTTTCTCTCTTCATCTAGCCGGAGTTTCTTCAATTCTAGGATCCATTAACTTTATTACCACAATTATTAATATAAAACCTCCAGCCATTTCTCAATATCAAACCCCACTATTTATTTGATCACTTCTAGTAACCACTGTCCTTTTACTCCTCTCTCTTCCAGTACTAGCTGCTGGTATCACCATACTACTAACAGATCGAAACTTAAACACAACATTCTTTGACCCGGCGGGCGGAGGAGATCCTATTTTATATCAACATTTA",
+                "lat_lon": "10.54 N 83.50 W",
+                "type_material": "",
+                "created": "2023-06-26T20:04:45.016196Z",
+                "updated": "2023-06-26T20:04:45.016200Z",
+                "genbank_modification_date": "2022-07-04",
+                "taxonomy": "Eukaryota,Metazoa,Chordata,Craniata,Vertebrata,Euteleostomi,Actinopterygii,Neopterygii,Teleostei,Ostariophysi,Gymnotiformes,Gymnotoidei,Gymnotidae,Gymnotus",
+                "taxon_superkingdom": {
+                    "id": 2759,
+                    "scientific_name": "Eukaryota"
+                },
+                "taxon_kingdom": {
+                    "id": 33208,
+                    "scientific_name": "Metazoa"
+                },
+                "taxon_phylum": {
+                    "id": 7711,
+                    "scientific_name": "Chordata"
+                },
+                "taxon_class": {
+                    "id": 186623,
+                    "scientific_name": "Actinopteri"
+                },
+                "taxon_order": {
+                    "id": 8002,
+                    "scientific_name": "Gymnotiformes"
+                },
+                "taxon_family": {
+                    "id": 30771,
+                    "scientific_name": "Gymnotidae"
+                },
+                "taxon_genus": {
+                    "id": 36670,
+                    "scientific_name": "Gymnotus"
+                },
+                "taxon_species": {
+                    "id": 699532,
+                    "scientific_name": "Gymnotus cylindricus"
+                },
+                "annotations": []
             },
             {
-            "id": "221e2c35-52f8-43bf-a21f-30c15ccf36c3",
-            "accession_number": "ON303391",
-            "version": "ON303391.1",
-            "organism": "Gymnotus esmeraldas",
-            "organelle": "mitochondrion",
-            "isolate": "10865",
-            "country": "Ecuador",
-            "specimen_voucher": "ZOO.A.V.Pe0310",
-            "dna_sequence": "ATAGTATTTGGTGCCTGAGCTGGAATAGTTGGCACAGCCTTGAGCCTACTGATCCGAGCAGAACTAAGCCAACCCGGAACCCTCCTAGGCGATGACCAAATTTATAATGTAATCGTTACTGCCCACGCCTTCGTAATGATTTTCTTTATAGTTATACCTATTATGATTGGAGGCTTCGGGAACTGATTAATTCCACTAATAATTGGGGCCCCAGACATAGCATTCCCCCGAATAAATAATATAAGCTTTTGACTTCTCCCCCCTTCTTTTTTACTTCTCCTTGCTTCATCCGGAGTCGAGGCCGGAGCCGGAACAGGCTGAACCGTATATCCGCCTCTTGCAAGCAATCTTGCTCACGCAGGAGCTTCAGTAGATTTGGCTATTTTTTCACTACACCTCGCCGGAATCTCCTCAATCCTCGGGTCTATTAACTTTATTACCACAATTATTAACATAAAACCCCCAGCCATTACCCAATACCAAACCCCCCTATTTATCTGAGCACTTCTAGTGACTACCGTCCTCCTACTCCTCTCTCTTCCGGTACTGGCTGCCGGCATTACTATGCTATTAACAGACCGAAACCTAAACACAACTTTCTTTGACCCTGCAGGCGGGGGAGACCCTATCTTATACCAACACTTA",
-            "lat_lon": "3.06 S 79.74 W",
-            "type_material": "",
-            "created": "2023-06-26T20:04:45.016134Z",
-            "updated": "2023-06-26T20:04:45.016146Z",
-            "genbank_modification_date": "2022-07-04",
-            "taxonomy": "Eukaryota,Metazoa,Chordata,Craniata,Vertebrata,Euteleostomi,Actinopterygii,Neopterygii,Teleostei,Ostariophysi,Gymnotiformes,Gymnotoidei,Gymnotidae,Gymnotus",
-            "taxon_superkingdom": {
-                "id": 2759,
-                "scientific_name": "Eukaryota"
-            },
-            "taxon_kingdom": {
-                "id": 33208,
-                "scientific_name": "Metazoa"
-            },
-            "taxon_phylum": {
-                "id": 7711,
-                "scientific_name": "Chordata"
-            },
-            "taxon_class": {
-                "id": 186623,
-                "scientific_name": "Actinopteri"
-            },
-            "taxon_order": {
-                "id": 8002,
-                "scientific_name": "Gymnotiformes"
-            },
-            "taxon_family": {
-                "id": 30771,
-                "scientific_name": "Gymnotidae"
-            },
-            "taxon_genus": {
-                "id": 36670,
-                "scientific_name": "Gymnotus"
-            },
-            "taxon_species": {
-                "id": 2594964,
-                "scientific_name": "Gymnotus esmeraldas"
-            },
-            "annotations": []
+                "id": "221e2c35-52f8-43bf-a21f-30c15ccf36c3",
+                "accession_number": "ON303391",
+                "version": "ON303391.1",
+                "organism": "Gymnotus esmeraldas",
+                "organelle": "mitochondrion",
+                "isolate": "10865",
+                "country": "Ecuador",
+                "specimen_voucher": "ZOO.A.V.Pe0310",
+                "dna_sequence": "ATAGTATTTGGTGCCTGAGCTGGAATAGTTGGCACAGCCTTGAGCCTACTGATCCGAGCAGAACTAAGCCAACCCGGAACCCTCCTAGGCGATGACCAAATTTATAATGTAATCGTTACTGCCCACGCCTTCGTAATGATTTTCTTTATAGTTATACCTATTATGATTGGAGGCTTCGGGAACTGATTAATTCCACTAATAATTGGGGCCCCAGACATAGCATTCCCCCGAATAAATAATATAAGCTTTTGACTTCTCCCCCCTTCTTTTTTACTTCTCCTTGCTTCATCCGGAGTCGAGGCCGGAGCCGGAACAGGCTGAACCGTATATCCGCCTCTTGCAAGCAATCTTGCTCACGCAGGAGCTTCAGTAGATTTGGCTATTTTTTCACTACACCTCGCCGGAATCTCCTCAATCCTCGGGTCTATTAACTTTATTACCACAATTATTAACATAAAACCCCCAGCCATTACCCAATACCAAACCCCCCTATTTATCTGAGCACTTCTAGTGACTACCGTCCTCCTACTCCTCTCTCTTCCGGTACTGGCTGCCGGCATTACTATGCTATTAACAGACCGAAACCTAAACACAACTTTCTTTGACCCTGCAGGCGGGGGAGACCCTATCTTATACCAACACTTA",
+                "lat_lon": "3.06 S 79.74 W",
+                "type_material": "",
+                "created": "2023-06-26T20:04:45.016134Z",
+                "updated": "2023-06-26T20:04:45.016146Z",
+                "genbank_modification_date": "2022-07-04",
+                "taxonomy": "Eukaryota,Metazoa,Chordata,Craniata,Vertebrata,Euteleostomi,Actinopterygii,Neopterygii,Teleostei,Ostariophysi,Gymnotiformes,Gymnotoidei,Gymnotidae,Gymnotus",
+                "taxon_superkingdom": {
+                    "id": 2759,
+                    "scientific_name": "Eukaryota"
+                },
+                "taxon_kingdom": {
+                    "id": 33208,
+                    "scientific_name": "Metazoa"
+                },
+                "taxon_phylum": {
+                    "id": 7711,
+                    "scientific_name": "Chordata"
+                },
+                "taxon_class": {
+                    "id": 186623,
+                    "scientific_name": "Actinopteri"
+                },
+                "taxon_order": {
+                    "id": 8002,
+                    "scientific_name": "Gymnotiformes"
+                },
+                "taxon_family": {
+                    "id": 30771,
+                    "scientific_name": "Gymnotidae"
+                },
+                "taxon_genus": {
+                    "id": 36670,
+                    "scientific_name": "Gymnotus"
+                },
+                "taxon_species": {
+                    "id": 2594964,
+                    "scientific_name": "Gymnotus esmeraldas"
+                },
+                "annotations": []
             }
         ]
     }
@@ -387,13 +407,106 @@ class LibraryListTest(AuthTestCase):
     }
 
     patch_blastdbs_id_204_response = {
+        "id": "d83fc783-0a61-4b2f-94a8-d04d094e2a6c",
+        "library": {
+            "id": "ff5da812-1c0e-4682-9423-f08dbbc8bc5f",
+            "custom_name": "Library of South American Fishes",
+            "description": "A collection of voucher specimens from the literature.",
+            "public": True,
+            "marker_gene": "CO1",
+            "owner": {"username": "John Doe", "email": "johndoe@email.com"},
+        },
         "custom_name": "New Updated Title",
+        "version_number": "0.0.0",
         "description": "This is a new description replacing the old one.",
-        "locked": False
+        "locked": False,
+        "sequences": [
+            {
+                "id": "a07067af-aba6-423b-86fb-e3416a38d2ad",
+                "accession_number": "ON303390",
+                "version": "ON303390.1",
+                "organism": "Gymnotus cylindricus",
+                "organelle": "mitochondrion",
+                "isolate": "2094",
+                "country": "Costa Rica",
+                "specimen_voucher": "ROM:84772",
+                "dna_sequence": "ATAGTATTTGGTGCCTGAGCCGGAATAGTTGGCACAGCTTTAAGCCTCCTTATCCGAGCAGAACTAAGTCAACCCGGAGCCCTCCTCGGGGACGACCAAATTTATAATGTAATTGTTACTGCCCACGCTTTCGTAATAATTTTTTTTATAGTAATACCCATTATAATTGGAGGCTTCGGAAATTGATTAACTCCACTAATAATTGGAGCCCCAGACATAGCATTTCCCCGAATAAATAATATAAGCTTTTGACTCCTTCCTCCTTCTTTTTTACTTCTCCTTGCATCATCCGGAGTTGAAGCAGGGGCCGGAACAGGCTGAACAGTATACCCCCCTCTTGCAGGCAATCTTGCCCATGCAGGAGCCTCAGTAGATCTAACTATTTTCTCTCTTCATCTAGCCGGAGTTTCTTCAATTCTAGGATCCATTAACTTTATTACCACAATTATTAATATAAAACCTCCAGCCATTTCTCAATATCAAACCCCACTATTTATTTGATCACTTCTAGTAACCACTGTCCTTTTACTCCTCTCTCTTCCAGTACTAGCTGCTGGTATCACCATACTACTAACAGATCGAAACTTAAACACAACATTCTTTGACCCGGCGGGCGGAGGAGATCCTATTTTATATCAACATTTA",
+                "lat_lon": "10.54 N 83.50 W",
+                "type_material": "",
+                "created": "2023-06-27T18:53:15.574986Z",
+                "updated": "2023-06-27T18:53:15.574990Z",
+                "genbank_modification_date": "2022-07-04",
+                "taxonomy": "Eukaryota,Metazoa,Chordata,Craniata,Vertebrata,Euteleostomi,Actinopterygii,Neopterygii,Teleostei,Ostariophysi,Gymnotiformes,Gymnotoidei,Gymnotidae,Gymnotus",
+                "taxon_superkingdom": {"id": 2759, "scientific_name": "Eukaryota"},
+                "taxon_kingdom": {"id": 33208, "scientific_name": "Metazoa"},
+                "taxon_phylum": {"id": 7711, "scientific_name": "Chordata"},
+                "taxon_class": {"id": 186623, "scientific_name": "Actinopteri"},
+                "taxon_order": {"id": 8002, "scientific_name": "Gymnotiformes"},
+                "taxon_family": {"id": 30771, "scientific_name": "Gymnotidae"},
+                "taxon_genus": {"id": 36670, "scientific_name": "Gymnotus"},
+                "taxon_species": {"id": 699532, "scientific_name": "Gymnotus cylindricus"},
+                "annotations": [],
+            },
+            {
+                "id": "001968a4-ec4b-42ec-a227-b4ed6c3a057d",
+                "accession_number": "ON303391",
+                "version": "ON303391.1",
+                "organism": "Gymnotus esmeraldas",
+                "organelle": "mitochondrion",
+                "isolate": "10865",
+                "country": "Ecuador",
+                "specimen_voucher": "ZOO.A.V.Pe0310",
+                "dna_sequence": "ATAGTATTTGGTGCCTGAGCTGGAATAGTTGGCACAGCCTTGAGCCTACTGATCCGAGCAGAACTAAGCCAACCCGGAACCCTCCTAGGCGATGACCAAATTTATAATGTAATCGTTACTGCCCACGCCTTCGTAATGATTTTCTTTATAGTTATACCTATTATGATTGGAGGCTTCGGGAACTGATTAATTCCACTAATAATTGGGGCCCCAGACATAGCATTCCCCCGAATAAATAATATAAGCTTTTGACTTCTCCCCCCTTCTTTTTTACTTCTCCTTGCTTCATCCGGAGTCGAGGCCGGAGCCGGAACAGGCTGAACCGTATATCCGCCTCTTGCAAGCAATCTTGCTCACGCAGGAGCTTCAGTAGATTTGGCTATTTTTTCACTACACCTCGCCGGAATCTCCTCAATCCTCGGGTCTATTAACTTTATTACCACAATTATTAACATAAAACCCCCAGCCATTACCCAATACCAAACCCCCCTATTTATCTGAGCACTTCTAGTGACTACCGTCCTCCTACTCCTCTCTCTTCCGGTACTGGCTGCCGGCATTACTATGCTATTAACAGACCGAAACCTAAACACAACTTTCTTTGACCCTGCAGGCGGGGGAGACCCTATCTTATACCAACACTTA",
+                "lat_lon": "3.06 S 79.74 W",
+                "type_material": "",
+                "created": "2023-06-27T18:53:15.575045Z",
+                "updated": "2023-06-27T18:53:15.575050Z",
+                "genbank_modification_date": "2022-07-04",
+                "taxonomy": "Eukaryota,Metazoa,Chordata,Craniata,Vertebrata,Euteleostomi,Actinopterygii,Neopterygii,Teleostei,Ostariophysi,Gymnotiformes,Gymnotoidei,Gymnotidae,Gymnotus",
+                "taxon_superkingdom": {"id": 2759, "scientific_name": "Eukaryota"},
+                "taxon_kingdom": {"id": 33208, "scientific_name": "Metazoa"},
+                "taxon_phylum": {"id": 7711, "scientific_name": "Chordata"},
+                "taxon_class": {"id": 186623, "scientific_name": "Actinopteri"},
+                "taxon_order": {"id": 8002, "scientific_name": "Gymnotiformes"},
+                "taxon_family": {"id": 30771, "scientific_name": "Gymnotidae"},
+                "taxon_genus": {"id": 36670, "scientific_name": "Gymnotus"},
+                "taxon_species": {"id": 2594964, "scientific_name": "Gymnotus esmeraldas"},
+                "annotations": [],
+            },
+            {
+                "id": "066d0093-56a1-4022-a721-0c0101b93643",
+                "accession_number": "ON303392",
+                "version": "ON303392.1",
+                "organism": "Gymnotus henni",
+                "organelle": "mitochondrion",
+                "isolate": "8189",
+                "country": "Colombia",
+                "specimen_voucher": "IMCN:4521",
+                "dna_sequence": "ATAGTATTTGGTGCCTGAGCTGGGATAGTTGGCACAGCCCTGAGCCTGCTTATCCGAGCAGAACTAAGCCAACCCGGAGCCCTTCTCGGCGATGACCAAATTTATAATGTAATCGTTACTGCCCACGCCTTCGTAATGATTTTCTTTATAGTTATACCCATCATAATTGGAGGCTTCGGGAACTGATTAATTCCACTGATAATTGGAGCTCCAGATATAGCATTCCCCCGAATAAATAATATAAGCTTTTGGCTTCTCCCCCCTTCTTTTCTGCTTCTCCTTGCTTCATCCGGAGTAGAGGCTGGGGCTGGAACAGGCTGAACTGTCTATCCGCCTCTTGCAAGCAATCTTGCTCACGCAGGGGCTTCAGTAGATCTAGCCATTTTTTCCCTCCACCTCGCCGGAATCTCCTCAATCCTCGGGTCTATTAACTTTATCACCACAATTATTAACATAAAACCCCCAGCTATTTCCCAATACCAAACCCCCCTATTCATCTGGGCACTCCTAGTAACTACTGTCCTTCTGCTCCTCTCTCTTCCAGTGCTAGCTGCCGGTATTACCATATTATTAACAGACCGAAACCTAAACACAACTTTCTTTGACCCTGCAGGCGGAGGAGACCCTGTCTTATATCAACACCTG",
+                "lat_lon": "3.87 N 76.93 W",
+                "type_material": "",
+                "created": "2023-06-27T18:53:15.574917Z",
+                "updated": "2023-06-27T18:53:15.574929Z",
+                "genbank_modification_date": "2022-07-04",
+                "taxonomy": "Eukaryota,Metazoa,Chordata,Craniata,Vertebrata,Euteleostomi,Actinopterygii,Neopterygii,Teleostei,Ostariophysi,Gymnotiformes,Gymnotoidei,Gymnotidae,Gymnotus",
+                "taxon_superkingdom": {"id": 2759, "scientific_name": "Eukaryota"},
+                "taxon_kingdom": {"id": 33208, "scientific_name": "Metazoa"},
+                "taxon_phylum": {"id": 7711, "scientific_name": "Chordata"},
+                "taxon_class": {"id": 186623, "scientific_name": "Actinopteri"},
+                "taxon_order": {"id": 8002, "scientific_name": "Gymnotiformes"},
+                "taxon_family": {"id": 30771, "scientific_name": "Gymnotidae"},
+                "taxon_genus": {"id": 36670, "scientific_name": "Gymnotus"},
+                "taxon_species": {"id": 1401060, "scientific_name": "Gymnotus henni"},
+                "annotations": [],
+            },
+        ],
+        "created": "2023-06-27T18:53:14.688816Z",
+        "modified": "2023-06-27T18:53:15.610962Z",
     }
 
-    def test_patch_blastdbs_id(self):
-        '''Patch a BLAST database by ID'''
+
+    def test_patch_delete_blastdbs_id(self):
+        '''Patch and DELETE a BLAST database by ID'''
         response = self.client.patch(f'/blastdbs/{self.db_3["id"]}/', self.patch_blastdbs_id_204_request, content_type='application/json')
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         response = self.client.get(f'/blastdbs/{self.db_3["id"]}/', content_type='application/json')
@@ -401,8 +514,6 @@ class LibraryListTest(AuthTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqualIgnoreId(data, self.patch_blastdbs_id_204_response)
 
-    def test_delete_blastdbs_id(self):
-        '''Delete an existing blastdb'''
         response = self.client.delete(f'/blastdbs/{self.db_id}/', content_type='application/json')
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
@@ -427,12 +538,15 @@ class LibraryListTest(AuthTestCase):
             "custom_name": "Library of South American Fishes",
             "description": "A collection of voucher specimens from the literature.",
             "public": True,
-            "owner": AuthTestCase.owner_serializer
+            "owner": AuthTestCase.owner_serializer,
+            "marker_gene": "CO1"
         },
         "custom_name": "Interim March Release",
         "version_number": "0.0.0",
         "description": "February release augmented with two additional sequences.",
         "locked": False,
+        "created": "2023-06-26T20:04:43.113904Z",
+        "modified": "2023-06-27T20:04:43.113904Z",
         "sequences": [
             {
                 "id": "8a1e0ff9-2305-4069-83a0-a28337b759da",
@@ -655,7 +769,8 @@ class SequenceTester(AuthTestCase):
     dummy_library_1 = {
         'custom_name': 'Library of South American Fishes',
         'description': 'A collection of voucher specimens from the literature.',
-        'public': True
+        'public': True,
+        'marker_gene': 'CO1'
     }
 
     dummy_db_1 = {
@@ -704,7 +819,7 @@ class SequenceTester(AuthTestCase):
                 "owner": AuthTestCase.owner_serializer
             },
             "custom_name": "January Release",
-            "version_number": "2.1.1"
+            "version_number": "2.0.0"
         },
         "accession_number": "ON303390",
         "version": "ON303390.1",
@@ -899,7 +1014,8 @@ class RunTester(AuthTestCase):
     dummy_library_1 = {
         'custom_name': 'Library of South American Fishes',
         'description': 'A collection of voucher specimens from the literature.',
-        'public': True
+        'public': True,
+        'marker_gene': 'CO1'
     }
 
     dummy_db_1 = {
@@ -964,10 +1080,11 @@ class RunTester(AuthTestCase):
                 "custom_name": "Library of South American Fishes",
                 "description": "A collection of voucher specimens from the literature.",
                 "public": True,
-                "owner": AuthTestCase.owner_serializer
+                "owner": AuthTestCase.owner_serializer,
+                "marker_gene": "CO1"
             },
             "custom_name": "January Release",
-            "version_number": "1.1.1"
+            "version_number": "1.0.0"
         },
         "start_time": None,
         "status": "QUE",
@@ -1105,14 +1222,15 @@ class RunTester(AuthTestCase):
             "id": "4cd539fe-5046-4283-800f-ffd06b48d469",
             "description": "Sequences gathered as of January 2022",
             "library": {
-            "id": "14a53f56-486e-4005-913b-f73af4eb91a2",
-            "custom_name": "Library of South American Fishes",
-            "description": "A collection of voucher specimens from the literature.",
-            "public": True,
-            "owner": AuthTestCase.owner_serializer
+                "id": "14a53f56-486e-4005-913b-f73af4eb91a2",
+                "custom_name": "Library of South American Fishes",
+                "description": "A collection of voucher specimens from the literature.",
+                "public": True,
+                "owner": AuthTestCase.owner_serializer,
+                "marker_gene": "CO1"
             },
             "custom_name": "January Release",
-            "version_number": "1.1.1"
+            "version_number": "1.0.0"
         },
         "start_time": "2023-06-27T00:46:29.015260Z",
         "status": "FIN",

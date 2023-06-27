@@ -48,22 +48,20 @@ class LibraryShortSerializer(serializers.ModelSerializer):
 
     def __init__(self, instance=None, data=..., **kwargs):
         super().__init__(instance, data, **kwargs)
-        for name in self.Meta.fields:
-            self.fields[name].required = False
-            self.fields[name].read_only = False
-        for f in ['id', 'custom_name', 'description', 'public', 'owner']:
+        for f in ['id', 'custom_name', 'description', 'public', 'marker_gene', 'owner']:
             self.fields[f].read_only = True 
             self.fields[f].required = False
 
     class Meta:
         model = Library
         ref_name = blast_db_title + ' summary'
-        fields = ['id', 'custom_name', 'description', 'public', 'owner']
+        fields = ['id', 'custom_name', 'description', 'public', 'marker_gene', 'owner']
         example = {
             "id": "66855f2c-f360-4ad9-8c98-998ecb815ff5",
             "custom_name": "Neotropical electric knifefish",
             "description": "This BLAST database is a collection of barcodes from 167 species of Neotropical electric knifefish (Teleostei: Gymnotiformes) which was presented by Janzen et al. 2022. All sequences and related feature data are updated daily at midnight (UTC) from NCBI's Genbank database.",
             "public": True,
+            "marker_gene": "CO1",
             "owner": LibraryOwnerSerializer.Meta.example
         }
         tags = ['DBS']
@@ -74,7 +72,7 @@ class BlastDbTinySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = BlastDb
-        fields = ['id', 'description', 'version_number', 'custom_name', 'sequence_count', 'created', 'locked']
+        fields = ['id', 'description', 'version_number', 'custom_name', 'sequence_count', 'created', 'modified', 'locked']
         example = []
         example = {
             "id": "66855f2c-f360-4ad9-8c98-998ecb815ff5",
@@ -83,7 +81,8 @@ class BlastDbTinySerializer(serializers.ModelSerializer):
             "library": LibraryShortSerializer.Meta.example,
             "version_number": "1.1.1",
             "sequence_count": 2,
-            "created": '2023-05-25T08:10:42.020Z',
+            "created": '2023-05-27T08:10:42.020Z',
+            "modified": '2023-05-27T08:12:42.020Z',
             "locked": True
         }
 
@@ -214,11 +213,9 @@ class LibraryCreateSerializer(serializers.ModelSerializer):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        for name in [ "custom_name", "description", "id"]:
+        for name in [ "custom_name", "description", "id", "marker_gene", "public"]:
             self.fields[name].required = True
         self.fields['id'].read_only = True
-        self.fields['public'].required = False
-        self.fields['custom_name'].example = 'the'
 
     '''
     Create a new blastdb
@@ -226,8 +223,7 @@ class LibraryCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Library
         ref_name = library_title + ' creation'
-        fields = ['id', 'custom_name', 'description', 'public']
-        # example = LibraryListTest.post_libraries_201_response
+        fields = ['id', 'custom_name', 'description', 'public', 'marker_gene']
 
 class BlastDbSequenceEntrySerializer(serializers.ModelSerializer):
     f'''
@@ -282,7 +278,7 @@ class BlastDbCreateSerializer(serializers.ModelSerializer):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        for name in ['id', 'library', 'version_number', 'sequences']:
+        for name in ['id', 'library', 'version_number', 'sequences', 'created', 'modified']:
             self.fields[name].read_only = True
 
     '''
@@ -291,13 +287,15 @@ class BlastDbCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = BlastDb
         ref_name = blast_db_title + ' creation'
-        fields = ['id', 'library', 'version_number', 'custom_name', 'description', 'locked', 'sequences', 'base', 'accession_numbers']
+        fields = ['id', 'library', 'version_number', 'custom_name', 'description', 'locked', 'sequences', 'base', 'accession_numbers', 'created', 'modified']
         example = {
             "id": "66855f2c-f360-4ad9-8c98-998ecb815ff5",
             "custom_name": "2022 Official Release",
             "library": LibraryShortSerializer.Meta.example,
             "description": "A collection of new sequences from several species of interest.",
             "version_number": '254.2.1',
+            "created": "2023-06-26T14:04:43.879214Z",
+            "modified": "2023-06-27T14:08:20.879214Z"
         }
 
 class BlastDbEditSerializer(serializers.ModelSerializer):
@@ -323,10 +321,10 @@ class BlastDbSerializer(serializers.ModelSerializer):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        read_only_fields = ['id', 'library', 'sequences', 'version_number']
+        read_only_fields = ['id', 'library', 'sequences', 'version_number', 'created', 'modified']
         for name in read_only_fields:
             self.fields[name].read_only = True
-        for name in ['id', 'library', 'description', 'locked', 'sequences', 'version_number']:
+        for name in ['id', 'library', 'description', 'locked', 'sequences', 'version_number', 'created', 'modified']:
             self.fields[name].required = True
 
     library = LibraryShortSerializer(many=False, read_only=True)
@@ -335,13 +333,15 @@ class BlastDbSerializer(serializers.ModelSerializer):
     class Meta:
         model = BlastDb
         ref_name = blast_db_title
-        fields = ['id', 'library', 'custom_name', 'version_number', 'description', 'locked', 'sequences']
+        fields = ['id', 'library', 'custom_name', 'version_number', 'description', 'locked', 'sequences', 'created', 'modified']
         example = {
             "id": "66855f2c-f360-4ad9-8c98-998ecb815ff5",
             "description": "This BLAST database is a collection of barcodes from 167 species of Neotropical electric knifefish (Teleostei: Gymnotiformes) which was presented by Janzen et al. 2022. All sequences and related feature data are updated daily at midnight (UTC) from NCBI's Genbank database.",
             "owner": LibraryOwnerSerializer.Meta.example,
             "locked": True,
-            "sequences": BlastDbSequenceEntrySerializer.Meta.example
+            "sequences": BlastDbSequenceEntrySerializer.Meta.example,
+            "created": "2023-06-26T14:04:43.879214Z",
+            "modified": "2023-06-27T14:08:20.879214Z"
         }
 
 class BlastDbSequenceExportSerializer(BlastDbSequenceEntrySerializer):
@@ -376,13 +376,13 @@ class LibrarySerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'owner']
         for name in read_only_fields:
             self.fields[name].read_only = True
-        for name in ['id', 'custom_name', 'description', 'owner', 'public']:
+        for name in ['id', 'custom_name', 'description', 'owner', 'marker_gene', 'public']:
             self.fields[name].required = True
 
     class Meta:
         model = Library
         ref_name = library_title
-        fields = ['id', 'custom_name', 'description', 'owner', 'public', 'latest']
+        fields = ['id', 'custom_name', 'description', 'owner', 'marker_gene', 'public', 'latest']
 
 class LibraryEditSerializer(serializers.ModelSerializer):
     f'''
@@ -392,17 +392,18 @@ class LibraryEditSerializer(serializers.ModelSerializer):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        for name in ['custom_name', 'description', 'public']:
+        for name in ['custom_name', 'description', 'public', 'marker_gene']:
             self.fields[name].required = True
 
     class Meta:
         model = Library
         ref_name = library_title + ' edits'
-        fields = ['custom_name', 'description', 'public']
+        fields = ['custom_name', 'description', 'public', 'marker_gene']
         example = {
             "custom_name": "Neotropical electric knifefish",
             "description": "This BLAST database is a collection of barcodes from 167 species of Neotropical electric knifefish (Teleostei: Gymnotiformes) which was presented by Janzen et al. 2022. All sequences and related feature data are updated daily at midnight (UTC) from NCBI's Genbank database.",
             "public": True,
+            "marker_gene": "CO1"
         }
 
 class LibraryListSerializer(serializers.ModelSerializer):
@@ -417,7 +418,7 @@ class LibraryListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Library
         ref_name = library_title 
-        fields = ['id', 'custom_name', 'description', 'owner', 'public']
+        fields = ['id', 'custom_name', 'description', 'owner', 'public', 'marker_gene']
 
 class BlastDbListSerializer(serializers.ModelSerializer):
     '''
@@ -433,13 +434,15 @@ class BlastDbListSerializer(serializers.ModelSerializer):
     class Meta:
         model = BlastDb
         ref_name = blast_db_title 
-        fields = ['id', 'version_number', 'custom_name', 'sequence_count', 'description', 'locked']
+        fields = ['id', 'version_number', 'custom_name', 'sequence_count', 'description', 'locked', 'created', 'modified']
         example = [{
             "id": "66855f2c-f360-4ad9-8c98-998ecb815ff5",
             "version_number": '254.2.1',
             "sequence_count": 167,
             "description": "This BLAST database is a collection of barcodes from 167 species of Neotropical electric knifefish (Teleostei: Gymnotiformes) which was presented by Janzen et al. 2022. All sequences and related feature data are updated daily at midnight (UTC) from NCBI's Genbank database.",
             "locked": True,
+            "created": "2023-06-26T14:04:43.879214Z",
+            "modified": "2023-06-27T14:08:20.879214Z",
         }]
 
 class HitSerializer(serializers.ModelSerializer):

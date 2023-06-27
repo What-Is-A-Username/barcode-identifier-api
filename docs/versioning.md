@@ -6,9 +6,9 @@ To fulfill these needs, our application tracks database versions each with a mea
 
 ## Version Number
 
-Versions are assigned numbers in a meaningful format to make them human readable and useful: `<genbank_version>.<major version>.<minor version>`. 
+When a database becomes locked, thereby preventing the modification of accessions within it, the database is assigned a **version number**. Versions are assigned numbers in a meaningful format to make them human readable and intuitive: `<genbank version>.<major version>.<minor version>`. For example, 5.2.0 indicates genbank_version 5, major version 2 and minor version 0. For databases that are unlocked, a placeholder value of `0.0.0` is assigned. The first locked database under a reference library starts at version number `1.0.0`. 
 
-**Genbank version** changes whenever an [accession.version](https://www.ncbi.nlm.nih.gov/genbank/samplerecord/#VersionB) in the database changes, or a barcode is added or removed from the library. As described by GenBank, the accession.version is incremented whenever sequence data changes.
+**Genbank version** changes whenever an [accession.version](https://www.ncbi.nlm.nih.gov/genbank/samplerecord/#VersionB) in the database changes, or a reference sequence is added or removed from the library. As described by GenBank, the accession.version is incremented whenever sequence data changes. Notably, this covers instances where coding sequences are modified.
 
 **Major version** changes when there is a change to the source information. Examples of database changes that necessitate a new major version include:
 

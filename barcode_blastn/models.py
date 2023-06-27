@@ -101,8 +101,9 @@ class LibraryManager(models.Manager):
         Retrieve a set of reference libraries that the user can run on. Permission is given if:
         - the user can view
         '''
-        # Currently, if a user can view the database, they can run it
-        return self.viewable(user)
+        # Currently, if a user can view the database and the database is locked
+        # they can run it
+        return self.viewable(user) 
 
     def deletable(self, user: Union[AbstractBaseUser, AnonymousUser]):
         '''
@@ -122,6 +123,16 @@ class LibraryManager(models.Manager):
 class Library(models.Model):
 
     objects = LibraryManager()
+
+    class MarkerGenes(models.TextChoices):
+        MARKER_CO1 = 'CO1', _('CO1')
+        MARKER_18S = '18S', _('18S')
+        MARKER_16S = '16S', _('16S')
+        MARKER_12S = '12S', _('12S')
+        MARKER_CYTB = 'CytB', _('Cytb')
+        MARKER_ITS = 'ITS', _('ITS')
+    
+    marker_gene = models.CharField(choices=MarkerGenes.choices, max_length=8)
 
     # Original creator of the database
     owner = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -182,7 +193,7 @@ class BlastDbManager(models.Manager):
     def runnable(self, user: User):
         '''Return a QuerySet of BLAST databases that are runnable by the given user. BLAST databases are editable if their reference library are runnable by the same user.'''
         libs: models.QuerySet[Library] = Library.objects.runnable(user)
-        return BlastDb.objects.filter(library__in=libs)
+        return BlastDb.objects.filter(library__in=libs, locked=True)
 
     def deletable(self, user: User):
         '''Return a QuerySet of BLAST databases that are deletable by the given user. BLAST databases are editable if their reference library are deletable by the same user.'''
@@ -192,19 +203,14 @@ class BlastDbManager(models.Manager):
 class BlastDb(models.Model):
     objects = BlastDbManager()
 
-    class MarkerGenes(models.TextChoices):
-        MARKER_COI = 'COI'
-        MARKER_16S = '16S'
-        MARKER_12S = '12S'
-
     custom_name = models.CharField(max_length=255, help_text='Name of the database version')
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, help_text='Unique identifier of this database version of the library')
 
     library = models.ForeignKey(Library, on_delete=models.CASCADE, help_text='The reference library which this database is a version of.')
 
-    genbank_version = models.SmallIntegerField(default=1, validators=[MaxValueValidator(32767), MaxValueValidator(1)], help_text='Version number reflective of changes in sequence data, accession.versions, and the set of accessions included.')
-    major_version = models.SmallIntegerField(default=1, validators=[MaxValueValidator(32767), MaxValueValidator(1)], help_text='Version number reflective of changes in important metadata such as source information, location, specimen identifiers.')
-    minor_version = models.SmallIntegerField(default=1, validators=[MaxValueValidator(32767), MaxValueValidator(1)], help_text='Version number reflective of minor changes such as database description, names, references.')
+    genbank_version = models.SmallIntegerField(default=0, validators=[MaxValueValidator(32767), MaxValueValidator(0)], help_text='Version number reflective of changes in sequence data, accession.versions, and the set of accessions included.')
+    major_version = models.SmallIntegerField(default=0, validators=[MaxValueValidator(32767), MaxValueValidator(0)], help_text='Version number reflective of changes in important metadata such as source information, location, specimen identifiers.')
+    minor_version = models.SmallIntegerField(default=0, validators=[MaxValueValidator(32767), MaxValueValidator(0)], help_text='Version number reflective of minor changes such as database description, names, references.')
 
     def version_number(self) -> str:
         return f'{self.genbank_version}.{self.major_version}.{self.minor_version}'
@@ -220,6 +226,10 @@ class BlastDb(models.Model):
     description = models.CharField(max_length=1024, blank=True, default='', help_text='Description of this version')
     # Locked
     locked = models.BooleanField(default=False, help_text='Is editing of entry set (adding/removing) in the database locked?')
+
+    # addition_history = models.JSONField(default=[], help_text='List of accessions or search terms used to construct the query')
+
+    # blacklisted_accessions = models.JSONField(default=[], help_text='List of accession numbers and versions blacklisted, which will not be added to the database.')
 
     def __str__(self) -> str:
         if self.locked:

@@ -180,9 +180,9 @@ class LibraryAdmin(admin.ModelAdmin):
     Admin page for Library instances
     '''
     inlines = [UserPermissionsInline, VersionInline]
-    list_display = ('custom_name', 'owner', 'public', 'latest_version', 'sequence_count', 'id')
-    search_fields = ['description', 'id', 'custom_name']
-    list_filter = ['public', 'owner__username']
+    list_display = ('id', 'marker_gene', 'custom_name', 'latest_version', 'owner', 'public', 'sequence_count')
+    search_fields = ['description', 'id', 'custom_name', 'marker_gene']
+    list_filter = ['public', 'owner__username', 'marker_gene']
 
     def changelist_view(self, request, extra_context: Optional[Dict[str, str]] = None):
         # Customize the title at the top of the change list

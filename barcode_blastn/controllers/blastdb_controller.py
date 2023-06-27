@@ -81,16 +81,16 @@ def save_blastdb(obj: BlastDb, perform_lock: bool = False) -> BlastDb:
     '''
     if perform_lock:
         lastPublished: Optional[BlastDb] = BlastDb.objects.latest(obj.library)
-        version_nums = (1,1,1) # if this is the first published version of the library, assign version 1.1.1 
+        version_nums = (1, 0, 0) # if this is the first published version of the library, assign version 1.1.1 
 
         # If a previous version exists, assign the new database a version reflective
         # of the differences of it from the most recent database
         if lastPublished is not None:
             sequence_summary: SequenceUpdateSummary = calculate_update_summary(last=lastPublished, current=obj)
             if len(sequence_summary.deleted) > 0 or len(sequence_summary.added) > 0 or len(sequence_summary.accession_version_changed) > 0:
-                version_nums = (lastPublished.genbank_version + 1, 1, 1)
+                version_nums = (lastPublished.genbank_version + 1, 0, 0)
             elif len(sequence_summary.metadata_changed) > 0:
-                version_nums = (lastPublished.genbank_version, lastPublished.major_version + 1, 1)
+                version_nums = (lastPublished.genbank_version, lastPublished.major_version + 1, 0)
             else:
                 version_nums = (lastPublished.genbank_version, lastPublished.major_version, lastPublished.minor_version + 1)
 
