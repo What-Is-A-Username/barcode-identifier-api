@@ -1,0 +1,1 @@
+default_app_config = 'barcode_blastn.apps.BarcodeBlastnConfig'

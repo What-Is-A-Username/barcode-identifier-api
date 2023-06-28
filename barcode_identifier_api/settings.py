@@ -51,9 +51,10 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'knox',
-    'barcode_blastn',
+    'simple_history',
     'corsheaders',
-    'drf_yasg'
+    'drf_yasg',
+    'barcode_blastn.apps.BarcodeBlastnConfig'
 ]
 
 AUTHENTICATION_BACKENDS = (
@@ -80,6 +81,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'simple_history.middleware.HistoryRequestMiddleware' # Used to track which user made changes to libraries and databases
 ]
 
 ROOT_URLCONF = 'barcode_identifier_api.urls'
@@ -239,3 +241,6 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 2621440 # = 2.5MB
 DATA_UPLOAD_MAX_MEMORY_SIZE = 2621440 # = 2.5MB
 DATA_UPLOAD_MAX_NUMBER_FILES = 1 # Only allow one file upload via POST in a multipart/form-data request
 FILE_UPLOAD_MAX_NUMBER_FILES = 0 # Ensure that we disable file uploads to the file system
+
+# DJANGO-SIMPLE-HISTORY
+SIMPLE_HISTORY_REVERT_DISABLED = True # Prevent users from reverting to earlier versions

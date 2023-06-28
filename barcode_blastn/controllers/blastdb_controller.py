@@ -71,9 +71,10 @@ def save_blastdb(obj: BlastDb, perform_lock: bool = False) -> BlastDb:
     '''
     Save the BlastDb. The BlastDb should have accession numbers **added and saved**, reference library indicated.
 
-    The save process performed includes:
-    - locking the database, if perform_lock is True
+    If the database is to be locked, the save process includes:
+    - locking the database, i.e. setting locked to True
     - assign a version number if it was previously locked, based on the latest library version
+    - setting the ._change_reason to "Lock database" or equivalent, for the change history
     - calling `.save()` on the instance
 
     Raises:
@@ -135,6 +136,7 @@ def save_blastdb(obj: BlastDb, perform_lock: bool = False) -> BlastDb:
         obj.major_version = version_nums[1]
         obj.minor_version = version_nums[2]
         obj.locked = True
+        obj._change_reason = 'Locked database'
 
     obj.save()
 
@@ -165,7 +167,6 @@ def create_blastdb(additional_accessions: List[str], base: Optional[BlastDb] = N
     locked = kwargs.pop('locked', False) # ignore value of locked for now
     if database is None:
         new_database: BlastDb = BlastDb(genbank_version=genbank_version, major_version=major_version, minor_version=minor_version, created=created, locked=False, **kwargs)
-        new_database.save()
     else:
         new_database = database
         new_database.genbank_version = genbank_version
@@ -175,7 +176,8 @@ def create_blastdb(additional_accessions: List[str], base: Optional[BlastDb] = N
         new_database.locked = False
         for k, v in kwargs.items():
             setattr(new_database, k, v)
-        new_database.save()
+    database._change_reason = 'Initial save'
+    save_blastdb(new_database, perform_lock=False)
     
     accessions_to_add = additional_accessions
     seqs: Optional[QuerySet[NuccoreSequence]]
@@ -189,7 +191,7 @@ def create_blastdb(additional_accessions: List[str], base: Optional[BlastDb] = N
     # ensure all accessions are unique
     accessions_to_add = list(set(accessions_to_add))
     # add sequences if there are accessions to add
-    if len(accessions_to_add) > 0: 
+    if len(accessions_to_add) > 0 or (not search_term is None and len(search_term) > 0):
         new_sequences = add_sequences_to_database(new_database, desired_numbers=accessions_to_add, search_term=search_term)
         if not seqs is None:
             # Carry over the annotations from the old database
@@ -411,7 +413,6 @@ def add_sequences_to_database(database: BlastDb, desired_numbers: List[str] = []
 
     Raises:
         DatabaseLocked: If database is locked for editing.
-        ValueError: If no accession numbers or search terms are specified
         AccessionsAlreadyExist: If an accession specified already exists in the database
         AccessionLimitExceeded: If the number of accessions to add exceeds the maximum allowed
         GenbankConnectionError: Could not connect to GenBank or the request sent was bad
@@ -420,7 +421,7 @@ def add_sequences_to_database(database: BlastDb, desired_numbers: List[str] = []
     if database.locked:
         raise DatabaseLocked()
     if len(desired_numbers) == 0 and search_term is None:
-        raise ValueError('No accessions or search terms given')
+        return []
     desired_numbers = list(set(desired_numbers))
     # Retrieve what accession numbers are already existing in the database
     existing: Set[str] = set(NuccoreSequence.objects.distinct().filter(owner_database=database).values_list('accession_number', flat=True))
@@ -442,8 +443,15 @@ def add_sequences_to_database(database: BlastDb, desired_numbers: List[str] = []
             to_create.append(new_seq)
             existing.add(an)
 
+    # Add the initial accessions and search terms to be stored in the 
+    # historical log of the database
     created_sequences = []
     created_sequences = NuccoreSequence.objects.bulk_create(to_create)
+
+    database.ids = ','.join(desired_numbers)
+    database.search_terms = search_term
+    database._change_reason = 'Add sequences'
+    save_blastdb(database, perform_lock=False)
     return created_sequences
 
 def save_sequence(obj: NuccoreSequence, commit: bool = False, raise_if_missing: bool = False, raise_errors: bool = True):

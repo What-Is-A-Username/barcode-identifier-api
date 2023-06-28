@@ -1,6 +1,8 @@
 from django.apps import AppConfig
 
-
 class BarcodeBlastnConfig(AppConfig):
-    default_auto_field = 'django.db.models.BigAutoField'
     name = 'barcode_blastn'
+
+    def ready(self) -> None:
+        print('Config for `barcode_blastn` is ready.')
+        import barcode_blastn.signals

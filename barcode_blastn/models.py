@@ -7,9 +7,20 @@ from django.contrib.auth.models import AbstractBaseUser, AnonymousUser, User
 from django.core.validators import MaxValueValidator
 from django.db import models
 from django.utils.translation import gettext_lazy as _
+from simple_history.models import HistoricalRecords
 
 from barcode_blastn.database_permissions import DatabasePermissions
 
+class BlastDbHistoricalModel(models.Model):
+    '''
+    Abstract model for tracking the accession numbers or search
+    terms used to add or remove sequences from the database.
+    '''
+    ids = models.CharField(max_length=10000, blank=True, default='None')
+    search_terms = models.CharField(max_length=10000, blank=True, default='None')
+
+    class Meta:
+        abstract = True
 
 class TaxonomyNode(models.Model):
     class TaxonomyRank(models.TextChoices):
@@ -124,6 +135,8 @@ class Library(models.Model):
 
     objects = LibraryManager()
 
+    history = HistoricalRecords()
+
     class MarkerGenes(models.TextChoices):
         MARKER_CO1 = 'CO1', _('CO1')
         MARKER_18S = '18S', _('18S')
@@ -203,6 +216,18 @@ class BlastDbManager(models.Manager):
 class BlastDb(models.Model):
     objects = BlastDbManager()
 
+    history = HistoricalRecords(bases=[BlastDbHistoricalModel])
+
+    def save_without_historical_record(self, *args, **kwargs):
+        '''Save database instance without creating a historical record'''
+        # https://django-simple-history.readthedocs.io/en/latest/querying_history.html#save-without-a-historical-record
+        self.skip_history_when_saving = True
+        try:
+            ret = self.save(*args, **kwargs)
+        finally:
+            del self.skip_history_when_saving
+        return ret
+
     custom_name = models.CharField(max_length=255, help_text='Name of the database version')
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, help_text='Unique identifier of this database version of the library')
 
@@ -227,9 +252,7 @@ class BlastDb(models.Model):
     # Locked
     locked = models.BooleanField(default=False, help_text='Is editing of entry set (adding/removing) in the database locked?')
 
-    # addition_history = models.JSONField(default=[], help_text='List of accessions or search terms used to construct the query')
-
-    # blacklisted_accessions = models.JSONField(default=[], help_text='List of accession numbers and versions blacklisted, which will not be added to the database.')
+    blacklisted_accessions = models.JSONField(default=list, help_text='List of accession numbers and versions blacklisted, which will not be added to the database.')
 
     def __str__(self) -> str:
         if self.locked:

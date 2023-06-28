@@ -7,6 +7,7 @@ from django import forms
 from django.db.models.query import QuerySet
 from django.db.models import Q
 from django.template.response import TemplateResponse
+from simple_history.admin import SimpleHistoryAdmin
 
 from django.http.request import HttpRequest
 from django.urls import reverse
@@ -175,7 +176,7 @@ class VersionInline(admin.TabularInline):
 # https://stackoverflow.com/questions/24047308/django-rest-framework-serializers-and-django-forms
 
 @admin.register(Library)
-class LibraryAdmin(admin.ModelAdmin):
+class LibraryAdmin(SimpleHistoryAdmin):
     '''
     Admin page for Library instances
     '''
@@ -285,6 +286,8 @@ class BlastDbForm(ModelForm):
             retrieve_gb(accession_numbers=accessions_to_add, raise_if_missing=True, term=search_term)
         except InsufficientAccessionData as exc:
             raise ValidationError(f'Some number of following the accession numbers and search terms do not match any record. Accessions: {", ".join(exc.missing_accessions)}. Terms: {exc.term}.')
+        except GenBankConnectionError:
+            raise ValidationError(f'Encountered error connecting to GenBank')
         except ValueError:
             pass
         # except BaseException as exc:
@@ -293,7 +296,7 @@ class BlastDbForm(ModelForm):
         return cleaned_data
 
 @admin.register(BlastDb)
-class BlastDbAdmin(admin.ModelAdmin):
+class BlastDbAdmin(SimpleHistoryAdmin):
     '''
     Admin page for BlastDb instances.
     '''
@@ -303,6 +306,7 @@ class BlastDbAdmin(admin.ModelAdmin):
     fieldsets = [('Details', { 'fields': ['library', 'library_owner', 'custom_name', 'description', 'version_number']}), ('Visibility', { 'fields': ['locked', 'library_is_public']})]
     search_fields = ['custom_name', 'id', 'library__custom_name', 'library__owner__username', 'library__description', 'description']
     list_filter = ['library__custom_name', 'genbank_version', 'locked']
+    history_list_display = ['ids', 'search_terms', 'locked']
 
     def library_is_public(self, obj: BlastDb):
         return not obj.library is None and obj.library.public
@@ -341,6 +345,7 @@ class BlastDbAdmin(admin.ModelAdmin):
         will_lock = form.cleaned_data['locked'] if 'locked' in form.cleaned_data else False
         if will_lock:
             # if user wants to lock the database, perform locking after saving the formset
+            obj._change_reason = 'Update fields before locking'
             obj = form.save(commit=False)
             obj.locked = True 
             # directly call save_model on superclass to avoid locked setting to False
@@ -384,7 +389,8 @@ class BlastDbAdmin(admin.ModelAdmin):
             if len(accessions) > 0 or not search_term is None or len(search_term) == 0:
                 add_sequences_to_database(obj, desired_numbers=accessions, search_term=search_term)
             else:
-                obj.save()
+                obj._change_reason = 'Modify fields'
+                save_blastdb(obj, perform_lock=False)
 
     def get_readonly_fields(self, request, obj: Union[BlastDb, None] = None):
         if obj is None: # is adding
