@@ -1,12 +1,10 @@
-import io
 from django.db.models.functions import Length
-from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 from django.contrib import admin
 from django.db import models
 from django import forms
 from django.db.models.query import QuerySet
 from django.db.models import Q
-from django.template.response import TemplateResponse
 from simple_history.admin import SimpleHistoryAdmin
 
 from django.http.request import HttpRequest
@@ -15,7 +13,7 @@ from django.urls import reverse
 from django.utils.html import format_html
 from django.contrib.auth.models import User
 from barcode_blastn.admin_list_filters import BlastRunLibraryFilter, NuccoreSequencePublicationFilter
-from barcode_blastn.controllers.blastdb_controller import add_sequences_to_database, create_blastdb, delete_blastdb, delete_library, save_blastdb, save_sequence
+from barcode_blastn.controllers.blastdb_controller import add_sequences_to_database, create_blastdb, delete_blastdb, delete_library, log_deleted_sequences, save_blastdb, save_sequence
 from barcode_blastn.helper.parse_gb import GenBankConnectionError, InsufficientAccessionData, retrieve_gb
 from barcode_blastn.models import Annotation, BlastDb, BlastQuerySequence, DatabaseShare, Library, NuccoreSequence, BlastRun, Hit, TaxonomyNode
 from django.forms import BaseInlineFormSet, ModelForm, ValidationError
@@ -28,9 +26,6 @@ class SequenceFormset(BaseInlineFormSet):
     Formset used to add new sequences through the inline viewer
     on the database version page.
     '''
-
-    def save(self, commit: bool = False) -> Any:
-        return super().save(commit)
 
     def save_new(self, form, commit=True):
         '''
@@ -47,15 +42,15 @@ class SequenceFormset(BaseInlineFormSet):
         valid_forms = [
             form
             for form in self.forms
-            if form.is_valid() and form not in self.deleted_forms
+            if form.is_valid() and form not in self.deleted_forms and form.has_changed()
         ]
         accession_numbers = [form.cleaned_data.get('accession_number', '') for form in valid_forms]
         if any([len(acc) == 0 for acc in accession_numbers]):
-            raise ValidationError(f'One or more accessions to be added had a missing accession number')
+            raise ValidationError(f'One or more newly added/edited accessions to be added had a missing accession number')
         try:
             retrieve_gb(accession_numbers=accession_numbers, raise_if_missing=True)
         except InsufficientAccessionData as exc:
-            raise ValidationError(f'Some number of following the accession numbers and search terms do not match any record. Accessions: {", ".join(exc.missing_accessions)}. Terms: {exc.term}.')
+            raise ValidationError(f'Some number of the following newly added/edited accession numbers did not match any record. Accessions: {", ".join(exc.missing_accessions)}. Terms: {exc.term}.')
         except ValueError:
             pass
         # except BaseException as exc:
@@ -306,7 +301,25 @@ class BlastDbAdmin(SimpleHistoryAdmin):
     fieldsets = [('Details', { 'fields': ['library', 'library_owner', 'custom_name', 'description', 'version_number']}), ('Visibility', { 'fields': ['locked', 'library_is_public']})]
     search_fields = ['custom_name', 'id', 'library__custom_name', 'library__owner__username', 'library__description', 'description']
     list_filter = ['library__custom_name', 'genbank_version', 'locked']
-    history_list_display = ['ids', 'search_terms', 'locked']
+    history_list_display = ['added', 'deleted', 'search_terms', 'locked', 'changed_fields']
+
+    def added(self, obj: BlastDb):
+        '''Return a column with text wrapping to show added sequence identifiers in history'''
+        return format_html("<div style='width: 100px; word-wrap: break-word'>{text}</div>", text=getattr(obj, 'added', ''))
+
+    def deleted(self, obj: BlastDb):
+        '''Return a column with text wrapping to show deleted sequence identifiers in history'''
+        return format_html("<div style='width: 100px; word-wrap: break-word'>{text}</div>", text=getattr(obj, 'deleted', ''))
+
+    def search_terms(self, obj: BlastDb):
+        '''Return a column with text wrapping to show search terms in history'''
+        return format_html("<div style='width: 100px; word-wrap: break-word'>{text}</div>", text=getattr(obj, 'search_terms', ''))
+
+    def changed_fields(self, obj):
+        if obj.prev_record:
+            delta = obj.diff_against(obj.prev_record)
+            return delta.changed_fields
+        return None
 
     def library_is_public(self, obj: BlastDb):
         return not obj.library is None and obj.library.public
@@ -340,16 +353,26 @@ class BlastDbAdmin(SimpleHistoryAdmin):
                 f.append(('Add additional accessions', { 'fields': ('accession_list_upload', 'accession_list_text', 'search_term')}))
         return f
 
-    def save_formset(self, request: Any, form: Any, formset: Any, change: Any) -> None:
-        super_results = super().save_formset(request, form, formset, change)
-        will_lock = form.cleaned_data['locked'] if 'locked' in form.cleaned_data else False
+    def save_formset(self, request: Any, form: Any, formset: BaseInlineFormSet, change: Any) -> None:
+        super_results = formset.save()
+
+        # Save right now, instead of in save_model()
+        obj = form.save(commit=False)
+
+        # Has the user indicated for the database to be locked?
+        will_lock = form.cleaned_data.get('locked', False)
+
+        # If sequences are deleted, add it to change history
+        if len(formset.deleted_objects) > 0:
+            log_deleted_sequences(formset.deleted_objects, obj)
+       
         if will_lock:
             # if user wants to lock the database, perform locking after saving the formset
-            obj._change_reason = 'Update fields before locking'
-            obj = form.save(commit=False)
             obj.locked = True 
-            # directly call save_model on superclass to avoid locked setting to False
-            save_blastdb(obj, perform_lock=True)
+        if will_lock or len(formset.deleted_objects) > 0:
+            # Save to lock database and/or log sequence deletions
+            save_blastdb(obj, perform_lock=will_lock)
+        
         return super_results
 
     def save_model(self, request: Any, obj: BlastDb, form: Any, change: Any) -> None:
@@ -386,10 +409,10 @@ class BlastDbAdmin(SimpleHistoryAdmin):
         if not change:
             create_blastdb(additional_accessions=accessions, base=base, database=obj, search_term=search_term, **blastdb_fields, library=obj.library)
         else:
-            if len(accessions) > 0 or not search_term is None or len(search_term) == 0:
-                add_sequences_to_database(obj, desired_numbers=accessions, search_term=search_term)
+            obj._change_reason = 'Save changes'
+            if len(accessions) > 0 or (not search_term is None and len(search_term) > 0):
+                add_sequences_to_database(obj, desired_numbers=accessions, search_term=search_term)               
             else:
-                obj._change_reason = 'Modify fields'
                 save_blastdb(obj, perform_lock=False)
 
     def get_readonly_fields(self, request, obj: Union[BlastDb, None] = None):
@@ -656,7 +679,14 @@ class NuccoreAdmin(admin.ModelAdmin):
     
     def save_model(self, request: Any, obj: Any, form: Any, change: bool) -> None:
         if not change:
+            # Because the fields of sequences cannot be modified,
+            # only call save if this is a newly added sequence
             save_sequence(obj, commit=True)
+
+    def delete_model(self, request: HttpRequest, obj: NuccoreSequence) -> None:
+        super().delete_model(request, obj)
+        log_deleted_sequences([obj], obj.owner_database)
+        obj.owner_database.save()
 
     def save_formset(self, request: Any, form: Any, formset: Any, change: Any) -> None:
         instances = formset.save(commit=False)

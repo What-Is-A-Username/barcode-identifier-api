@@ -16,7 +16,8 @@ class BlastDbHistoricalModel(models.Model):
     Abstract model for tracking the accession numbers or search
     terms used to add or remove sequences from the database.
     '''
-    ids = models.CharField(max_length=10000, blank=True, default='None')
+    added = models.CharField(max_length=10000, blank=True, default='None')
+    deleted = models.CharField(max_length=10000, blank=True, default='None')
     search_terms = models.CharField(max_length=10000, blank=True, default='None')
 
     class Meta:

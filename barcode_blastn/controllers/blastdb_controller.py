@@ -136,7 +136,10 @@ def save_blastdb(obj: BlastDb, perform_lock: bool = False) -> BlastDb:
         obj.major_version = version_nums[1]
         obj.minor_version = version_nums[2]
         obj.locked = True
-        obj._change_reason = 'Locked database'
+        new_change_reason = ['Locked database'] 
+        if len(obj._change_reason) > 0:
+            new_change_reason.append(obj._change_reason)
+        obj._change_reason = ', '.join(new_change_reason)
 
     obj.save()
 
@@ -354,6 +357,10 @@ def delete_sequences_in_database(database: BlastDb, desired_nums: List[str]) -> 
     to_delete: QuerySet[NuccoreSequence] = NuccoreSequence.objects.filter(owner_database=database, accession_number__in=desired_nums)
     result = to_delete.delete()
 
+    # Add deleted sequences to history
+    log_deleted_sequences([s for s in to_delete], database=database)
+    save_blastdb(database, perform_lock=False)
+
     return result[1]['barcode_blastn.NuccoreSequence']
 
 def update_sequences_in_database(database: BlastDb, desired_numbers: List[str]) -> List[NuccoreSequence]:
@@ -407,7 +414,8 @@ def update_sequences_in_database(database: BlastDb, desired_numbers: List[str]) 
 
 def add_sequences_to_database(database: BlastDb, desired_numbers: List[str] = [], search_term: Optional[str] = None) -> List[NuccoreSequence]:
     '''
-    Add a list of accession numbers to an existing database by bulk creating and return the resulting list of NuccoreSequences. 
+    Add a list of accession numbers to an existing database by bulk creating and return the resulting list of NuccoreSequences. Also log the sequences
+    in the history and call save_blastdb()
 
     Returns a list of saved NuccoreSequence objects, as returned by `.bulk_create()`. 
 
@@ -448,9 +456,7 @@ def add_sequences_to_database(database: BlastDb, desired_numbers: List[str] = []
     created_sequences = []
     created_sequences = NuccoreSequence.objects.bulk_create(to_create)
 
-    database.ids = ','.join(desired_numbers)
-    database.search_terms = search_term
-    database._change_reason = 'Add sequences'
+    log_added_sequences(instances=created_sequences, search_term=search_term, database=database)
     save_blastdb(database, perform_lock=False)
     return created_sequences
 
@@ -535,6 +541,71 @@ def save_sequence(obj: NuccoreSequence, commit: bool = False, raise_if_missing: 
         else:
             print(f'WARN: Suppressed error {exc}')
             return obj
+    
+def append_change_reason(database: BlastDb, reason: str):
+    '''
+    Modify the ._change_reason of database by appending the
+    reason string provided.
+
+    This function does not call .save(), so you must call .save() on the
+    returned instances in order to save the ._change_reason to history. 
+    '''
+    change_reason = getattr(database, '_change_reason', '')
+    if len(change_reason) > 0:
+        reasons = [change_reason, reason]
+    else:
+        reasons = [reason]
+    setattr(database, '_change_reason', ', '.join(reasons))
+            
+    return
+
+
+def log_deleted_sequences(instances: List[NuccoreSequence], database: BlastDb) -> None:
+    '''
+    Modify the ._change_reason and .deleted of database to reflect
+    the deletion of sequences given in instances. If the object database 
+    already has a ._change_reason, append any newly added reasons to the 
+    existing string.
+
+    This function does not call .save(), so you must call .save() on the
+    returned instances in order to save the ._change_reason to history. 
+
+    Raises:
+
+        ValueError: if any of the deleted sequences do not belong to the database
+        provided.
+    '''
+    db_id = str(database.id)
+    mismatches = [str(i) != db_id for i in instances]
+    if any(mismatches):
+        raise ValueError('One of the provided instances does not belong to the \
+                         database specified')
+    append_change_reason(database=database, reason='Deleted sequences')
+    setattr(database, 'deleted', ', '.join([i.version for i in instances]))
+
+def log_added_sequences(instances: List[NuccoreSequence], search_term: Optional[str], database: BlastDb) -> None:
+    '''
+    Modify the ._change_reason, .added, and .search_terms of database to reflect the addition of 
+    sequences in instances. If the object database already has a ._change_reason,
+    append any newly added reasons to the existing string.
+
+    This function does not call .save(), so you must call .save() on the
+    returned instances in order to save the changed data.
+
+    Raises:
+
+        ValueError: if any of the deleted sequences do not belong to the database
+        provided.
+    '''
+    db_id = str(database.id)
+    mismatches = [str(i) != db_id for i in instances]
+    if any(mismatches):
+        raise ValueError('One of the provided instances does not belong to the \
+                         database specified')
+    append_change_reason(database=database, reason='Added sequences')
+    search_term = search_term if not search_term is None else ''
+    setattr(database, 'added', ', '.join([i.version for i in instances]))
+    setattr(database, 'search_terms', search_term)
     
 
         

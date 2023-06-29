@@ -7,12 +7,14 @@ def add_history_blastdb_sequences(sender, instance, **kwargs):
     and accessions'''
 
     # Import object storing HistoricalData created by django-simple-history
-    from barcode_blastn.models import HistoricalBlastDb
+    from barcode_blastn.models import HistoricalBlastDb, HistoricalLibrary
 
     if sender == HistoricalBlastDb:
         history_instance = kwargs['history_instance']
         # Move data from instance to the record
-        history_instance.ids = getattr(instance, 'ids', '')
-        history_instance.search_terms = getattr(instance, 'search_terms', '')
+        for attr in ['added', 'deleted', 'search_terms']:
+            setattr(history_instance, attr, getattr(instance, attr, ''))
+    elif sender == HistoricalLibrary:
+        history_instance = kwargs['history_instance']
     else:
         raise NotImplementedError(f'Signal for {str(sender)}')

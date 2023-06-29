@@ -30,7 +30,7 @@ from rest_framework.response import Response
 
 from barcode_blastn.controllers.blastdb_controller import (
     AccessionsAlreadyExist, AccessionsNotFound, DatabaseLocked, InsufficientAccessionData,
-    add_sequences_to_database, create_blastdb, delete_blastdb, delete_library, delete_sequences_in_database,
+    add_sequences_to_database, create_blastdb, delete_blastdb, delete_library, delete_sequences_in_database, log_deleted_sequences,
     save_blastdb, update_sequences_in_database)
 from barcode_blastn.file_paths import (get_data_fishdb_path, get_data_run_path,
                                        get_ncbi_folder, get_static_run_path)
@@ -476,6 +476,9 @@ class NuccoreSequenceDetail(mixins.DestroyModelMixin, generics.RetrieveAPIView):
         except PermissionDenied:
             return Response(status=status.HTTP_403_FORBIDDEN)
         else:
+            database = seq.owner_database
+            log_deleted_sequences([seq], database)
+            save_blastdb(database, perform_lock=False)
             return self.destroy(request, *args, **kwargs)
 
 class LibraryListView(mixins.ListModelMixin, generics.CreateAPIView):
