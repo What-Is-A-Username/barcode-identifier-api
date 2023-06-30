@@ -195,8 +195,26 @@ class NuccoreSequenceBulkAddSerializer(serializers.Serializer):
     )
     # Allow bulk addition of sequences by uploading file. Limit file size to 512KB
     accession_file = serializers.FileField(allow_empty_file=True, required=False,validators=[QueryFileValidator(max_size=524288)])
+    
     # Allow addition using GenBank query
     search_term = serializers.CharField(required=False, allow_blank=False)
+
+    # Allow filtering by sequence length
+    min_length = serializers.IntegerField(min_value=-1, max_value=10000, default=-1)
+    max_length = serializers.IntegerField(min_value=-1, max_value=10000, default=-1)
+
+    # Allow filtering by number of ambiguous bases (filter out if value > max)
+    max_ambiguous_bases = serializers.IntegerField(min_value=-1, max_value=10000, default=-1)
+
+    # Allow filtering by blacklisting accessions
+    blacklist = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        min_length=0
+    )
+
+    # If True, filter if taxonomy missing
+    require_taxonomy = serializers.BooleanField(required=False)
 
     class Meta:
         ref_name = nuccore_title

@@ -6,7 +6,8 @@ from barcode_blastn.file_paths import get_data_fishdb_path, get_data_library_pat
 from barcode_blastn.helper.parse_gb import GenBankConnectionError, InsufficientAccessionData, retrieve_gb, save_taxonomy
 from barcode_blastn.models import Annotation, BlastDb, Hit, Library, NuccoreSequence
 from barcode_blastn.serializers import NuccoreSequenceSerializer 
-from django.db.models import QuerySet
+from django.db.models import QuerySet, Value, Q
+from django.db.models.functions import Length, Replace, Upper
 
 class SequenceUpdateSummary:
     no_change = []
@@ -145,7 +146,7 @@ def save_blastdb(obj: BlastDb, perform_lock: bool = False) -> BlastDb:
 
     return obj
 
-def create_blastdb(additional_accessions: List[str], base: Optional[BlastDb] = None, database: Optional[BlastDb] = None, search_term: Optional[str] = None, **kwargs) -> BlastDb:
+def create_blastdb(additional_accessions: List[str], base: Optional[BlastDb] = None, database: Optional[BlastDb] = None, search_term: Optional[str] = None, min_length: int = -1, max_length: int = -1, max_ambiguous_bases = -1, blacklist: List[str] = [], require_taxonomy: bool = False, **kwargs) -> BlastDb:
     '''
     Create a new blastdb with the accession numbers in additional_accessions. Also add the accession numbers
     from the instance given by `base`.
@@ -195,7 +196,7 @@ def create_blastdb(additional_accessions: List[str], base: Optional[BlastDb] = N
     accessions_to_add = list(set(accessions_to_add))
     # add sequences if there are accessions to add
     if len(accessions_to_add) > 0 or (not search_term is None and len(search_term) > 0):
-        new_sequences = add_sequences_to_database(new_database, desired_numbers=accessions_to_add, search_term=search_term)
+        new_sequences = add_sequences_to_database(new_database, desired_numbers=accessions_to_add, search_term=search_term, min_length=min_length, max_length=max_length, max_ambiguous_bases=max_ambiguous_bases, blacklist=blacklist, require_taxonomy=require_taxonomy)
         if not seqs is None:
             # Carry over the annotations from the old database
             annotations_to_save = []
@@ -412,7 +413,40 @@ def update_sequences_in_database(database: BlastDb, desired_numbers: List[str]) 
     return to_update
 
 
-def add_sequences_to_database(database: BlastDb, desired_numbers: List[str] = [], search_term: Optional[str] = None) -> List[NuccoreSequence]:
+def filter_sequences_in_database(database: BlastDb, min_length: int = -1, max_length: int = -1, max_ambiguous_bases = -1, blacklist: List[str] = [], require_taxonomy: bool = False) -> List[NuccoreSequence]:
+    '''
+    Filter out sequences in a database that violate the provided parameters by deleting those sequences and returning a list of
+    deletions.
+
+    This function also calls `.save()` on the database to log the
+    deletions in history, regardless of whether any deletions 
+    occurred.
+    '''
+    objects: QuerySet[NuccoreSequence] = NuccoreSequence.objects.filter(owner_database=database)
+    change_reason = []
+    if min_length > -1 or max_length > -1:
+        objects = objects.annotate(length=Length('dna_sequence'))
+    violations: QuerySet[NuccoreSequence] = objects.filter(Q(accession_number__in=blacklist) | Q(version__in=blacklist))
+    if len(blacklist) > 0:
+        change_reason.append(f'Remove using blacklist {", ".join(blacklist)}')
+    if min_length > -1:
+        violations |= objects.filter(length__lt=min_length)
+        change_reason.append(f'Delete length < {min_length} bp')
+    if max_length > -1:
+        violations |= objects.filter(length__gt=max_length)
+        change_reason.append(f'Delete length > {max_length} bp')
+    if max_ambiguous_bases > -1:
+        violations |= objects.annotate(uppercase=Upper('dna_sequence'), ambiguous=Length('uppercase') - Length(Replace('uppercase', Value('N')))).filter(ambiguous__gt=max_ambiguous_bases)
+        change_reason.append(f'Delete if Ns > {max_ambiguous_bases} bp')
+    
+    to_delete = [v.version for v in violations]
+    violations.delete()
+    append_change_reason(database, '\n'.join(change_reason))
+    # database.deleted = ', '.join(to_delete)
+    database.save()
+    return violations
+
+def add_sequences_to_database(database: BlastDb, desired_numbers: List[str] = [], search_term: Optional[str] = None, min_length: int = -1, max_length: int = -1, max_ambiguous_bases = -1, blacklist: List[str] = [], require_taxonomy: bool = False) -> List[NuccoreSequence]:
     '''
     Add a list of accession numbers to an existing database by bulk creating and return the resulting list of NuccoreSequences. Also log the sequences
     in the history and call save_blastdb()
@@ -444,8 +478,43 @@ def add_sequences_to_database(database: BlastDb, desired_numbers: List[str] = []
     
     # save the new sequences using a bulk operation
     to_create: List[NuccoreSequence] = []
+    data: Dict[str, Any]
     for data in genbank_data:
-        an: str = data['accession_number']
+        try:
+            an = data.get('accession_number')
+            version = data.get('version')
+        except KeyError:
+            continue
+        an = str(an)
+        version = str(version)
+
+        if an in existing:
+            continue 
+        
+        # filter by sequence length
+        sequence = data['dna_sequence']
+        seq_len = len(sequence)
+        if min_length > -1 and seq_len < min_length:
+            continue 
+        if max_length > -1 and seq_len > max_length:
+            continue
+        
+        # filter by ambiguous bases
+        n = len([base for base in sequence if base == 'N'])
+        if max_ambiguous_bases > -1 and n > max_ambiguous_bases:
+            continue 
+    
+        # check if taxonomy missing
+        if require_taxonomy:
+            taxa = ['superkingdom', 'kingdom', 'phylum', 'class', 'order', 'family', 'genus', 'species']
+            missing = [t for t in taxa if data.get(f'taxon_{t}') is None]
+            if len(missing) > 0:
+                continue 
+        
+        # check if in blacklist
+        if an in blacklist or version in blacklist:
+            continue
+
         if an not in existing:
             new_seq = NuccoreSequence(owner_database=database, **data)
             to_create.append(new_seq)

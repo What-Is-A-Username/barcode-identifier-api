@@ -5,6 +5,7 @@ from django.db import models
 from django import forms
 from django.db.models.query import QuerySet
 from django.db.models import Q
+from django.template.loader import render_to_string
 from simple_history.admin import SimpleHistoryAdmin
 
 from django.http.request import HttpRequest
@@ -13,10 +14,10 @@ from django.urls import reverse
 from django.utils.html import format_html
 from django.contrib.auth.models import User
 from barcode_blastn.admin_list_filters import BlastRunLibraryFilter, NuccoreSequencePublicationFilter
-from barcode_blastn.controllers.blastdb_controller import add_sequences_to_database, create_blastdb, delete_blastdb, delete_library, log_deleted_sequences, save_blastdb, save_sequence
+from barcode_blastn.controllers.blastdb_controller import add_sequences_to_database, create_blastdb, delete_blastdb, delete_library, filter_sequences_in_database, log_deleted_sequences, save_blastdb, save_sequence, filter_sequences_in_database
 from barcode_blastn.helper.parse_gb import GenBankConnectionError, InsufficientAccessionData, retrieve_gb
 from barcode_blastn.models import Annotation, BlastDb, BlastQuerySequence, DatabaseShare, Library, NuccoreSequence, BlastRun, Hit, TaxonomyNode
-from django.forms import BaseInlineFormSet, ModelForm, ValidationError
+from django.forms import BaseInlineFormSet, Form, ModelForm, ValidationError
 from barcode_blastn.permissions import DatabaseSharePermissions, HitSharePermission, LibrarySharePermissions, NuccoreSharePermission, RunSharePermissions
 
 from barcode_blastn.serializers import LibraryEditSerializer, library_title, blast_db_title, run_title, nuccore_title, hit_title
@@ -228,6 +229,22 @@ class LibraryAdmin(SimpleHistoryAdmin):
             return Library.objects.none()
 
 class BlastDbForm(ModelForm):
+    
+    min_sequence_length = forms.IntegerField(min_value=-1, max_value=10000, initial=-1, help_text='Filter out sequences with character count less than the minimum sequence length.')
+    max_sequence_length = forms.IntegerField(min_value=-1, max_value=10000, initial=-1, help_text='Filter out sequences with character count greater than the minimum sequence length.')
+    max_ambiguous_bases = forms.IntegerField(min_value=-1, max_value=10000, initial=-1, help_text='Filter out sequences with a greater number of ambiguous characters (Ns) than the maximum.')
+
+    # Allow filtering by blacklisting accessions
+    blacklist = forms.CharField(
+        widget=forms.Textarea,
+        min_length=0,
+        max_length=10000,
+        help_text='Filter out the given accession numbers or versions, by preventing these from being added and removing records already added.'
+    )
+
+    # If True, filter if taxonomy missing
+    require_taxonomy = forms.BooleanField(required=False, help_text='Filter out records without taxonomic information between the superkingdom to species levels (inclusive).')
+
     accession_list_upload = forms.FileField(help_text='Add large numbers of sequences at once by uploading a .txt file, with each accession number on a separate line.', required=False)
     accession_list_text = forms.CharField(widget=forms.Textarea, help_text='Add multiple sequences by pasting in a list of accession numbers, one per line.', required=False)
     search_term = forms.CharField(widget=forms.Textarea, help_text='Add sequences by GenBank search terms.', required=False)
@@ -247,7 +264,7 @@ class BlastDbForm(ModelForm):
 
         accessions_to_add = []
 
-        # Check that the accesson numbers or accession.versions in the list_text are not duplicates
+        # Check that the accession numbers or accession.versions in the list_text are not duplicates
         accession_file_upload = cleaned_data.get('accession_list_upload', None)
         if not accession_file_upload is None:
             accession_file_upload.seek(0)
@@ -298,7 +315,11 @@ class BlastDbAdmin(SimpleHistoryAdmin):
     inlines = [NuccoreSequenceInline]
     form = BlastDbForm
     list_display = ('custom_name', 'library', 'version_number', 'sequences_admin_count', 'id', 'locked')
-    fieldsets = [('Details', { 'fields': ['library', 'library_owner', 'custom_name', 'description', 'version_number']}), ('Visibility', { 'fields': ['locked', 'library_is_public']})]
+    fieldsets = [
+        ('Details', { 'fields': ['library', 'library_owner', 'custom_name', 'description', 'version_number']}), 
+        ('Visibility', { 'fields': ['locked', 'library_is_public']}),
+        ('Filter', { 'fields': ['min_sequence_length', 'max_sequence_length', 'max_ambiguous_bases', 'blacklist', 'require_taxonomy']}) 
+        ]
     search_fields = ['custom_name', 'id', 'library__custom_name', 'library__owner__username', 'library__description', 'description']
     list_filter = ['library__custom_name', 'genbank_version', 'locked']
     history_list_display = ['added', 'deleted', 'search_terms', 'locked', 'changed_fields']
@@ -405,13 +426,16 @@ class BlastDbAdmin(SimpleHistoryAdmin):
             'custom_name': form.cleaned_data.get('custom_name'),
             'description': form.cleaned_data.get('description'),
         }
+        filter_fields = ['min_length', 'max_length', 'max_ambiguous_bases', 'blacklist', 'require_taxonomy']
+        filter_args: dict[str, Any] = {field: getattr(form.cleaned_data, field) for field in filter_fields}
+        
         search_term = form.cleaned_data.get('search_term', None)
         if not change:
-            create_blastdb(additional_accessions=accessions, base=base, database=obj, search_term=search_term, **blastdb_fields, library=obj.library)
+            create_blastdb(additional_accessions=accessions, base=base, database=obj, search_term=search_term, **blastdb_fields, library=obj.library, **filter_args)
         else:
             obj._change_reason = 'Save changes'
             if len(accessions) > 0 or (not search_term is None and len(search_term) > 0):
-                add_sequences_to_database(obj, desired_numbers=accessions, search_term=search_term)               
+                add_sequences_to_database(obj, desired_numbers=accessions, search_term=search_term, **filter_args)               
             else:
                 save_blastdb(obj, perform_lock=False)
 
