@@ -12,7 +12,7 @@ def add_history_blastdb_sequences(sender, instance, **kwargs):
     if sender == HistoricalBlastDb:
         history_instance = kwargs['history_instance']
         # Move data from instance to the record
-        for attr in ['added', 'deleted', 'search_terms']:
+        for attr in ['added', 'deleted', 'search_terms', 'filter_options']:
             setattr(history_instance, attr, getattr(instance, attr, ''))
     elif sender == HistoricalLibrary:
         history_instance = kwargs['history_instance']

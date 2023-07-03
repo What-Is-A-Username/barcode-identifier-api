@@ -205,7 +205,7 @@ def retrieve_gb(accession_numbers: List[str], term: Optional[str] = None, raise_
         limit on the number of records requested with one call, specified by MAX_ACCESSIONS
         
     Raises:
-        ValueError: If there are missing records for any number of accession identifiers.
+        ValueError: If no accession identifiers are provided.
 
         GenBankConnectionError: If there is a network error when retrieving data from GenBank using Bio.Entrez
 

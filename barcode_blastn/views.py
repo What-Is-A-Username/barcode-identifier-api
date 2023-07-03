@@ -30,13 +30,13 @@ from rest_framework.response import Response
 
 from barcode_blastn.controllers.blastdb_controller import (
     AccessionsAlreadyExist, AccessionsNotFound, DatabaseLocked, InsufficientAccessionData,
-    add_sequences_to_database, create_blastdb, delete_blastdb, delete_library, delete_sequences_in_database, log_deleted_sequences,
+    add_sequences_to_database, create_blastdb, delete_blastdb, delete_library, delete_sequences_in_database, filter_sequences_in_database, log_deleted_sequences,
     save_blastdb, update_sequences_in_database)
 from barcode_blastn.file_paths import (get_data_fishdb_path, get_data_run_path,
                                        get_ncbi_folder, get_static_run_path)
 from barcode_blastn.helper.parse_gb import (ACCESSIONS_PER_REQUEST,
                                             AccessionLimitExceeded,
-                                            GenBankConnectionError)
+                                            GenBankConnectionError, retrieve_gb)
 from barcode_blastn.helper.verify_query import verify_dna, verify_header
 from barcode_blastn.models import (BlastDb, BlastQuerySequence, BlastRun,
                                    Library, NuccoreSequence)
@@ -52,7 +52,7 @@ from barcode_blastn.renderers import (BlastDbCSVRenderer, BlastDbCompatibleRende
                                       BlastRunFastaRenderer,
                                       BlastRunHitsTxtRenderer, BlastRunTaxonomyCSVRenderer, BlastRunTaxonomyTSVRenderer)
 from barcode_blastn.serializers import (BlastDbCreateSerializer,
-                                        BlastDbEditSerializer, BlastDbExportSerializer,
+                                        BlastDbEditSerializer, BlastDbExportSerializer, BlastDbHistoricalSerializer,
                                         BlastDbListSerializer,
                                         BlastDbSequenceEntrySerializer,
                                         BlastDbSerializer,
@@ -213,11 +213,18 @@ class NuccoreSequenceAdd(mixins.UpdateModelMixin, mixins.DestroyModelMixin, gene
             desired_numbers.extend(file_accessions)
 
         # Check if accession numbers provided
-        serialized_data = NuccoreSequenceBulkAddSerializer(data=request.data)
-        if not serialized_data.is_valid():
+        serializer = self.get_serializer_class()(data=request.data)
+        if not serializer.is_valid():
             return Response(status=status.HTTP_400_BAD_REQUEST)
-        desired_numbers.extend(request.data.get('accession_numbers', []))
-        search_term = request.data.get('search_term', None)
+
+        # Subset kwargs 
+        min_length = serializer.validated_data.get('min_length', -1)
+        max_length = serializer.validated_data.get('min_length', -1)
+        max_ambiguous_bases = serializer.validated_data.get('max_ambiguous_bases', -1)
+        blacklist = serializer.validated_data.get('blacklist', [])
+        require_taxonomy = serializer.validated_data.get('require_taxonomy', False)
+        desired_numbers.extend(serializer.validated_data.get('accession_numbers', []))
+        search_term = serializer.validated_data.get('search_term', None)
 
         # Deny user if user has insufficient permissions
         if not NuccoreSharePermission.has_add_permission(user=request.user, obj=None):
@@ -228,7 +235,9 @@ class NuccoreSequenceAdd(mixins.UpdateModelMixin, mixins.DestroyModelMixin, gene
             return Response({'message': 'The database is locked and its accession numbers cannot be added, edited or removed.'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            created_sequences = add_sequences_to_database(db, desired_numbers=desired_numbers, search_term=search_term)
+            created_sequences = add_sequences_to_database(db, desired_numbers=desired_numbers, search_term=search_term, \
+                min_length=min_length, max_length=max_length, max_ambiguous_bases=max_ambiguous_bases, blacklist=blacklist, \
+                require_taxonomy=require_taxonomy)
         except DatabaseLocked as exc:
             return Response({'message': f"Cannot modify sequences in a locked database."}, status=status.HTTP_400_BAD_REQUEST)
         except AccessionsAlreadyExist as exc:
@@ -259,8 +268,8 @@ class NuccoreSequenceAdd(mixins.UpdateModelMixin, mixins.DestroyModelMixin, gene
                 status=status.HTTP_400_BAD_REQUEST)
         else:
             # serialize the list of created objects so they can be sent back
-            serialized_data = BlastDbSequenceEntrySerializer(created_sequences, many = True).data
-            return Response(serialized_data, status = status.HTTP_201_CREATED)
+            serializer = BlastDbSequenceEntrySerializer(created_sequences, many = True).data
+            return Response(serializer, status = status.HTTP_201_CREATED)
 
     @swagger_auto_schema(
         operation_summary='Update accessions from GenBank data.',
@@ -291,7 +300,7 @@ class NuccoreSequenceAdd(mixins.UpdateModelMixin, mixins.DestroyModelMixin, gene
     )
     def patch(self, request, *args, **kwargs):
         '''
-        Update certain accession numbers.
+        Filter accession numbers
         '''
         pk = kwargs['pk']
         db: BlastDb
@@ -301,8 +310,6 @@ class NuccoreSequenceAdd(mixins.UpdateModelMixin, mixins.DestroyModelMixin, gene
         except BlastDb.DoesNotExist:
             return Response({'message': 'Database does not exist', 'requested': pk}, status.HTTP_404_NOT_FOUND)
         
-        desired_numbers = request.data.pop('accession_numbers', [])
-
         # Deny user if user has insufficient permissions
         if not NuccoreSharePermission.has_change_permission(user=request.user, obj=None):
             return Response(status=status.HTTP_403_FORBIDDEN)
@@ -311,37 +318,20 @@ class NuccoreSequenceAdd(mixins.UpdateModelMixin, mixins.DestroyModelMixin, gene
         if db.locked:
             return Response({'message': 'The database is locked and its accession numbers cannot be added, edited or removed.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        try:
-            updated_sequences = update_sequences_in_database(db, desired_numbers)
-        except DatabaseLocked as exc:
-            return Response({'message': f"Cannot modify sequences in a locked database."}, status=status.HTTP_400_BAD_REQUEST)
-        except AccessionsNotFound as exc:
-            return Response({'message': "Every accession number specified to be added already exists in the database.", 'accession_numbers': desired_numbers}, status=status.HTTP_200_OK)
-        except AccessionLimitExceeded as exc:
-            return Response({
-                    'message': f"Bulk addition of sequences limited to 1 to {exc.max_accessions} records per operation (inclusive). Current number: {exc.curr_accessions}",
-                    "accession_numbers": desired_numbers 
-                }, 
-                status=status.HTTP_400_BAD_REQUEST)
-        except GenBankConnectionError as exc:
-            return Response({
-                    'message': f"The GenBank database could not be connected to.", 
-                    "accession_numbers": desired_numbers, 
-                    "queried_numbers": exc.queried_accessions
-                }, 
-                status=status.HTTP_502_BAD_GATEWAY)
-        except InsufficientAccessionData as exc:
-            return Response({
-                    'message': f"Could not find a matching record for at least one accession number, or no records could be returned from the query.", 
-                    "accession_numbers": desired_numbers,
-                    "missing_accessions": exc.missing_accessions,
-                    "term": exc.term,
-                }, 
-                status=status.HTTP_400_BAD_REQUEST)
+        serializer = self.get_serializer_class()(data=request.data)
+        if serializer.is_valid():
+            # Subset kwargs 
+            min_length = serializer.validated_data.get('min_length', -1)
+            max_length = serializer.validated_data.get('min_length', -1)
+            max_ambiguous_bases = serializer.validated_data.get('max_ambiguous_bases', -1)
+            blacklist = serializer.validated_data.get('blacklist', [])
+            require_taxonomy = serializer.validated_data.get('require_taxonomy', False)
+            updated = filter_sequences_in_database(db, min_length=min_length, max_length=max_length, \
+                max_ambiguous_bases=max_ambiguous_bases, blacklist=blacklist, \
+                require_taxonomy=require_taxonomy)
+            return Response(updated, status=status.HTTP_200_OK)
         else:
-            # serialize the list of updated objects so they can be sent back
-            serialized_data = BlastDbSequenceEntrySerializer(updated_sequences, many = True).data
-            return Response(serialized_data, status = status.HTTP_202_ACCEPTED)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @swagger_auto_schema(
         operation_summary='Delete accessions from database.',
@@ -989,6 +979,29 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
         else:
             return Response(status=status.HTTP_204_NO_CONTENT)
 
+class BlastDbHistory(mixins.RetrieveModelMixin, generics.GenericAPIView):
+    '''
+    Retrieve a list representing complete history changelog of a database.
+    '''
+    serializer_class = BlastDbHistoricalSerializer
+    queryset = BlastDb.objects.all()
+    permission_classes = [BlastDbEndpointPermission]
+
+    def get(self, request, *args, **kwargs):
+        db_id: str = kwargs.pop('pk', None)
+        if db_id is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        try:
+            database: BlastDb = BlastDb.objects.get(id=db_id)
+            self.check_object_permissions(request, database)
+        except BlastDb.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        except PermissionDenied:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        return Response(self.get_serializer_class()(database.history.all(), many=True).data, status=status.HTTP_200_OK)
+
+
 class BlastDbExport(generics.GenericAPIView):
     '''
     Export the reference library to JSON and different file formats.
@@ -996,6 +1009,7 @@ class BlastDbExport(generics.GenericAPIView):
     serializer_class = BlastDbExportSerializer
     renderer_classes = [JSONRenderer, BrowsableAPIRenderer, BlastDbCSVRenderer, BlastDbTSVRenderer, BlastDbXMLRenderer, BlastDbFastaRenderer, BlastDbCompatibleRenderer]
     queryset = BlastDb.objects.all()
+    permission_classes = [BlastDbEndpointPermission]
 
     def get_renderer_context(self):
         context = super().get_renderer_context()
@@ -1166,13 +1180,18 @@ class BlastRunRun(generics.CreateAPIView):
         # Validate the request
         serializer = BlastRunRunSerializer(data=request.data)
         if serializer.is_valid():
-            full_query = serializer.data.get('query_sequence', None)
+            query_string = serializer.data.get('query_sequence', '').strip()
             query_file = request.FILES.get('query_file', None)
+            query_identifiers = serializer.data.get('query_identifiers', '').strip()
+            query_identifiers_file = serializer.data.get('query_identifiers_file', None)
+            job_name = serializer.data.get('job_name', '')
+            create_db_tree = serializer.data.get('create_db_tree', False) 
+            create_hit_tree = serializer.data.get('create_hit_tree', False)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
         # Bad request if no query_sequence is given
-        if full_query is None and query_file is None:
+        if len(query_string) == 0 and query_file is None:
             return Response({
                 'message': 'Request did not have raw sequence text or file upload specified to run with.'
             }, status = status.HTTP_400_BAD_REQUEST)
@@ -1186,71 +1205,117 @@ class BlastRunRun(generics.CreateAPIView):
                 'message': f"Cannot begin a blastn query on a database of less than {MINIMUM_NUMBER_OF_SEQUENCES} sequences. This database only contains {num_sequences_found} sequences."
             }, status = status.HTTP_400_BAD_REQUEST)
 
-        # Bad request if create_hit_tree and create_db_tree are not boolean values
-        try:
-            create_db_tree = serializer.data.pop('create_db_tree', False) 
-        except BaseException:
-            return Response({'message': 'Could not parse parameters for create_db_tree'},
-                status=status.HTTP_400_BAD_REQUEST)
-        try:
-            create_hit_tree = serializer.data.pop('create_hit_tree', False)
-        except BaseException:
-            return Response({'message': 'Could not parse parameters for create_hit_tree'},
-                status=status.HTTP_400_BAD_REQUEST)
-
         print("Beginning to parse sequences")
 
         query_sequences : List = []
-        # obtain the query sequence, either from raw text or from the file upload
-        # take precedence for the raw text
-        if not full_query is None:
-            # try parsing with fasta first
-            with io.StringIO(full_query) as query_string_io:
-                query_no = 1
-                query_records = SeqIO.parse(query_string_io, 'fasta')
-                query_record : SeqIO.SeqRecord
-                
-                for query_record in query_records:
-                    seq = str(query_record.seq).strip()
-                    if len(query_record.description) == 0:
-                        query_record.description = f'query_sequence_{query_no}'
-                        query_no = query_no + 1
+        unique_headers: set[str] = set([])
+        # Parse any raw sequences given
+        if len(query_string) > 0 or not query_file is None:
+            if len(query_string) > 0:
+                # try parsing with fasta first
+                with io.StringIO(query_string) as query_string_io:
+                    query_no = 1
+                    query_records = SeqIO.parse(query_string_io, 'fasta')
+                    query_record : SeqIO.SeqRecord
+                    
+                    for query_record in query_records:
+                        seq = str(query_record.seq).strip()
+                        if len(query_record.description) == 0:
+                            query_record.description = f'query_sequence_{query_no}'
+                            query_no = query_no + 1
+                        query_sequences.append({
+                            'definition': query_record.description,
+                            'query_sequence': seq
+                        })
+
+                # if we found no fasta entries, then parse the whole thing as a sequence
+                if len(query_sequences) == 0:
+                    # replace all whitespace
+                    query_string = query_string.strip().replace('\r', '').replace('\n', '').replace(' ', '')
                     query_sequences.append({
-                        'definition': query_record.description,
+                        'definition': 'query_sequence', 
+                        'query_sequence': query_string
+                    })            
+            if not query_file is None:
+                # parse the file with Biopython
+                try:
+                    query_file_io = io.StringIO(query_file.file.read().decode('UTF-8'))
+                    query_file_seqs = SeqIO.parse(query_file_io, 'fasta')
+                except BaseException:
+                    return Response({'message': 'The fasta file received was unable to be parsed with Biopython SeqIO using the "fasta" format. Double check the fasta contents.'}, status = status.HTTP_400_BAD_REQUEST)
+
+                parsed_entry: SeqIO.SeqRecord
+                for parsed_entry in query_file_seqs:
+                    seq = str(parsed_entry.seq)
+                    query_sequences.append({
+                        'definition': parsed_entry.description,
                         'query_sequence': seq
                     })
 
-            # if we found no fasta entries, then parse the whole thing as a sequence
-            if len(query_sequences) == 0:
-                # replace all whitespace
-                full_query = full_query.strip().replace('\r', '').replace('\n', '').replace(' ', '')
-                query_sequences.append({
-                    'definition': 'query_sequence', 
-                    'query_sequence': full_query
-                })
-        elif query_file is None:
-            # return an error if no file of name 'query_file' was found in the request
-            return Response({'message': 'No submitted sequences were found. Either upload a .fasta file or paste raw text for a single sequence.'}, status = status.HTTP_400_BAD_REQUEST)
-        else:
-            # parse the file with Biopython
-            try:
+            # For user-provided sequences, clean the definition and identify any species labels in the definition
+            for query_entry in query_sequences:
+                # only keep the seqid 
+                new_definition = query_entry['definition'].split(' ')[0]
+                # parse the seqid to see if organism is specified 
+                metadata = new_definition.split('\t')
+                
+                if len(metadata) >= 2:
+                    # set the species name by replacing all non alpha-numeric characters and non-periods with spaces
+                    query_entry['original_species_name'] = re.sub('[^0-9a-zA-Z.]+', ' ', metadata[1])
+                else:
+                    query_entry['original_species_name'] = ''
+                new_definition = metadata[0]
+                query_entry['definition'] = new_definition
+
+                if new_definition in unique_headers:
+                    return Response({'message': f"The sequence identifier in the header '{new_definition}'\
+                            is not unique. All submitted sequences must have unique sequence identifiers \
+                            (all text before the first space)."}, status = status.HTTP_400_BAD_REQUEST) 
+        
+        # Parse any identifiers given
+        if len(query_identifiers) > 0 or not query_identifiers_file is None:
+            ids = []
+            if len(query_identifiers) > 0:
+                ids = query_identifiers.replace('\r\n', '\n').strip().split('\n')
+                ids.extend([id.strip() for id in ids])
+
+            if not query_identifiers_file is None:
                 query_file_io = io.StringIO(query_file.file.read().decode('UTF-8'))
-                query_file_seqs = SeqIO.parse(query_file_io, 'fasta')
-            except BaseException:
-                return Response({'message': 'The fasta file received was unable to be parsed with Biopython SeqIO using the "fasta" format. Double check the fasta contents.'}, status = status.HTTP_400_BAD_REQUEST)
+                file_ids = query_file_io.readlines()
+                ids.extend([id.strip() for id in file_ids])
+                
+            try:
+                # Retrieve sequences from GenBank based on the identifiers provided
+                identifier_sequences = retrieve_gb(accession_numbers=ids, raise_if_missing=False)
+            except ValueError:
+                return Response({'message': f'Query identifiers could not be parsed from the query identifier text or \
+                    file.'}, 
+                    status=status.HTTP_502_BAD_GATEWAY)
+            except InsufficientAccessionData as exc:
+                return Response({'message': f'One or more of the following identifiers could not be retrieved from \
+                    GenBank: {exc.missing_accessions}'}, status=status.HTTP_400_BAD_REQUEST)
+            except GenBankConnectionError as exc:
+                return Response({'message': f'Encountered unexpected error connecting to GenBank'}, 
+                    status=status.HTTP_502_BAD_GATEWAY)
+            except AccessionLimitExceeded as exc:
+                return Response({'message': f'Too many accessions submitted in a single operation. Consider splitting \
+                    this query into diffeent jobs. Absolute maximum is {exc.max_accessions}.'}, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                for identifier_sequence in identifier_sequences:
+                    seqid = identifier_sequence.get('version')
+                    if seqid in unique_headers:
+                        return Response({'message': f"The sequence identifier in the header '{seqid}'\
+                            is not unique. All submitted sequences must have unique sequence identifiers \
+                            (all text before the first space)."}, status = status.HTTP_400_BAD_REQUEST)
+                    query_sequences.append({
+                        'definition': seqid,
+                        'query_sequence': identifier_sequence.get('dna_sequence'),
+                        'original_species_name': identifier_sequence.get('organism')
+                    })
 
-            parsed_entry: SeqIO.SeqRecord
-            for parsed_entry in query_file_seqs:
-                seq = str(parsed_entry.seq)
-                query_sequences.append({
-                    'definition': parsed_entry.description,
-                    'query_sequence': seq
-                })
-
+        # Raise an error if nothing could be retrieved based on sequences or identifiers given
         if len(query_sequences) == 0:
-            return Response({'message': 'Found zero sequences in the request to query with. Sequences can be sent as text in a form or a file.'}, status = status.HTTP_400_BAD_REQUEST)
-
-        job_name = request.data['job_name'] if 'job_name' in request.data else ''
+            return Response({'message': 'Could not successfully parse any query sequences or identifiers in the request to query with. Check the formatting and identifiers provided.'}, status = status.HTTP_400_BAD_REQUEST)
         
         # path to output the results
         results_uuid = uuid.uuid4()
@@ -1277,45 +1342,25 @@ class BlastRunRun(generics.CreateAPIView):
         else:
             print('Database was locked. Will use existing local database.')
 
-        # Perform blast search
+        # Generate query fasta file to blast with
         print('Generating query fasta file ...')
         query_file = results_path + '/query.fasta'
         blast_tmp = open(query_file, 'w')
-        unique_headers: set[str] = set([])
-        for query_entry in query_sequences:
-            # only keep the seqid 
-            new_definition = query_entry['definition'].split(' ')[0]
         
-            # parse the seqid to see if organism is specified 
-            metadata = new_definition.split('\t')
-            
-            if len(metadata) >= 2:
-                # set the species name by replacing all non alpha-numeric characters and non-periods with spaces
-                query_entry['original_species_name'] = re.sub('[^0-9a-zA-Z.]+', ' ', metadata[1])
-            else:
-                query_entry['original_species_name'] = ''
-            new_definition = metadata[0]
-            query_entry['definition'] = new_definition
-
-            if new_definition in unique_headers:
-                return Response({
-                    'message': f"The sequence identifier in the header '{new_definition}' is not unique. All submitted sequences must have unique sequence identifiers (all text before the first space)."
-                }, status = status.HTTP_400_BAD_REQUEST) 
+        for query_entry in query_sequences:
+            defn = query_entry.get('definition')
+            seq = query_entry.get('query_sequence')
             try:
-                verify_header(new_definition, query_entry["query_sequence"])
+                verify_header(defn, seq)
+                verify_dna(defn, seq)
             except ValueError as value_error:
                 return Response({'message': value_error.args}, status = status.HTTP_400_BAD_REQUEST) 
-            unique_headers.add(new_definition)
-            blast_tmp.write(f'>{new_definition}\n')
-
-            try:
-                verify_dna(new_definition, query_entry["query_sequence"])
-            except ValueError as value_error:
-                return Response({'message': value_error.args}, status = status.HTTP_400_BAD_REQUEST) 
-            blast_tmp.write(f'{query_entry["query_sequence"]}\n')
+            # Write the header and sequence to fasta 
+            blast_tmp.write(f'{defn}\n{seq}\n')
 
         blast_tmp.close()
 
+        # Perform blast search
         print('Running BLAST search ...')
 
         ncbi_blast_version = 'ncbi-blast-2.12.0+'

@@ -19,6 +19,7 @@ class BlastDbHistoricalModel(models.Model):
     added = models.CharField(max_length=10000, blank=True, default='None')
     deleted = models.CharField(max_length=10000, blank=True, default='None')
     search_terms = models.CharField(max_length=10000, blank=True, default='None')
+    filter_options = models.CharField(max_length=10000, blank=True, default='')
 
     class Meta:
         abstract = True

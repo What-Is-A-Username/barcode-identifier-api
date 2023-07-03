@@ -70,13 +70,15 @@ def delete_library(library: Optional[Library]):
 
 def save_blastdb(obj: BlastDb, perform_lock: bool = False) -> BlastDb:
     '''
-    Save the BlastDb. The BlastDb should have accession numbers **added and saved**, reference library indicated.
+    Save the BlastDb instance `obj`. The BlastDb should have accession numbers **added and saved** and 
+    reference library saved.
+    
+    `.save()` is always called on the instance.
 
     If the database is to be locked, the save process includes:
     - locking the database, i.e. setting locked to True
     - assign a version number if it was previously locked, based on the latest library version
     - setting the ._change_reason to "Lock database" or equivalent, for the change history
-    - calling `.save()` on the instance
 
     Raises:
         OSError: If an error is encountered while manipulating files in the filesystem when preparing the database files. 
@@ -170,18 +172,17 @@ def create_blastdb(additional_accessions: List[str], base: Optional[BlastDb] = N
     created = kwargs.pop('created', datetime.now())
     locked = kwargs.pop('locked', False) # ignore value of locked for now
     if database is None:
-        new_database: BlastDb = BlastDb(genbank_version=genbank_version, major_version=major_version, minor_version=minor_version, created=created, locked=False, **kwargs)
+        database = BlastDb(genbank_version=genbank_version, major_version=major_version, minor_version=minor_version, created=created, locked=False, **kwargs)
     else:
-        new_database = database
-        new_database.genbank_version = genbank_version
-        new_database.major_version = major_version
-        new_database.minor_version = minor_version
-        new_database.created = created
-        new_database.locked = False
+        database.genbank_version = genbank_version
+        database.major_version = major_version
+        database.minor_version = minor_version
+        database.created = created
+        database.locked = False
         for k, v in kwargs.items():
-            setattr(new_database, k, v)
-    database._change_reason = 'Initial save'
-    save_blastdb(new_database, perform_lock=False)
+            setattr(database, k, v)
+    setattr(database, '_change_reason', 'Initial save')
+    database = save_blastdb(database, perform_lock=False)
     
     accessions_to_add = additional_accessions
     seqs: Optional[QuerySet[NuccoreSequence]]
@@ -196,7 +197,7 @@ def create_blastdb(additional_accessions: List[str], base: Optional[BlastDb] = N
     accessions_to_add = list(set(accessions_to_add))
     # add sequences if there are accessions to add
     if len(accessions_to_add) > 0 or (not search_term is None and len(search_term) > 0):
-        new_sequences = add_sequences_to_database(new_database, desired_numbers=accessions_to_add, search_term=search_term, min_length=min_length, max_length=max_length, max_ambiguous_bases=max_ambiguous_bases, blacklist=blacklist, require_taxonomy=require_taxonomy)
+        new_sequences = add_sequences_to_database(database, desired_numbers=accessions_to_add, search_term=search_term, min_length=min_length, max_length=max_length, max_ambiguous_bases=max_ambiguous_bases, blacklist=blacklist, require_taxonomy=require_taxonomy)
         if not seqs is None:
             # Carry over the annotations from the old database
             annotations_to_save = []
@@ -225,9 +226,8 @@ def create_blastdb(additional_accessions: List[str], base: Optional[BlastDb] = N
             Annotation.objects.bulk_create(annotations_to_save)
 
     # If the database is to be locked, lock it. Else just return
-    if locked:
-        new_database = save_blastdb(new_database, perform_lock=locked)
-    return new_database
+    database = save_blastdb(database, perform_lock=locked)
+    return database
 
 def calculate_update_summary(last: BlastDb, current: BlastDb) -> SequenceUpdateSummary:
     '''
@@ -415,7 +415,8 @@ def update_sequences_in_database(database: BlastDb, desired_numbers: List[str]) 
 
 def filter_sequences_in_database(database: BlastDb, min_length: int = -1, max_length: int = -1, max_ambiguous_bases = -1, blacklist: List[str] = [], require_taxonomy: bool = False) -> List[NuccoreSequence]:
     '''
-    Filter out sequences in a database that violate the provided parameters by deleting those sequences and returning a list of
+    Filter out sequences in a database that violate the provided parameters by
+    deleting those sequences and returning a list of
     deletions.
 
     This function also calls `.save()` on the database to log the
@@ -427,24 +428,28 @@ def filter_sequences_in_database(database: BlastDb, min_length: int = -1, max_le
     if min_length > -1 or max_length > -1:
         objects = objects.annotate(length=Length('dna_sequence'))
     violations: QuerySet[NuccoreSequence] = objects.filter(Q(accession_number__in=blacklist) | Q(version__in=blacklist))
-    if len(blacklist) > 0:
-        change_reason.append(f'Remove using blacklist {", ".join(blacklist)}')
+    
     if min_length > -1:
         violations |= objects.filter(length__lt=min_length)
-        change_reason.append(f'Delete length < {min_length} bp')
+        
     if max_length > -1:
         violations |= objects.filter(length__gt=max_length)
-        change_reason.append(f'Delete length > {max_length} bp')
+        
     if max_ambiguous_bases > -1:
         violations |= objects.annotate(uppercase=Upper('dna_sequence'), ambiguous=Length('uppercase') - Length(Replace('uppercase', Value('N')))).filter(ambiguous__gt=max_ambiguous_bases)
-        change_reason.append(f'Delete if Ns > {max_ambiguous_bases} bp')
-    
-    to_delete = [v.version for v in violations]
-    violations.delete()
-    append_change_reason(database, '\n'.join(change_reason))
-    # database.deleted = ', '.join(to_delete)
-    database.save()
-    return violations
+        
+    if violations.count() > 0:
+        deleted_objects: List[NuccoreSequence] = [v for v in violations]
+        violations.delete()
+    else:
+        deleted_objects = []
+
+    # Log the filtered/deleted objects into history regardless of whether objects were deleted
+    log_filter_options(database, min_length=min_length, max_length=max_length, max_ambiguous_bases=max_ambiguous_bases, \
+        blacklist=blacklist, require_taxonomy=require_taxonomy)
+    log_deleted_sequences(instances=deleted_objects, database=database)
+    save_blastdb(database, perform_lock=False)
+    return deleted_objects
 
 def add_sequences_to_database(database: BlastDb, desired_numbers: List[str] = [], search_term: Optional[str] = None, min_length: int = -1, max_length: int = -1, max_ambiguous_bases = -1, blacklist: List[str] = [], require_taxonomy: bool = False) -> List[NuccoreSequence]:
     '''
@@ -460,6 +465,7 @@ def add_sequences_to_database(database: BlastDb, desired_numbers: List[str] = []
         GenbankConnectionError: Could not connect to GenBank or the request sent was bad
         InsufficientAccessionData: If all accession numbers could not be identified by GenBank 
     '''
+
     if database.locked:
         raise DatabaseLocked()
     if len(desired_numbers) == 0 and search_term is None:
@@ -515,10 +521,10 @@ def add_sequences_to_database(database: BlastDb, desired_numbers: List[str] = []
         if an in blacklist or version in blacklist:
             continue
 
-        if an not in existing:
-            new_seq = NuccoreSequence(owner_database=database, **data)
-            to_create.append(new_seq)
-            existing.add(an)
+        # passed all checks, so we can create the new object
+        new_seq = NuccoreSequence(owner_database=database, **data)
+        to_create.append(new_seq)
+        existing.add(an)
 
     # Add the initial accessions and search terms to be stored in the 
     # historical log of the database
@@ -526,6 +532,8 @@ def add_sequences_to_database(database: BlastDb, desired_numbers: List[str] = []
     created_sequences = NuccoreSequence.objects.bulk_create(to_create)
 
     log_added_sequences(instances=created_sequences, search_term=search_term, database=database)
+    log_filter_options(database, min_length=min_length, max_length=max_length, max_ambiguous_bases=max_ambiguous_bases, \
+        blacklist=blacklist, require_taxonomy=require_taxonomy)
     save_blastdb(database, perform_lock=False)
     return created_sequences
 
@@ -645,20 +653,45 @@ def log_deleted_sequences(instances: List[NuccoreSequence], database: BlastDb) -
         provided.
     '''
     db_id = str(database.id)
-    mismatches = [str(i) != db_id for i in instances]
+    mismatches = [str(i.owner_database.id) != db_id for i in instances]
     if any(mismatches):
-        raise ValueError('One of the provided instances does not belong to the \
-                         database specified')
+        raise ValueError(f'One of the provided instances does not belong to the \
+                         database specified. Expected: {db_id}. Received: {", ".join([str(i.owner_database.id) for i in instances])}')
     append_change_reason(database=database, reason='Deleted sequences')
     setattr(database, 'deleted', ', '.join([i.version for i in instances]))
 
-def log_added_sequences(instances: List[NuccoreSequence], search_term: Optional[str], database: BlastDb) -> None:
+def log_filter_options(database: BlastDb, min_length: int = -1, max_length: int = -1, max_ambiguous_bases = -1, blacklist: List[str] = [], require_taxonomy: bool = False):
     '''
-    Modify the ._change_reason, .added, and .search_terms of database to reflect the addition of 
-    sequences in instances. If the object database already has a ._change_reason,
+    Modify the `.filter_options` of the database specified, given the filter options specified.
+    If the object database already has non-zero-length `.filter_options`,
     append any newly added reasons to the existing string.
 
-    This function does not call .save(), so you must call .save() on the
+    This function does not call `.save()`, so you must call .save() on the
+    returned instances in order to save the changed data.
+    '''
+
+    options = []
+    blacklist = []
+    if len(blacklist) > 0 and blacklist[0] :
+        options.append(f'Remove using blacklist {", ".join(blacklist)}')
+    if min_length > -1:
+        options.append(f'Delete length < {min_length} bp')
+    if max_length > -1:
+        options.append(f'Delete length > {max_length} bp')
+    if max_ambiguous_bases > -1:
+        options.append(f'Delete if Ns > {max_ambiguous_bases} bp')
+    if require_taxonomy:
+        options.append(f'Delete if taxonomy incomplete')
+    print(database.id, min_length)
+    setattr(database, 'filter_options', '\n'.join(options))
+
+def log_added_sequences(instances: List[NuccoreSequence], search_term: Optional[str], database: BlastDb) -> None:
+    '''
+    Modify the `._change_reason`, `.added`, and `.search_terms` of database to reflect the addition of 
+    sequences in instances. If the object database already has non-zero-length `._change_reason`,
+    append any newly added reasons to the existing string.
+
+    This function does not call `.save()`, so you must call `.save()` on the
     returned instances in order to save the changed data.
 
     Raises:
@@ -667,7 +700,7 @@ def log_added_sequences(instances: List[NuccoreSequence], search_term: Optional[
         provided.
     '''
     db_id = str(database.id)
-    mismatches = [str(i) != db_id for i in instances]
+    mismatches = [str(i.owner_database.id) != db_id for i in instances]
     if any(mismatches):
         raise ValueError('One of the provided instances does not belong to the \
                          database specified')

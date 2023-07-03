@@ -230,20 +230,21 @@ class LibraryAdmin(SimpleHistoryAdmin):
 
 class BlastDbForm(ModelForm):
     
-    min_sequence_length = forms.IntegerField(min_value=-1, max_value=10000, initial=-1, help_text='Filter out sequences with character count less than the minimum sequence length.')
-    max_sequence_length = forms.IntegerField(min_value=-1, max_value=10000, initial=-1, help_text='Filter out sequences with character count greater than the minimum sequence length.')
-    max_ambiguous_bases = forms.IntegerField(min_value=-1, max_value=10000, initial=-1, help_text='Filter out sequences with a greater number of ambiguous characters (Ns) than the maximum.')
+    min_length = forms.IntegerField(min_value=-1, max_value=10000, initial=-1, help_text='Filter out sequences with character count less than the minimum sequence length. Set to -1 to ignore this option.', required=False)
+    max_length = forms.IntegerField(min_value=-1, max_value=10000, initial=-1, help_text='Filter out sequences with character count greater than the minimum sequence length. Set to -1 to ignore this option.', required=False)
+    max_ambiguous_bases = forms.IntegerField(min_value=-1, max_value=10000, initial=-1, help_text='Filter out sequences with a greater number of ambiguous characters (Ns) than the maximum. Set to -1 to ignore this option.', required=False)
 
     # Allow filtering by blacklisting accessions
     blacklist = forms.CharField(
         widget=forms.Textarea,
         min_length=0,
         max_length=10000,
-        help_text='Filter out the given accession numbers or versions, by preventing these from being added and removing records already added.'
+        help_text='Filter out the given accession numbers or versions, by preventing these from being added and removing records already added. Leave empty to ignore this option.',
+        required=False
     )
 
     # If True, filter if taxonomy missing
-    require_taxonomy = forms.BooleanField(required=False, help_text='Filter out records without taxonomic information between the superkingdom to species levels (inclusive).')
+    require_taxonomy = forms.BooleanField(help_text='Filter out records without taxonomic information between the superkingdom to species levels (inclusive). Uncheck to ignore this option.', required=False, initial=False)
 
     accession_list_upload = forms.FileField(help_text='Add large numbers of sequences at once by uploading a .txt file, with each accession number on a separate line.', required=False)
     accession_list_text = forms.CharField(widget=forms.Textarea, help_text='Add multiple sequences by pasting in a list of accession numbers, one per line.', required=False)
@@ -318,11 +319,11 @@ class BlastDbAdmin(SimpleHistoryAdmin):
     fieldsets = [
         ('Details', { 'fields': ['library', 'library_owner', 'custom_name', 'description', 'version_number']}), 
         ('Visibility', { 'fields': ['locked', 'library_is_public']}),
-        ('Filter', { 'fields': ['min_sequence_length', 'max_sequence_length', 'max_ambiguous_bases', 'blacklist', 'require_taxonomy']}) 
+        ('Filter', { 'fields': ['min_length', 'max_length', 'max_ambiguous_bases', 'blacklist', 'require_taxonomy']}) 
         ]
     search_fields = ['custom_name', 'id', 'library__custom_name', 'library__owner__username', 'library__description', 'description']
     list_filter = ['library__custom_name', 'genbank_version', 'locked']
-    history_list_display = ['added', 'deleted', 'search_terms', 'locked', 'changed_fields']
+    history_list_display = ['added', 'filter_options', 'deleted', 'search_terms', 'locked', 'changed_fields']
 
     def added(self, obj: BlastDb):
         '''Return a column with text wrapping to show added sequence identifiers in history'''
@@ -427,7 +428,11 @@ class BlastDbAdmin(SimpleHistoryAdmin):
             'description': form.cleaned_data.get('description'),
         }
         filter_fields = ['min_length', 'max_length', 'max_ambiguous_bases', 'blacklist', 'require_taxonomy']
-        filter_args: dict[str, Any] = {field: getattr(form.cleaned_data, field) for field in filter_fields}
+        filter_args: dict[str, Any] = {
+            field: form.cleaned_data.get(field) for field in filter_fields if field in form.cleaned_data
+        }
+        raw_blacklist = filter_args.get('blacklist', '').strip()
+        filter_args['blacklist'] = raw_blacklist.split('\n') if len(raw_blacklist) > 0 else []
         
         search_term = form.cleaned_data.get('search_term', None)
         if not change:
@@ -435,9 +440,9 @@ class BlastDbAdmin(SimpleHistoryAdmin):
         else:
             obj._change_reason = 'Save changes'
             if len(accessions) > 0 or (not search_term is None and len(search_term) > 0):
-                add_sequences_to_database(obj, desired_numbers=accessions, search_term=search_term, **filter_args)               
+                add_sequences_to_database(obj, desired_numbers=accessions, search_term=search_term, **filter_args)     
             else:
-                save_blastdb(obj, perform_lock=False)
+                filter_sequences_in_database(obj, **filter_args)          
 
     def get_readonly_fields(self, request, obj: Union[BlastDb, None] = None):
         if obj is None: # is adding

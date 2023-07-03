@@ -230,18 +230,25 @@ class DatabaseSharePermissions(CustomPermissions[BlastDb]):
             return LibrarySharePermissions.has_add_permission(user, obj.library)
 
     @staticmethod
-    def has_view_permission(user: Union[AbstractBaseUser, AnonymousUser], obj: Union[BlastDb, None]) -> bool:
-        if obj is None:
-            return True
-        else:
-            return LibrarySharePermissions.has_view_permission(user, obj.library)
- 
-    @staticmethod
     def has_run_permission(user: Union[AbstractBaseUser, AnonymousUser], obj: Union[BlastDb, None]) -> bool:
         if obj is None:
             return isinstance(user, AbstractUser) and user.is_authenticated
         else:
-            return LibrarySharePermissions.has_run_permission(user, obj.library)
+            return LibrarySharePermissions.has_run_permission(user, obj.library) and obj.locked
+
+    @staticmethod
+    def has_view_permission(user: Union[AbstractBaseUser, AnonymousUser], obj: Union[BlastDb, None]) -> bool:
+        if obj is None:
+            return True
+        else:
+            # Only allow view if:
+            # a) Can view the library and library is locked (locked ensures that public non-locked databases
+            # are not visible)
+            # b) Has run permission
+            # c) Has edit permission
+            return LibrarySharePermissions.has_view_permission(user, obj.library) and obj.locked or \
+                DatabaseSharePermissions.has_run_permission(user, obj) or \
+                DatabaseSharePermissions.has_change_permission(user, obj)
 
     @staticmethod
     def has_change_permission(user: Union[AbstractBaseUser, AnonymousUser], obj: Union[BlastDb, None]) -> bool:

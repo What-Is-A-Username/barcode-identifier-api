@@ -48,6 +48,7 @@ urlpatterns = [
 
     # Library Versions
     path('blastdbs/<uuid:pk>/', views.BlastDbDetail.as_view()),
+    path('blastdbs/<uuid:pk>/history/', views.BlastDbHistory.as_view()),
     path('blastdbs/<uuid:pk>/sequences/', views.NuccoreSequenceAdd.as_view()),
     path('blastdbs/<uuid:pk>/run/', views.BlastRunRun.as_view()),
     path('blastdbs/<uuid:pk>/export/', views.BlastDbExport.as_view()),

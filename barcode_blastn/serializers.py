@@ -3,7 +3,7 @@ import os
 from typing import Union
 from django.contrib.auth.models import User
 from rest_framework import serializers
-from barcode_blastn.models import Annotation, BlastQuerySequence, BlastRun, DatabaseShare, Hit, Library, NuccoreSequence, BlastDb, TaxonomyNode
+from barcode_blastn.models import Annotation, BlastQuerySequence, BlastRun, DatabaseShare, Hit, Library, NuccoreSequence, BlastDb, TaxonomyNode, BlastDbHistoricalModel
 from barcode_blastn.tests import LibraryListTest
 from barcode_blastn.validators import QueryFileValidator
 
@@ -200,11 +200,11 @@ class NuccoreSequenceBulkAddSerializer(serializers.Serializer):
     search_term = serializers.CharField(required=False, allow_blank=False)
 
     # Allow filtering by sequence length
-    min_length = serializers.IntegerField(min_value=-1, max_value=10000, default=-1)
-    max_length = serializers.IntegerField(min_value=-1, max_value=10000, default=-1)
+    min_length = serializers.IntegerField(min_value=-1, max_value=10000, default=-1, required=False)
+    max_length = serializers.IntegerField(min_value=-1, max_value=10000, default=-1, required=False)
 
     # Allow filtering by number of ambiguous bases (filter out if value > max)
-    max_ambiguous_bases = serializers.IntegerField(min_value=-1, max_value=10000, default=-1)
+    max_ambiguous_bases = serializers.IntegerField(min_value=-1, max_value=10000, default=-1, required=False)
 
     # Allow filtering by blacklisting accessions
     blacklist = serializers.ListField(
@@ -214,7 +214,7 @@ class NuccoreSequenceBulkAddSerializer(serializers.Serializer):
     )
 
     # If True, filter if taxonomy missing
-    require_taxonomy = serializers.BooleanField(required=False)
+    require_taxonomy = serializers.BooleanField(required=False, initial=False)
 
     class Meta:
         ref_name = nuccore_title
@@ -558,8 +558,16 @@ class BlastRunRunSerializer(serializers.ModelSerializer):
     '''
     Required fields for submitting a blast run
     '''
+    # Query headers and sequence in a string 
     query_sequence = serializers.CharField(allow_blank=False, min_length=10, required=False)
+    # Query headers and sequence in a file
     query_file = serializers.FileField(max_length=2621440, validators=[QueryFileValidator()], required=False)
+    # Query identifiers in a string, one identifier per line
+    query_identifiers = serializers.CharField(allow_blank=False, min_length=10, required=False)
+    # Query identifiers as a file, one identifier per line 
+    query_identifier_file = serializers.FileField(max_length=2621440, validators=[QueryFileValidator()], required=False)
+    # Job name
+    job_name = serializers.CharField(allow_blank=True, min_length=0, required=False)
     create_hit_tree = serializers.BooleanField(required=False)
     create_db_tree = serializers.BooleanField(required=False)
 
@@ -693,3 +701,18 @@ class AnnotationPoster(serializers.ModelSerializer):
         ref_name = annotation_title
         fields = ['id', 'poster', 'timestamp', 'annotation_type', 'comment']
         
+class HistoricalRecordField(serializers.ListField):
+    child = serializers.DictField()
+
+    def to_representation(self, data):
+        return super().to_representation(data.values())
+        
+
+class BlastDbHistoricalSerializer(serializers.ModelSerializer):
+
+    history_user = UserSerializer(read_only=True)
+        
+    class Meta:
+        model = BlastDb.history.model
+        fields = ['history_id', 'added', 'deleted', 'search_terms', 'filter_options', 'custom_name', 'history_date', 'history_change_reason', 'history_user', 'history_change_reason', 'history_type', 'blacklisted_accessions']
+        read_only_fields = ['__all__']
