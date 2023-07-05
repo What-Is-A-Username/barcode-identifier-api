@@ -1190,8 +1190,9 @@ class BlastRunRun(generics.CreateAPIView):
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
-        # Bad request if no query_sequence is given
-        if len(query_string) == 0 and query_file is None:
+        # Bad request if no data is given
+        if len(query_string) == 0 and query_file is None and \
+            len(query_identifiers) == 0 and query_identifiers_file is None:
             return Response({
                 'message': 'Request did not have raw sequence text or file upload specified to run with.'
             }, status = status.HTTP_400_BAD_REQUEST)
@@ -1242,14 +1243,16 @@ class BlastRunRun(generics.CreateAPIView):
                     query_file_io = io.StringIO(query_file.file.read().decode('UTF-8'))
                     query_file_seqs = SeqIO.parse(query_file_io, 'fasta')
                 except BaseException:
-                    return Response({'message': 'The fasta file received was unable to be parsed with Biopython SeqIO using the "fasta" format. Double check the fasta contents.'}, status = status.HTTP_400_BAD_REQUEST)
+                    return Response({'message': 'The fasta file received was unable to be parsed. \
+                                     Double check the text format and ensure it has correctly \
+                                     formatted headers for each record.'}, 
+                                     status = status.HTTP_400_BAD_REQUEST)
 
                 parsed_entry: SeqIO.SeqRecord
                 for parsed_entry in query_file_seqs:
-                    seq = str(parsed_entry.seq)
                     query_sequences.append({
                         'definition': parsed_entry.description,
-                        'query_sequence': seq
+                        'query_sequence': str(parsed_entry.seq)
                     })
 
             # For user-provided sequences, clean the definition and identify any species labels in the definition
@@ -1270,20 +1273,26 @@ class BlastRunRun(generics.CreateAPIView):
                 if new_definition in unique_headers:
                     return Response({'message': f"The sequence identifier in the header '{new_definition}'\
                             is not unique. All submitted sequences must have unique sequence identifiers \
-                            (all text before the first space)."}, status = status.HTTP_400_BAD_REQUEST) 
+                            (all text before the first whitespace)."}, status = status.HTTP_400_BAD_REQUEST) 
+                unique_headers.add(new_definition)
         
         # Parse any identifiers given
         if len(query_identifiers) > 0 or not query_identifiers_file is None:
             ids = []
+            # Add identifiers from text
             if len(query_identifiers) > 0:
                 ids = query_identifiers.replace('\r\n', '\n').strip().split('\n')
                 ids.extend([id.strip() for id in ids])
 
+            # Add identifiers from file upload
             if not query_identifiers_file is None:
                 query_file_io = io.StringIO(query_file.file.read().decode('UTF-8'))
                 file_ids = query_file_io.readlines()
                 ids.extend([id.strip() for id in file_ids])
-                
+
+            # Filter out any empty ids
+            ids = [id for id in ids if len(id) > 0]
+                            
             try:
                 # Retrieve sequences from GenBank based on the identifiers provided
                 identifier_sequences = retrieve_gb(accession_numbers=ids, raise_if_missing=False)
@@ -1298,9 +1307,13 @@ class BlastRunRun(generics.CreateAPIView):
                 return Response({'message': f'Encountered unexpected error connecting to GenBank'}, 
                     status=status.HTTP_502_BAD_GATEWAY)
             except AccessionLimitExceeded as exc:
-                return Response({'message': f'Too many accessions submitted in a single operation. Consider splitting \
-                    this query into diffeent jobs. Absolute maximum is {exc.max_accessions}.'}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({'message': f'Too many accessions submitted in a single operation. \
+                                 Consider splitting this query into different jobs. Absolute maximum \
+                                 is {exc.max_accessions}.'}, status=status.HTTP_400_BAD_REQUEST)
             else:
+                if identifier_sequences is None:
+                    return Response({'message': f'No identifiers could not be retrieved from \
+                    GenBank.'}, status=status.HTTP_400_BAD_REQUEST)
                 for identifier_sequence in identifier_sequences:
                     seqid = identifier_sequence.get('version')
                     if seqid in unique_headers:
@@ -1356,7 +1369,7 @@ class BlastRunRun(generics.CreateAPIView):
             except ValueError as value_error:
                 return Response({'message': value_error.args}, status = status.HTTP_400_BAD_REQUEST) 
             # Write the header and sequence to fasta 
-            blast_tmp.write(f'{defn}\n{seq}\n')
+            blast_tmp.write(f'>{defn}\n{seq}\n')
 
         blast_tmp.close()
 
@@ -1408,10 +1421,6 @@ class BlastRunRun(generics.CreateAPIView):
 
         # create response 
         serializer = BlastRunSerializer(run_details)
-        print("REQUEST IN:")
-        print(request.data)
-        print("SERIALIZER OUT:")
-        print(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 class BlastRunDetail(mixins.DestroyModelMixin, generics.GenericAPIView):

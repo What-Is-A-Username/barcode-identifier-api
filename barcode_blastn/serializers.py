@@ -559,13 +559,13 @@ class BlastRunRunSerializer(serializers.ModelSerializer):
     Required fields for submitting a blast run
     '''
     # Query headers and sequence in a string 
-    query_sequence = serializers.CharField(allow_blank=False, min_length=10, required=False)
+    query_sequence = serializers.CharField(allow_blank=True, required=False)
     # Query headers and sequence in a file
     query_file = serializers.FileField(max_length=2621440, validators=[QueryFileValidator()], required=False)
     # Query identifiers in a string, one identifier per line
-    query_identifiers = serializers.CharField(allow_blank=False, min_length=10, required=False)
+    query_identifiers = serializers.CharField(allow_blank=True, required=False)
     # Query identifiers as a file, one identifier per line 
-    query_identifier_file = serializers.FileField(max_length=2621440, validators=[QueryFileValidator()], required=False)
+    query_identifiers_file = serializers.FileField(max_length=2621440, validators=[QueryFileValidator()], required=False)
     # Job name
     job_name = serializers.CharField(allow_blank=True, min_length=0, required=False)
     create_hit_tree = serializers.BooleanField(required=False)
@@ -578,7 +578,7 @@ class BlastRunRunSerializer(serializers.ModelSerializer):
     class Meta:
         model = BlastRun
         ref_name = run_title + ' submission'
-        fields = ['id', 'job_name', 'query_sequence', 'create_hit_tree', 'create_db_tree', 'query_file']
+        fields = ['id', 'job_name', 'query_sequence', 'create_hit_tree', 'create_db_tree', 'query_file', 'query_identifiers', 'query_identifiers_file']
 
 def load_run_example():
     '''

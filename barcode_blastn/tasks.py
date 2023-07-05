@@ -168,7 +168,7 @@ def run_blast_command(ncbi_blast_version: str, fishdb_id: str, run_id: str) -> b
                     taxa.append(f'{species.version}_unspecified_species')
                 else:
                     taxa.append(species.taxon_species.scientific_name)
-            query.results_species_name = '*'.join(taxa)
+            query.results_species_name = ', '.join(taxa)
         else:
             # If there was no hits on the reference sequences,
             # leave the result blank
