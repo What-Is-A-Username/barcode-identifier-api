@@ -2,8 +2,8 @@ from datetime import datetime
 from time import sleep
 from typing import Any, Dict, Generator, List, Optional
 from urllib.error import HTTPError, URLError
-
-from barcode_blastn.models import TaxonomyNode
+from django.contrib.auth.models import User
+from barcode_blastn.models import Annotation, TaxonomyNode
 from Bio import Entrez, SeqIO
 from Bio.GenBank.Record import Reference
 from Bio.SeqFeature import SeqFeature
@@ -66,6 +66,7 @@ def parse_gb_handle(handle) -> List[Dict[Any, Any]]:
             'definition': seq_record.description,
             'dna_sequence': dna_sequence,
             'version': seq_record.id,
+            'keywords': ','.join(seq_record.annotations.get('keywords', [])),
             'journal': '',
             'authors': '',
             'title': '',
@@ -82,6 +83,7 @@ def parse_gb_handle(handle) -> List[Dict[Any, Any]]:
             'taxon_species': None,
         }
 
+        # Get first reference to papers, publications, submissions, etc.
         if len(seq_record.annotations['references']) > 0:
             first_reference: Reference = seq_record.annotations['references'][0]
             current_data['journal'] = first_reference.journal
@@ -300,7 +302,7 @@ def get_rank(ncbi_rank: str) -> str:
 
 @sleep_and_retry
 @limits(calls = 1, period = PERIOD)
-def save_taxonomy(taxonomy_info: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def save_taxonomy(taxonomy_info: List[Dict[str, Any]], user: Optional[User]) -> List[Dict[str, Any]]:
     """
         Retrieve taxonomic lineages from NCBI taxonomy and save taxonomic ranks into the database.
     """
@@ -391,5 +393,20 @@ def save_taxonomy(taxonomy_info: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             })
         taxonomy_info[i]['taxon_species'] = object
     
+        # Check for taxonomic uncertainty
+        lineage = taxonomy_info[i].get('taxonomy', '') 
+        keywords = ['cf.', 'aff.', 'sp.', 'environment', 'undescribed', 'uncultured', \
+            'complex', 'unclassified', 'nom.', 'nud.', 'unidentif']
+
+        for keyword in keywords:
+            if keyword in lineage or keyword in taxonomy_info[i]['definition']:
+                annotations = taxonomy_info[i].get('create_annotations', [])
+                annotations.append({
+                    'annotation_type': Annotation.AnnotationType.UNRESOLVED_TAXONOMY,
+                    'comment': f'(Auto-annotation by Barrel) Potential taxonomic uncertainty due to presence of "{keyword}" string within lineage or definition.'
+                })
+                taxonomy_info[i]['create_annotations'] = annotations
+        taxonomy_info[i]['annotation_user'] = user
+
     return taxonomy_info
 

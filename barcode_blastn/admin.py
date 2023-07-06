@@ -22,46 +22,8 @@ from barcode_blastn.permissions import DatabaseSharePermissions, HitSharePermiss
 
 from barcode_blastn.serializers import LibraryEditSerializer, library_title, blast_db_title, run_title, nuccore_title, hit_title
 
-class SequenceFormset(BaseInlineFormSet):
-    '''
-    Formset used to add new sequences through the inline viewer
-    on the database version page.
-    '''
-
-    def save_new(self, form, commit=True):
-        '''
-        Callback when a new sequence is added through a save button on the admin form.
-        '''
-        obj = super(SequenceFormset, self).save_new(form, commit=commit)
-        # Save the sequence information to the database.
-        # Since save_new() generally cannot terminate with an
-        # error, disable error checking for save_sequence()
-        return save_sequence(obj, commit=True, raise_if_missing=False, raise_errors=False) 
-
-    def clean(self) -> None:
-        super().clean()
-        valid_forms = [
-            form
-            for form in self.forms
-            if form.is_valid() and form not in self.deleted_forms and form.has_changed()
-        ]
-        accession_numbers = [form.cleaned_data.get('accession_number', '') for form in valid_forms]
-        if any([len(acc) == 0 for acc in accession_numbers]):
-            raise ValidationError(f'One or more newly added/edited accessions to be added had a missing accession number')
-        try:
-            retrieve_gb(accession_numbers=accession_numbers, raise_if_missing=True)
-        except InsufficientAccessionData as exc:
-            raise ValidationError(f'Some number of the following newly added/edited accession numbers did not match any record. Accessions: {", ".join(exc.missing_accessions)}. Terms: {exc.term}.')
-        except ValueError:
-            pass
-        # except BaseException as exc:
-            # raise ValidationError('Error validating accession numbers with GenBank.')
-        else:
-            return None
-
 class NuccoreSequenceInline(admin.TabularInline):
     model = NuccoreSequence     
-    formset = SequenceFormset   # Specify the form to handle edits and additions
     show_change_link = True     # Show link to page to edit the sequence
     classes = ['collapse']      # Allow the entries to be collapsed
     extra = 0                   # Show one extra row by default
@@ -110,10 +72,7 @@ class NuccoreSequenceInline(admin.TabularInline):
             return not obj.locked and DatabaseSharePermissions.has_change_permission(request.user, obj)
 
     def has_add_permission(self, request, obj: Union[BlastDb, None] = None) -> bool:
-        if obj is None:
-            return DatabaseSharePermissions.has_change_permission(request.user, obj)
-        else:
-            return not obj.locked and DatabaseSharePermissions.has_change_permission(request.user, obj)
+        return False
 
 class UserPermissionsInline(admin.TabularInline):
     model = DatabaseShare
@@ -249,13 +208,13 @@ class BlastDbForm(ModelForm):
     accession_list_upload = forms.FileField(help_text='Add large numbers of sequences at once by uploading a .txt file, with each accession number on a separate line.', required=False)
     accession_list_text = forms.CharField(widget=forms.Textarea, help_text='Add multiple sequences by pasting in a list of accession numbers, one per line.', required=False)
     search_term = forms.CharField(widget=forms.Textarea, help_text='Add sequences by GenBank search terms.', required=False)
-    base_library = forms.ModelChoiceField(queryset=BlastDb.objects.none(), help_text='Inherit all accession numbers from an existing BLAST database in order to populate the current.', required=False)
+    base_database = forms.ModelChoiceField(queryset=BlastDb.objects.none(), help_text='Inherit all accession numbers from an existing BLAST database in order to populate the current.', required=False)
 
     def __init__(self, *args, **kwargs) -> None:
         super(BlastDbForm, self).__init__(*args, **kwargs)
         user = getattr(self, 'user', None)
         if user:
-            self.fields['base_library'].queryset = BlastDb.objects.runnable(user)
+            self.fields['base_database'].queryset = BlastDb.objects.viewable(user)
         else:
             raise ValueError('No user')
 
@@ -369,13 +328,13 @@ class BlastDbAdmin(SimpleHistoryAdmin):
     def get_fieldsets(self, request: HttpRequest, obj: Optional[BlastDb] = None) -> List[Tuple[Optional[str], Dict[str, Any]]]:
         f = super().get_fieldsets(request, obj).copy()
         if obj is None:
-            f.append(('Accessions Included', { 'fields': ('base_library', 'accession_list_upload', 'accession_list_text', 'search_term')}))
+            f.append(('Accessions Included', { 'fields': ('base_database', 'accession_list_upload', 'accession_list_text', 'search_term')}))
         else:
             if not obj.locked and isinstance(request.user, User) and DatabaseSharePermissions.has_change_permission(request.user, obj=obj):
                 f.append(('Add additional accessions', { 'fields': ('accession_list_upload', 'accession_list_text', 'search_term')}))
         return f
 
-    def save_formset(self, request: Any, form: Any, formset: BaseInlineFormSet, change: Any) -> None:
+    def save_formset(self, request: HttpRequest, form: Any, formset: BaseInlineFormSet, change: Any) -> None:
         super_results = formset.save()
 
         # Save right now, instead of in save_model()
@@ -393,18 +352,18 @@ class BlastDbAdmin(SimpleHistoryAdmin):
             obj.locked = True 
         if will_lock or len(formset.deleted_objects) > 0:
             # Save to lock database and/or log sequence deletions
-            save_blastdb(obj, perform_lock=will_lock)
+            save_blastdb(obj, request.user, perform_lock=will_lock)
         
         return super_results
 
-    def save_model(self, request: Any, obj: BlastDb, form: Any, change: Any) -> None:
+    def save_model(self, request: HttpRequest, obj: BlastDb, form: Any, change: Any) -> None:
         # Since the model is saved first before any changes in sequence, don't lock the
         # database yet. The database will be locked if needed by save_formset
         obj.locked = False
 
         accessions = []
 
-        base = form.cleaned_data.get('base_library', None)
+        base = form.cleaned_data.get('base_database', None)
 
         # Add accessions from the file upload
         accession_file_upload = form.cleaned_data.get('accession_list_upload')
@@ -436,13 +395,13 @@ class BlastDbAdmin(SimpleHistoryAdmin):
         
         search_term = form.cleaned_data.get('search_term', None)
         if not change:
-            create_blastdb(additional_accessions=accessions, base=base, database=obj, search_term=search_term, **blastdb_fields, library=obj.library, **filter_args)
+            create_blastdb(additional_accessions=accessions, user=request.user, base=base, database=obj, search_term=search_term, **blastdb_fields, library=obj.library, **filter_args)
         else:
             obj._change_reason = 'Save changes'
             if len(accessions) > 0 or (not search_term is None and len(search_term) > 0):
-                add_sequences_to_database(obj, desired_numbers=accessions, search_term=search_term, **filter_args)     
+                add_sequences_to_database(obj, user=request.user, desired_numbers=accessions, search_term=search_term, **filter_args)     
             else:
-                filter_sequences_in_database(obj, **filter_args)          
+                filter_sequences_in_database(obj, user=request.user, **filter_args)          
 
     def get_readonly_fields(self, request, obj: Union[BlastDb, None] = None):
         if obj is None: # is adding
@@ -710,7 +669,7 @@ class NuccoreAdmin(admin.ModelAdmin):
         if not change:
             # Because the fields of sequences cannot be modified,
             # only call save if this is a newly added sequence
-            save_sequence(obj, commit=True)
+            save_sequence(obj, user=request.user, commit=True)
 
     def delete_model(self, request: HttpRequest, obj: NuccoreSequence) -> None:
         super().delete_model(request, obj)

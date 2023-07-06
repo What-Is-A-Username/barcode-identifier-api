@@ -326,7 +326,7 @@ class NuccoreSequenceAdd(mixins.UpdateModelMixin, mixins.DestroyModelMixin, gene
             max_ambiguous_bases = serializer.validated_data.get('max_ambiguous_bases', -1)
             blacklist = serializer.validated_data.get('blacklist', [])
             require_taxonomy = serializer.validated_data.get('require_taxonomy', False)
-            updated = filter_sequences_in_database(db, min_length=min_length, max_length=max_length, \
+            updated = filter_sequences_in_database(db, user=request.user, min_length=min_length, max_length=max_length, \
                 max_ambiguous_bases=max_ambiguous_bases, blacklist=blacklist, \
                 require_taxonomy=require_taxonomy)
             return Response(updated, status=status.HTTP_200_OK)
@@ -396,7 +396,7 @@ class NuccoreSequenceAdd(mixins.UpdateModelMixin, mixins.DestroyModelMixin, gene
             return Response({'message': 'The database is locked and its accession numbers cannot be added, edited or removed.'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            deleted = delete_sequences_in_database(db, desired_nums=desired_numbers)
+            deleted = delete_sequences_in_database(db, user=request.user, desired_nums=desired_numbers)
         except DatabaseLocked as exc:
             return Response({'message': f"Cannot modify sequences in a locked database."}, status=status.HTTP_400_BAD_REQUEST)
         else:
@@ -468,7 +468,7 @@ class NuccoreSequenceDetail(mixins.DestroyModelMixin, generics.RetrieveAPIView):
         else:
             database = seq.owner_database
             log_deleted_sequences([seq], database)
-            save_blastdb(database, perform_lock=False)
+            save_blastdb(database, request.user, perform_lock=False)
             return self.destroy(request, *args, **kwargs)
 
 class LibraryListView(mixins.ListModelMixin, generics.CreateAPIView):
@@ -807,7 +807,7 @@ class LibraryBlastDbList(mixins.ListModelMixin, generics.CreateAPIView):
                     return Response({'message': f'Database with id {base} does not exist'}, status=status.HTTP_400_BAD_REQUEST)
 
             try:
-                new_database: BlastDb = create_blastdb(additional_accessions=additional_accessions, base=base, **serializer_data, library=library)
+                new_database: BlastDb = create_blastdb(additional_accessions=additional_accessions, user=request.user, base=base, **serializer_data, library=library)
             except AccessionLimitExceeded as exc:
                 return Response({
                         'message': f"Bulk addition of sequences limited to 1 to {exc.max_accessions} accessions (inclusive). Current number: {exc.curr_accessions}", 
@@ -941,7 +941,7 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
 
         if was_locked and serializer.data.get('locked', False):
             # If the request locks the database, we need to save the version
-            updated = save_blastdb(updated, perform_lock=True)
+            updated = save_blastdb(updated, request.user, perform_lock=True)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @swagger_auto_schema(

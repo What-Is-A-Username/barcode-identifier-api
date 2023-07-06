@@ -13,7 +13,7 @@ from typing import Dict, List
 from barcode_blastn.file_paths import get_data_fishdb_path, get_data_run_path, get_ncbi_folder, get_static_run_path
 from barcode_blastn.helper.calculate_distance import annotate_pair_comparison, calculate_genetic_distance
 from barcode_blastn.helper.modified_clustalo import getMultipleAlignmentResult, submitMultipleAlignmentAsync
-from barcode_blastn.helper.parse_gb import retrieve_gb
+from barcode_blastn.helper.parse_gb import retrieve_gb, save_taxonomy
 from barcode_blastn.helper.parse_results import parse_results
 from rest_framework import status
 from barcode_blastn.helper.read_tree import readDbTreeFromFile, readHitTreeFromFile
@@ -204,6 +204,7 @@ def update_database() -> None:
         print("Updating database " + str(db.id) + " ...")
 
         new_data = retrieve_gb(all_numbers)
+        new_data = save_taxonomy(taxonomy_info=new_data, user=None)
         fields_to_update = list(new_data[0].keys())
         fields_to_update.append('created')
         seq : NuccoreSequence

@@ -4,6 +4,8 @@ import shutil
 from typing import Any, Dict, List, Optional, Set, Tuple
 from barcode_blastn.file_paths import get_data_fishdb_path, get_data_library_path, get_ncbi_folder
 from barcode_blastn.helper.parse_gb import GenBankConnectionError, InsufficientAccessionData, retrieve_gb, save_taxonomy
+from django.contrib.auth.models import User
+from django.db import transaction
 from barcode_blastn.models import Annotation, BlastDb, Hit, Library, NuccoreSequence
 from barcode_blastn.serializers import NuccoreSequenceSerializer 
 from django.db.models import QuerySet, Value, Q
@@ -68,7 +70,7 @@ def delete_library(library: Optional[Library]):
         delete_blastdb(db)
     library.delete()     
 
-def save_blastdb(obj: BlastDb, perform_lock: bool = False) -> BlastDb:
+def save_blastdb(obj: BlastDb, user: User, perform_lock: bool = False) -> BlastDb:
     '''
     Save the BlastDb instance `obj`. The BlastDb should have accession numbers **added and saved** and 
     reference library saved.
@@ -148,7 +150,7 @@ def save_blastdb(obj: BlastDb, perform_lock: bool = False) -> BlastDb:
 
     return obj
 
-def create_blastdb(additional_accessions: List[str], base: Optional[BlastDb] = None, database: Optional[BlastDb] = None, search_term: Optional[str] = None, min_length: int = -1, max_length: int = -1, max_ambiguous_bases = -1, blacklist: List[str] = [], require_taxonomy: bool = False, **kwargs) -> BlastDb:
+def create_blastdb(additional_accessions: List[str], user: User, base: Optional[BlastDb] = None, database: Optional[BlastDb] = None, search_term: Optional[str] = None, min_length: int = -1, max_length: int = -1, max_ambiguous_bases = -1, blacklist: List[str] = [], require_taxonomy: bool = False, **kwargs) -> BlastDb:
     '''
     Create a new blastdb with the accession numbers in additional_accessions. Also add the accession numbers
     from the instance given by `base`.
@@ -182,7 +184,7 @@ def create_blastdb(additional_accessions: List[str], base: Optional[BlastDb] = N
         for k, v in kwargs.items():
             setattr(database, k, v)
     setattr(database, '_change_reason', 'Initial save')
-    database = save_blastdb(database, perform_lock=False)
+    database = save_blastdb(database, user, perform_lock=False)
     
     accessions_to_add = additional_accessions
     seqs: Optional[QuerySet[NuccoreSequence]]
@@ -197,36 +199,57 @@ def create_blastdb(additional_accessions: List[str], base: Optional[BlastDb] = N
     accessions_to_add = list(set(accessions_to_add))
     # add sequences if there are accessions to add
     if len(accessions_to_add) > 0 or (not search_term is None and len(search_term) > 0):
-        new_sequences = add_sequences_to_database(database, desired_numbers=accessions_to_add, search_term=search_term, min_length=min_length, max_length=max_length, max_ambiguous_bases=max_ambiguous_bases, blacklist=blacklist, require_taxonomy=require_taxonomy)
-        if not seqs is None:
-            # Carry over the annotations from the old database
-            annotations_to_save = []
-            sequence: NuccoreSequence
-            for sequence in new_sequences:
-                try:
-                    existing: NuccoreSequence = seqs.get(version=sequence.version)
-                except NuccoreSequence.DoesNotExist:
-                    # Skip annotations if the sequence was not from base database
-                    pass
-                else:
-                    # Get all annotations from the old sequence entry
-                    old_annotations = existing.annotations.all()
-                    old: Annotation
-                    # Clone all old annotations
-                    for old in old_annotations:
-                        annotations_to_save.append(
-                            Annotation(
-                                sequence=sequence,
-                                poster=old.poster,
-                                annotation_type=old.annotation_type,
-                                comment=old.comment
-                            )
-                        )
+        
+        old_annotations: Dict[str, Any] = {}
+        seq: NuccoreSequence
+        old: Annotation
+        for seq in seqs:
+            old_annotations[seq.version] = [{
+                    'poster': old.poster,
+                    'annotation_type': old.annotation_type,
+                    'comment': old.comment
+                } for old in seq.annotations.all()]
+                # annotations_to_save.append(
+                #     Annotation(
+                #         sequence=sequence,
+                #         poster=old.poster,
+                #         annotation_type=old.annotation_type,
+                #         comment=old.comment
+                #     )
+                # )
+
+        # if not seqs is None:
+        #     # Carry over the annotations from the old database
+        #     annotations_to_save = []
+        #     sequence: NuccoreSequence
+        #     for sequence in new_sequences:
+        #         try:
+        #             existing: NuccoreSequence = seqs.get(version=sequence.version)
+        #         except NuccoreSequence.DoesNotExist:
+        #             # Skip annotations if the sequence was not from base database
+        #             pass
+        #         else:
+        #             # Get all annotations from the old sequence entry
+        #             old_annotations = existing.annotations.all()
+        #             old: Annotation
+        #             new_annotations = []
+        #             # Clone all old annotations
+        #             for old in old_annotations:
+        #                 new_annotations.append({
+        #                     'poster': old.poster,
+        #                     'annotation_type': old.annotation_type,
+        #                     'comment': old.comment
+        #                 })
+                        
+        #             setattr(sequence, 'create_annotations', new_annotations)
+        #             setattr(sequence, 'annotation_user', user)
             # Bulk save all annotations
-            Annotation.objects.bulk_create(annotations_to_save)
+            # Annotation.objects.bulk_create(annotations_to_save)
+
+        new_sequences = add_sequences_to_database(database, user, annotations_to_transfer=old_annotations, desired_numbers=accessions_to_add, search_term=search_term, min_length=min_length, max_length=max_length, max_ambiguous_bases=max_ambiguous_bases, blacklist=blacklist, require_taxonomy=require_taxonomy)
 
     # If the database is to be locked, lock it. Else just return
-    database = save_blastdb(database, perform_lock=locked)
+    database = save_blastdb(database, user, perform_lock=locked)
     return database
 
 def calculate_update_summary(last: BlastDb, current: BlastDb) -> SequenceUpdateSummary:
@@ -343,7 +366,7 @@ class AccessionsNotFound(BaseException):
 
 class DatabaseLocked(BaseException): ...
 
-def delete_sequences_in_database(database: BlastDb, desired_nums: List[str]) -> int:
+def delete_sequences_in_database(database: BlastDb, user: User, desired_nums: List[str]) -> int:
     '''
     Remove all sequences.
 
@@ -360,7 +383,7 @@ def delete_sequences_in_database(database: BlastDb, desired_nums: List[str]) -> 
 
     # Add deleted sequences to history
     log_deleted_sequences([s for s in to_delete], database=database)
-    save_blastdb(database, perform_lock=False)
+    save_blastdb(database, user=user, perform_lock=False)
 
     return result[1]['barcode_blastn.NuccoreSequence']
 
@@ -413,7 +436,7 @@ def update_sequences_in_database(database: BlastDb, desired_numbers: List[str]) 
     return to_update
 
 
-def filter_sequences_in_database(database: BlastDb, min_length: int = -1, max_length: int = -1, max_ambiguous_bases = -1, blacklist: List[str] = [], require_taxonomy: bool = False) -> List[NuccoreSequence]:
+def filter_sequences_in_database(database: BlastDb, user: User, min_length: int = -1, max_length: int = -1, max_ambiguous_bases = -1, blacklist: List[str] = [], require_taxonomy: bool = False) -> List[NuccoreSequence]:
     '''
     Filter out sequences in a database that violate the provided parameters by
     deleting those sequences and returning a list of
@@ -448,13 +471,17 @@ def filter_sequences_in_database(database: BlastDb, min_length: int = -1, max_le
     log_filter_options(database, min_length=min_length, max_length=max_length, max_ambiguous_bases=max_ambiguous_bases, \
         blacklist=blacklist, require_taxonomy=require_taxonomy)
     log_deleted_sequences(instances=deleted_objects, database=database)
-    save_blastdb(database, perform_lock=False)
+    save_blastdb(database, user=user, perform_lock=False)
     return deleted_objects
 
-def add_sequences_to_database(database: BlastDb, desired_numbers: List[str] = [], search_term: Optional[str] = None, min_length: int = -1, max_length: int = -1, max_ambiguous_bases = -1, blacklist: List[str] = [], require_taxonomy: bool = False) -> List[NuccoreSequence]:
+def add_sequences_to_database(database: BlastDb, user: User, desired_numbers: List[str] = [], annotations_to_transfer: Dict[str, Any] = {}, search_term: Optional[str] = None, min_length: int = -1, max_length: int = -1, max_ambiguous_bases = -1, blacklist: List[str] = [], require_taxonomy: bool = False) -> List[NuccoreSequence]:
     '''
-    Add a list of accession numbers to an existing database by bulk creating and return the resulting list of NuccoreSequences. Also log the sequences
-    in the history and call save_blastdb()
+    Add a list of accession numbers to an existing database by bulk creating and return the resulting list of NuccoreSequences, and return the saved objects.
+    
+    Also logs the sequences in the history and call save_blastdb().
+
+    Annotations can also be added by specifying them in the dictionary, with key value
+    corresponding to the accession version.
 
     Returns a list of saved NuccoreSequence objects, as returned by `.bulk_create()`. 
 
@@ -480,7 +507,7 @@ def add_sequences_to_database(database: BlastDb, desired_numbers: List[str] = []
 
     # retrieve data
     genbank_data = retrieve_gb(accession_numbers=desired_numbers, term=search_term)
-    genbank_data = save_taxonomy(genbank_data)
+    genbank_data = save_taxonomy(genbank_data, user)
     
     # save the new sequences using a bulk operation
     to_create: List[NuccoreSequence] = []
@@ -521,23 +548,36 @@ def add_sequences_to_database(database: BlastDb, desired_numbers: List[str] = []
         if an in blacklist or version in blacklist:
             continue
 
-        # passed all checks, so we can create the new object
+        # Passed all checks
+        # Pass along annotations to be used in the post_save signal
+        create_annotations = data.pop('create_annotations', [])
+        annotation_user = data.pop('annotation_user', user)
+
+        # Also add any annotations from base database
+        assert 'version' in data
+        version = data.get('version', '')
+        create_annotations.extend(annotations_to_transfer.get(version, []))
+
         new_seq = NuccoreSequence(owner_database=database, **data)
         to_create.append(new_seq)
+        setattr(new_seq, 'create_annotations', create_annotations)
+        setattr(new_seq, 'annotation_user', annotation_user)
         existing.add(an)
+
+    # Manually call save on each instance, instead of using .bulk_create,
+    # to ensure post_save signal is sent.
+    for seq in to_create:
+        seq.save()
 
     # Add the initial accessions and search terms to be stored in the 
     # historical log of the database
-    created_sequences = []
-    created_sequences = NuccoreSequence.objects.bulk_create(to_create)
-
-    log_added_sequences(instances=created_sequences, search_term=search_term, database=database)
+    log_added_sequences(instances=to_create, search_term=search_term, database=database)
     log_filter_options(database, min_length=min_length, max_length=max_length, max_ambiguous_bases=max_ambiguous_bases, \
         blacklist=blacklist, require_taxonomy=require_taxonomy)
-    save_blastdb(database, perform_lock=False)
-    return created_sequences
+    save_blastdb(database, user=user, perform_lock=False)
+    return to_create
 
-def save_sequence(obj: NuccoreSequence, commit: bool = False, raise_if_missing: bool = False, raise_errors: bool = True):
+def save_sequence(obj: NuccoreSequence, user: User, commit: bool = False, raise_if_missing: bool = False, raise_errors: bool = True):
     '''
     Save an accession by fetching data from GenBank again and populating the instance. Used for both saving and updating an accession.
     Obj should already have id, accession_number and owner_database values.
@@ -596,7 +636,7 @@ def save_sequence(obj: NuccoreSequence, commit: bool = False, raise_if_missing: 
 
     # check that the GenBank data is valid
     try:
-        currentData = save_taxonomy([currentData])[0]
+        currentData = save_taxonomy([currentData], user)[0]
         taxon_fields = ['taxon_species', 'taxon_genus', 'taxon_family', 'taxon_order', 'taxon_class', 'taxon_phylum', 'taxon_kingdom', 'taxon_superkingdom']
         for taxon_field in taxon_fields:
             setattr(obj, taxon_field, currentData[taxon_field])

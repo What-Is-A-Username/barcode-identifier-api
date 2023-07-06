@@ -326,7 +326,7 @@ class NuccoreSequence(models.Model):
     taxon_kingdom = models.ForeignKey(TaxonomyNode, related_name='kingdom_member', related_query_name='kingdom_members', help_text='Kingdom of the source organism', on_delete=models.CASCADE, null=True) 
     taxon_superkingdom = models.ForeignKey(TaxonomyNode, related_name='superkingdom_member', related_query_name='superkingdom_members', help_text='Superkingdom of the source organism', on_delete=models.CASCADE, null=True) 
     
-    
+    keywords = models.CharField(max_length=256, help_text='Comma-separated list of keywords on the sequence record.', blank=True, default='')
     title = models.CharField(max_length=512, help_text='Title of a publication by the authors of the sequence record.', blank=True, default='')
     journal = models.CharField(max_length=512, help_text='The journal of a publication, expressed with the MEDLINE abbreviation.', blank=True, default='')
     authors = models.CharField(max_length=512, help_text='Author list from the publication.', blank=True, default='')
@@ -572,13 +572,14 @@ class Annotation(models.Model):
     timestamp = models.DateTimeField(help_text='Creation time of annotation', auto_now_add=True)
     class AnnotationType(models.TextChoices):
         MISIDENTIFICATION = 'Misidentification'
-        UNVERIFIED_TAXONOMY = 'Unverified Taxonomy'
         TENTATIVE_NEW_SPECIES = 'Tentative New Species'
+        UNRESOLVED_TAXONOMY = 'Unresolved Taxonomy'
         SEQUENCE_QUALITY = 'Sequence Issue'
         CONTAMINATION = 'Contamination'
         METADATA_QUALITY = 'Metadata Issue'
         VALIDATED_TAXONOMY = 'Validated Taxonomy'
         FLAG = 'Flag'
+        KEYWORD = 'Keyword'
         QUESTIONS = 'Questions'
         OTHER = 'Other'
     annotation_type = models.CharField(max_length=32, choices=AnnotationType.choices, help_text='Categorization of content within the annotation.')
