@@ -200,23 +200,27 @@ def create_blastdb(additional_accessions: List[str], user: User, base: Optional[
     # add sequences if there are accessions to add
     if len(accessions_to_add) > 0 or (not search_term is None and len(search_term) > 0):
         
-        old_annotations: Dict[str, Any] = {}
-        seq: NuccoreSequence
-        old: Annotation
-        for seq in seqs:
-            old_annotations[seq.version] = [{
-                    'poster': old.poster,
-                    'annotation_type': old.annotation_type,
-                    'comment': old.comment
-                } for old in seq.annotations.all()]
-                # annotations_to_save.append(
-                #     Annotation(
-                #         sequence=sequence,
-                #         poster=old.poster,
-                #         annotation_type=old.annotation_type,
-                #         comment=old.comment
-                #     )
-                # )
+        # identify if there are any accessions to move over
+        if not seqs is None and seqs.count() > 0:
+            old_annotations: Dict[str, Any] = {}
+            seq: NuccoreSequence
+            old: Annotation
+            for seq in seqs:
+                old_annotations[seq.version] = [{
+                        'poster': old.poster,
+                        'annotation_type': old.annotation_type,
+                        'comment': old.comment
+                    } for old in seq.annotations.all()]
+                    # annotations_to_save.append(
+                    #     Annotation(
+                    #         sequence=sequence,
+                    #         poster=old.poster,
+                    #         annotation_type=old.annotation_type,
+                    #         comment=old.comment
+                    #     )
+                    # )
+        else:
+            old_annotations = {}
 
         # if not seqs is None:
         #     # Carry over the annotations from the old database

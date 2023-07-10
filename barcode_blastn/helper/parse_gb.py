@@ -106,11 +106,12 @@ def parse_gb_handle(handle) -> List[Dict[Any, Any]]:
                         # take only the first line/element of the feature
                         if qualifier_name == 'db_xref':
                             # Standards for db_xref are here: https://www.insdc.org/submitting-standards/dbxref-qualifier-vocabulary/
-                            # We are only concerned with references to NCBI taxonomic
-                            # identifier
-                            (database, identifier) = source_feature.qualifiers[qualifier_name][0].split(':')
-                            if database == 'taxon':
-                                current_data['taxid'] = identifier
+                            for qualifier_value in source_feature.qualifiers[qualifier_name]:
+                                (database, identifier) = qualifier_value.split(':')
+                                # We are only concerned with references to NCBI Taxonomy
+                                if database == 'taxon':
+                                    current_data['taxid'] = identifier
+                                    break
                         else:
                             current_data[qualifier_name] = source_feature.qualifiers[qualifier_name][0]
                     except IndexError:
@@ -162,7 +163,7 @@ def send_gb_request(accession_numbers: List[str] = [], raise_if_missing: bool = 
     if len(accession_numbers) > 0:
         kwargs['id'] = ','.join(accession_numbers)
     
-    print(f'{request_time_str} | Fetching from GenBank for accessions {kwargs.get("id", [])}, webenv {kwargs.get("webenv", [])}')
+    print(f'{request_time_str} | Fetching from GenBank with parameters {str(kwargs)}')
     term = kwargs.get('term', '')
     accs = accession_numbers
 
@@ -179,7 +180,7 @@ def send_gb_request(accession_numbers: List[str] = [], raise_if_missing: bool = 
     except:
         raise GenBankConnectionError(queried_accessions=accession_numbers, term=kwargs.get('term', ''))
     response_time_str = datetime.now().strftime("%H:%M:%S.%f")
-    print(f'{response_time_str} | Response received from GenBank for accessions {kwargs.get("id", [])}, webenv {kwargs.get("webenv", [])}')
+    print(f'{response_time_str} | Response received from GenBank for parameters {str(kwargs)}')
 
     result = parse_gb_handle(handle=handle)
     
@@ -237,15 +238,15 @@ def retrieve_gb(accession_numbers: List[str], term: Optional[str] = None, raise_
                 search_handle = Entrez.esearch(db='nucleotide', term=term, retmax=20, usehistory='y')
                 resp = Entrez.read(search_handle)
                 search_handle.close()
+                count: int = int(resp['Count'])
+                webenv: str = resp['WebEnv']
+                query_key: str = resp['QueryKey']
             except BaseException:
                 print(f'{datetime.now()} | Error received from NCBI GenBank ESearch for term {term}')
                 raise GenBankConnectionError(queried_accessions=[], term=term)
             else:
-                print(f'{datetime.now()} | Data successfully received NCBI GenBank ESearch for term {term}')
+                print(f'{datetime.now()} | Data successfully received NCBI GenBank ESearch for term {term}. {count} sequences found.')
             
-            count: int = int(resp['Count'])
-            webenv: str = resp['WebEnv']
-            query_key: str = resp['QueryKey']
             # Limit the number of accessions that can be added in this operation
             if count > MAX_ACCESSIONS:
                 raise AccessionLimitExceeded(curr_accessions=count, max_accessions=MAX_ACCESSIONS)
@@ -312,27 +313,28 @@ def save_taxonomy(taxonomy_info: List[Dict[str, Any]], user: Optional[User]) -> 
     query_ids: List[str] = list(set(taxids))
     query_string: str = ','.join(query_ids)
 
+    # Don't bother with retrieving taxonomy data if there are no taxonomy cross-references
     if len(query_string) == 0:
-        return []
-
-    print(f'{datetime.now()} | Fetching from NCBI Taxonomy for ids {query_string}')
-    try:
-        Entrez.email = "william.huang1212@gmail.com"
-        Entrez.max_tries = 1
-        Entrez.tool = "barcode_identifier"
-        taxonomy_handle = Entrez.efetch(db='taxonomy', id=query_string, retmode='xml')
-    except BaseException:
-        print(f'{datetime.now()} | Error received from NCBI Taxonomy for ids {query_string}')
-        raise TaxonomyConnectionError(query_ids)
+        taxa_data = {}
     else:
-        print(f'{datetime.now()} | Data successfully received from NCBI Taxonomy for ids {query_string}')
-    
-    response_data = Entrez.parse(taxonomy_handle)
-    response_data = [t for t in response_data]
-    taxa_data = [t for t in response_data]
-    taxids = [t['TaxId'] for t in response_data]
-    taxa_data = dict(zip(taxids, taxa_data))
-    taxonomy_handle.close()
+        print(f'{datetime.now()} | Fetching from NCBI Taxonomy for ids {query_string}')
+        try:
+            Entrez.email = "william.huang1212@gmail.com"
+            Entrez.max_tries = 1
+            Entrez.tool = "barcode_identifier"
+            taxonomy_handle = Entrez.efetch(db='taxonomy', id=query_string, retmode='xml')
+        except BaseException:
+            print(f'{datetime.now()} | Error received from NCBI Taxonomy for ids {query_string}')
+            raise TaxonomyConnectionError(query_ids)
+        else:
+            print(f'{datetime.now()} | Data successfully received from NCBI Taxonomy for ids {query_string}')
+        
+        response_data = Entrez.parse(taxonomy_handle)
+        response_data = [t for t in response_data]
+        taxa_data = [t for t in response_data]
+        taxids = [t['TaxId'] for t in response_data]
+        taxa_data = dict(zip(taxids, taxa_data))
+        taxonomy_handle.close()
 
     taxids = {}
 
@@ -350,7 +352,6 @@ def save_taxonomy(taxonomy_info: List[Dict[str, Any]], user: Optional[User]) -> 
                 continue
             rank = level['Rank']
             key = 'taxon_species'
-            taxon: TaxonomyNode
             if rank == 'superkingdom':
                 rank = TaxonomyNode.TaxonomyRank.SUPERKINGDOM
                 key = 'taxon_superkingdom'
