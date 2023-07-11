@@ -1,4 +1,4 @@
-from typing import List
+from typing import Any, List
 from django.dispatch import receiver
 from django.db.models.signals import post_save
 from simple_history.signals import pre_create_historical_record
@@ -34,7 +34,8 @@ def save_annotations(sender, instance, created, **kwargs):
     annotations = getattr(instance, 'create_annotations', [])
     default_user = getattr(instance, 'annotation_user')
     new_annotations: List[Annotation] = []
+    annotation: dict[str, Any]
     for annotation in annotations:
-        annotation_poster = annotation.pop('poster', default_user)
+        annotation.setdefault('poster', default_user)
         new_annotations.append(Annotation(sequence=instance, **annotation))
     Annotation.objects.bulk_create(new_annotations)

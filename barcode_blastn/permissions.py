@@ -5,6 +5,7 @@ from django.contrib.auth.models import (AbstractBaseUser, AbstractUser,
                                         AnonymousUser, User)
 from django.http.request import HttpRequest
 from rest_framework import permissions
+from rest_framework.exceptions import PermissionDenied
 
 from barcode_blastn.models import (BlastDb, BlastRun,
                                    DatabaseShare, Hit, Library, NuccoreSequence)
@@ -38,7 +39,7 @@ class CustomPermissions(Generic[T], ABC):
         does not restrict access to the add, change or delete views. Use
         `ModelAdmin.has_(add|change|delete)_permission` for that.
         """
-        pass
+        raise NotImplementedError("This permission must be specified")
 
     @staticmethod
     @abstractmethod
@@ -51,7 +52,7 @@ class CustomPermissions(Generic[T], ABC):
         obj instance. If `obj` is None, it should return True if the user
         has permission to add any object of the given type.
         """
-        pass
+        raise NotImplementedError("This permission must be specified")
 
     @staticmethod
     @abstractmethod
@@ -66,7 +67,7 @@ class CustomPermissions(Generic[T], ABC):
         is None, it should return True if the request has permission to view
         any object of the given type.
         """
-        pass
+        raise NotImplementedError("This permission must be specified")
 
     @staticmethod
     @abstractmethod
@@ -81,7 +82,7 @@ class CustomPermissions(Generic[T], ABC):
         model instance. If `obj` is None, this should return True if the given
         request has permission to change *any* object of the given type.
         """
-        pass
+        raise NotImplementedError("This permission must be specified")
 
     @staticmethod
     @abstractmethod
@@ -96,7 +97,7 @@ class CustomPermissions(Generic[T], ABC):
         model instance. If `obj` is None, this should return True if the given
         request has permission to delete *any* object of the given type.
         """
-        pass
+        raise NotImplementedError("This permission must be specified")
 
 class LibrarySharePermissions(CustomPermissions[Library]):
     '''
@@ -451,7 +452,10 @@ class BaseEndpointPermission(Generic[SharePermission, EndpointModel], permission
         return super().has_permission(request, view)
 
     def has_object_permission(self, request, view, obj):
-        return self.determine_obj_permission(self.get_share_permission_type(), request, view, obj)
+        if self.determine_obj_permission(self.get_share_permission_type(), request, view, obj):
+            return True 
+        else:
+            raise PermissionDenied
      
 class NuccoreSequenceEndpointPermission(BaseEndpointPermission[NuccoreSharePermission, NuccoreSequence]):
     '''

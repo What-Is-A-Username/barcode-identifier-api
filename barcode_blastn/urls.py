@@ -58,7 +58,9 @@ urlpatterns = [
 
     # runs
     path('runs/', views.BlastRunList.as_view()),
-    path('runs/<uuid:pk>/', views.BlastRunDetail.as_view()),
+    path('runs/<uuid:pk>', views.BlastRunDetail.as_view()),
+    path('runs/<uuid:pk>/queries/<str:query>', views.BlastQuerySequenceDetail.as_view()),
+    path('runs/<uuid:pk>/queries/<str:query>/hits', views.BlastRunResultsHit.as_view()),
     path('runs/<uuid:pk>/status/', views.BlastRunStatus.as_view()),
     path('runs/<uuid:pk>/download/', views.BlastRunDetailDownload.as_view()),
     path('runs/<uuid:pk>/download/input', views.BlastRunInputDownload.as_view()),

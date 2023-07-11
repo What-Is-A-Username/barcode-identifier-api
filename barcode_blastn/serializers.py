@@ -472,7 +472,7 @@ class HitSerializer(serializers.ModelSerializer):
     class Meta:
         model = Hit
         ref_name = hit_title + ' item'
-        fields = ['db_entry', 'owner_run', 'query_accession_version', 'subject_accession_version', 'percent_identity', 'alignment_length', 'mismatches', 'gap_opens', 'query_start', 'query_end', 'sequence_start', 'sequence_end', 'evalue', 'bit_score']
+        fields = ['db_entry', 'query_accession_version', 'subject_accession_version', 'percent_identity', 'alignment_length', 'mismatches', 'gap_opens', 'query_start', 'query_end', 'sequence_start', 'sequence_end', 'evalue', 'bit_score']
         example = {
             "db_entry": BlastDbSequenceEntrySerializer.Meta.example,
             "query_accession_version": "MG653404.1",
@@ -515,7 +515,7 @@ class NuccoreSequenceHitSerializer(serializers.ModelSerializer):
 
 class HitEntrySerializer(serializers.ModelSerializer):
     '''
-    Serialize a hit to be returned with a list of all hits
+    Serialize a hit to be returned with a list of all hits under a db entry
     '''
     db_entry = NuccoreSequenceHitSerializer(many=False, read_only=True)
 
@@ -537,6 +537,21 @@ class HitEntrySerializer(serializers.ModelSerializer):
             "sequence_end": 554,
             "evalue": "0.0000000000000000000000000000000000000000000000000000000000054500000000000000000000000000000000000000",
             "bit_score": "580.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+
+class BlastQuerySequenceShortSerializer(serializers.ModelSerializer):
+    '''
+    Show the minimal set of information for a sequence submitted in a run. \
+        The hits are not included.
+    '''
+
+    class Meta:
+        model = BlastQuerySequence
+        ref_name = query_title
+        fields = ['id', 'definition', 'query_sequence', 'results_species_name', 'accuracy_category', 'original_species_name', 'write_tree_identifier']
+        example = {
+            "definition": "Steatogenys_elegans isolate 8807 cytochrome c oxidase subunit I (COI) gene, partial cds; mitochondrial",
+            "query_sequence": "GGCACCCTTTATATAGTGTTTGGTGCCTGAGCCGGAATGGTTGGCACGGCCTTAAGCCTCCTTATTCGAGCCGAGCTAAGCCAACCCGGGGCCCTAATGGGTGATGACCAGATTTACAATGTTA"
         }
 
 class BlastQuerySequenceSerializer(serializers.ModelSerializer):
@@ -589,9 +604,23 @@ def load_run_example():
     f.close()
     return data
 
+class BlastRunResultsShortSerializer(serializers.ModelSerializer):
+    '''
+    Show results of a blast run, with summarizing information of the query sequences.
+    '''
+    db_used = BlastDbShortSerializer(many=False, read_only=True)
+    queries = BlastQuerySequenceShortSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = BlastRun    
+        ref_name = run_title
+        fields = ['id', 'job_name', 'db_used', 'queries', 'start_time', 'status', 'received_time', 'start_time', 'end_time', 'error_time', 'create_hit_tree', 'hit_tree', 'alignment_job_id', 'create_db_tree', 'db_tree', 'complete_alignment_job_id']
+
 class BlastRunSerializer(serializers.ModelSerializer):
     '''
-    Show results of a blast run
+    Show all information for a BLAST run, including queries and hits. \
+        Often will return an extremely large amount of information, so \
+            it will be primarily usefor for exporting results to file.
     '''
     db_used = BlastDbShortSerializer(many=False, read_only=True)
     queries = BlastQuerySequenceSerializer(many=True, read_only=True)    
@@ -635,8 +664,8 @@ class BlastRunStatusSerializer(serializers.ModelSerializer):
         example = {
             "id": "2e5898a3-14da-4e7f-9599-ba1ef35f1e7a",
             "job_name": "two sequences",
-            "received_time": "2023-02-21T03:26:32.323521Z",
             "start_time": "2023-02-21T03:27:11.323521Z",
+            "received_time": "2023-02-21T03:26:32.323521Z",
             "status": "FIN",
             "start_time": "2023-02-21T03:27:12.427193Z",
             "end_time": "2023-02-21T03:28:02.102346Z",

@@ -5,6 +5,7 @@ import os
 import re
 import uuid
 from typing import Any, Dict, List
+from barcode_blastn.pagination import BlastRunHitPagination, BlastRunQueryPagination
 from barcode_blastn.tests import LibraryListTest, SequenceTester, LibraryCreateTest
 
 from barcode_identifier_api.celery import app
@@ -13,6 +14,7 @@ from celery import signature, chain
 from barcode_blastn.tasks import run_blast_command
 from django.contrib.auth import login
 from django.contrib.auth.models import User
+from django.http import Http404
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from knox.auth import TokenAuthentication
@@ -55,10 +57,10 @@ from barcode_blastn.serializers import (BlastDbCreateSerializer,
                                         BlastDbEditSerializer, BlastDbExportSerializer, BlastDbHistoricalSerializer,
                                         BlastDbListSerializer,
                                         BlastDbSequenceEntrySerializer,
-                                        BlastDbSerializer,
+                                        BlastDbSerializer, BlastQuerySequenceSerializer, BlastQuerySequenceShortSerializer, BlastRunResultsShortSerializer,
                                         BlastRunRunSerializer,
                                         BlastRunSerializer,
-                                        BlastRunStatusSerializer, BlastRunTaxonomySerializer,
+                                        BlastRunStatusSerializer, BlastRunTaxonomySerializer, HitSerializer,
                                         LibraryCreateSerializer,
                                         LibraryEditSerializer,
                                         LibraryListSerializer,
@@ -68,7 +70,7 @@ from barcode_blastn.serializers import (BlastDbCreateSerializer,
                                         UserSerializer)
 
 tag_libraries = 'Libraries'
-tag_runs = 'Runs/Jobs'
+tag_runs = 'Runs'
 tag_blastdbs = 'BLAST Databases'
 tag_sequences = 'GenBank Accessions'
 tag_admin = 'Admin Tools'
@@ -98,7 +100,6 @@ class UserDetailView(generics.GenericAPIView):
         }
     )
     def get(self, request, format=None):
-        user: User = request.user
         return Response(UserSerializer(request.user).data)
 
 class LogoutAllView(KnoxLogoutAllView):
@@ -987,6 +988,7 @@ class BlastDbHistory(mixins.RetrieveModelMixin, generics.GenericAPIView):
     queryset = BlastDb.objects.all()
     permission_classes = [BlastDbEndpointPermission]
 
+    # TODO: Write docs for this method
     def get(self, request, *args, **kwargs):
         db_id: str = kwargs.pop('pk', None)
         if db_id is None:
@@ -996,11 +998,8 @@ class BlastDbHistory(mixins.RetrieveModelMixin, generics.GenericAPIView):
             self.check_object_permissions(request, database)
         except BlastDb.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
-        except PermissionDenied:
-            return Response(status=status.HTTP_403_FORBIDDEN)
 
         return Response(self.get_serializer_class()(database.history.all(), many=True).data, status=status.HTTP_200_OK)
-
 
 class BlastDbExport(generics.GenericAPIView):
     '''
@@ -1016,6 +1015,7 @@ class BlastDbExport(generics.GenericAPIView):
         context['export_format'] = self.request.GET.get('export_format', '')
         return context
     
+    # TODO: Write docs for this method
     def get(self, request, *args, **kwargs):
         '''
         Export blastdb to compatible formats for taxonomic assignment.
@@ -1055,12 +1055,12 @@ class BlastDbExport(generics.GenericAPIView):
             return Response(status=status.HTTP_406_NOT_ACCEPTABLE)
         return response
 
-class BlastRunList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.GenericAPIView):
+class BlastRunList(mixins.CreateModelMixin, generics.ListAPIView):
     '''
     List all BLAST runs. Used only for database administration purposes.
     '''
 
-    serializer_class = BlastRunSerializer
+    serializer_class = BlastRunResultsShortSerializer
 
     @swagger_auto_schema(
         operation_summary='List all runs.',
@@ -1069,10 +1069,7 @@ class BlastRunList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.Gene
         responses={
             '200': openapi.Response(
                 description='A list of all jobs saved.',
-                schema = BlastRunSerializer(many=True),
-                examples={
-                    'application/json': [ BlastRunSerializer.Meta.example ]
-                }
+                schema = BlastRunResultsShortSerializer(many=True),
             )
         }
     )
@@ -1080,7 +1077,7 @@ class BlastRunList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.Gene
         '''
         List all blast runs viewable
         '''
-        return self.list(request, *args, **kwargs)
+        return super().get(request, *args, **kwargs)
     
     def get_queryset(self):
         if isinstance(self.request.user, User):
@@ -1423,42 +1420,143 @@ class BlastRunRun(generics.CreateAPIView):
         serializer = BlastRunSerializer(run_details)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-class BlastRunDetail(mixins.DestroyModelMixin, generics.GenericAPIView):
+class BlastRunDetail(mixins.DestroyModelMixin, generics.RetrieveAPIView):
     '''
     View the results of any given run
     '''
 
     queryset = BlastRun.objects.all()
-    serializer_class = BlastRunSerializer
+    serializer_class = BlastRunResultsShortSerializer
     permission_classes = [AllowAny,]
     
+    def get_object(self):
+        db_primary_key = self.kwargs.get('pk')
+        try:
+            run = BlastRun.objects.get(id = db_primary_key)
+        except BlastRun.DoesNotExist:
+            raise Http404()
+        else:
+            return run
+
     @swagger_auto_schema(
         operation_summary='Get run results.',
-        operation_description='Get run information and results of a BLAST run. The status indicates the status of the run. The results returned are complete once the status is "FIN" (i.e. run is finished). The run information includes the BLASTN hits and multiple alignment trees.',
+        operation_description='Get a condensed summary of the run information. The results returned are complete once the status is "FIN" (i.e. run is finished), and may be incomplete, empty or missing otherwise. The run information includes the submitted sequences and Newick strings for any phylogenetic trees. To browse the hits, separately access each query sequence individually using its identifier.',
         tags = [tag_runs],
         responses={
             '200': openapi.Response(
                 description='Run information successfully retrieved.',
-                schema=BlastRunSerializer(),
-                examples={
-                    'application/json': BlastRunSerializer.Meta.example
-                }
+                schema=BlastRunResultsShortSerializer(),
             ),
             '404': 'Run with the ID does not exist',
         }
     )
     def get(self, request, *args, **kwargs):
-        db_primary_key = kwargs['pk']
+        return super().get(request, *args, **kwargs)
 
+class BlastRunResultsQueries(generics.ListAPIView):
+    '''
+    Return a paginated list of query sequences for a given run, \
+        minus with data of all the resulting hits.
+    '''
+    pagination_class = BlastRunQueryPagination
+    serializer_class = BlastQuerySequenceShortSerializer
+
+    def get_queryset(self):
+        pk: str = self.kwargs.get('pk')
         try:
-            run = BlastRun.objects.get(id = db_primary_key)
+            run = BlastRun.objects.get(id=pk)
         except BlastRun.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
-        
-        serializer = BlastRunSerializer(run)
-        response = Response(serializer.data, status=status.HTTP_200_OK)
+            raise Http404()
+        return run.queries.all()
 
-        return response
+    @swagger_auto_schema(
+        operation_summary='Get query sequences submitted',
+        operation_description='Get a list of the query sequences submitted in a run, including the submitted sequences and tentative species identity for each sequence. To read the hit information, retrieve each individual query sequence separately using its id.',
+        tags = [tag_runs],
+        responses={
+            '200': openapi.Response(
+                description='Information successfully retrieved.',
+                schema=BlastQuerySequenceShortSerializer,
+            ),
+            '404': 'Run with the ID does not exist',
+        }
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+class BlastQuerySequenceDetail(generics.RetrieveAPIView):
+    '''
+    Return a query sequence with hits.
+    '''
+    serializer_class = BlastQuerySequenceSerializer
+
+    def get_object(self):
+        pk: str = self.kwargs.get('pk')
+        try:
+            run = BlastRun.objects.get(id=pk)
+        except BlastQuerySequence.DoesNotExist:
+            raise Http404()
+
+        query: str = self.kwargs.get('query')
+        try:
+            obj = BlastQuerySequence.objects.get(owner_run=run, id=query)
+        except BlastQuerySequence.DoesNotExist:
+            raise Http404()
+        return obj
+
+    @swagger_auto_schema(
+        operation_summary='Get BLAST query sequence information',
+        operation_description='Get information about a query sequence submitted for a BLAST run, including hits. \
+            All hits are returned in a single list within the returned object, so the volume of the response may be large. \
+                To retrieve the hits, it is recommended that the `runs/{id}/query/{query}/hits` endpoint is used, since it will paginate \
+                    results across different requests.',
+        tags = [tag_runs],
+        responses={
+            '200': openapi.Response(
+                description='Information successfully retrieved.',
+                schema=BlastQuerySequenceSerializer(many=True),
+            ),
+            '404': 'Run with the ID does not exist',
+        }
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+class BlastRunResultsHit(generics.ListAPIView):
+    '''
+    Return a paginated list of all hits for a given query sequence
+    '''
+    pagination_class = BlastRunHitPagination
+    serializer_class = HitSerializer
+
+    def get_queryset(self):
+        pk: str = self.kwargs.get('pk')
+        try:
+            run = BlastRun.objects.get(id=pk)
+        except BlastRun.DoesNotExist:
+            raise Http404()
+
+        query: str = self.kwargs.get('query')
+        try:
+            obj = BlastQuerySequence.objects.get(owner_run=run, id=query)
+        except BlastQuerySequence.DoesNotExist:
+            raise Http404()
+        return obj.hits.all() 
+
+    @swagger_auto_schema(
+        operation_summary='Get BLAST hit information',
+        operation_description='Get a list of BLAST hits for the corresponding query sequence, with each hit including all calculated statistics such as alignment length, percent identity, bit score, etc.',
+        tags = [tag_runs],
+        responses={
+            '200': openapi.Response(
+                description='Information successfully retrieved.',
+                schema=HitSerializer(many=True),
+            ),
+            '404': 'Run with the ID does not exist',
+        }
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
 
 class BlastRunInputDownload(generics.GenericAPIView):
     '''
@@ -1477,8 +1575,7 @@ class BlastRunInputDownload(generics.GenericAPIView):
             '200': openapi.Response(
                 description='Query sequences retrieved successfully and a fasta file attachment is returned.',
                 schema=openapi.Schema(
-                    type=openapi.TYPE_STRING,
-                    format='binary'
+                    type=openapi.TYPE_FILE,
                 ),
             ),
             '404': 'Run data corresponding to the specified ID does not exist'
@@ -1589,20 +1686,20 @@ class BlastRunStatus(generics.RetrieveAPIView):
     serializer_class = BlastRunStatusSerializer
     permission_classes = (AllowAny,)
 
-    # @swagger_auto_schema(
-    #     operation_summary='Get status of run',
-    #     operation_description='Returns a minimal set of information useful for polling/checking the status of run.\n\nHow to interpret status:\n"QUE" (Queued): The run is currently waiting in the queue for its turn to be processed.\n"STA" (Started): The run is currently being processed.\n"FIN" (Finished): The run successfully completed and complete results are now visible.\n"ERR" (Errored): The run encountered an unexpected error and terminated.\n"UNK" (Unknown): The status is unknown, likely because there was an unexpected database or server error. Please submit another run.\n"DEN" (Denied): The run submission was received by the server, but it was denied from being processed.',
-    #     tags = [tag_runs],
-    #     responses={
-    #         '200': openapi.Response(
-    #             description='Results retrieved successfully and a file attachment is returned.',
-    #             schema=BlastRunStatusSerializer(),
-    #             examples={
-    #                 'application/json': BlastRunStatusSerializer.Meta.example
-    #             }
-    #         ),
-    #         '404': 'Run data corresponding to the specified ID does not exist'
-    #     },
-    # )
+    @swagger_auto_schema(
+        operation_summary='Get status of run',
+        operation_description='Returns a minimal set of information useful for polling/checking the status of run.\n\nHow to interpret status:\n"QUE" (Queued): The run is currently waiting in the queue for its turn to be processed.\n"STA" (Started): The run is currently being processed.\n"FIN" (Finished): The run successfully completed and complete results are now visible.\n"ERR" (Errored): The run encountered an unexpected error and terminated.\n"UNK" (Unknown): The status is unknown, likely because there was an unexpected database or server error. Please submit another run.\n"DEN" (Denied): The run submission was received by the server, but it was denied from being processed.',
+        tags = [tag_runs],
+        responses={
+            '200': openapi.Response(
+                description='Results retrieved successfully and a file attachment is returned.',
+                schema=BlastRunStatusSerializer(),
+                examples={
+                    'application/json': BlastRunStatusSerializer.Meta.example
+                }
+            ),
+            '404': 'Run data corresponding to the specified ID does not exist'
+        },
+    )
     def get(self, request, *args, **kwargs):
         return super().get(request, *args, **kwargs)

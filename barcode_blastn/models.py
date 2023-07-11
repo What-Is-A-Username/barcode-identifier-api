@@ -279,8 +279,10 @@ class DatabaseShare(models.Model):
         return f'"{self.permission_level}" permission for "{self.grantee.username}" on library "{self.database.custom_name}"'
 
     class Meta:
+        unique_together = ['database', 'grantee']
         verbose_name = 'BLAST Database Access Permission'
         verbose_name_plural = 'BLAST Database Access Permissions'
+        ordering = ['database__custom_name', 'grantee__username']
 
 class NuccoreSequenceManager(models.Manager):
     def viewable(self, user: User):
@@ -472,7 +474,7 @@ class BlastRun(models.Model):
     errors = models.TextField(max_length=10000, blank=True, default='', help_text='Error message text')
 
     class Meta:
-        ordering = ['received_time']
+        ordering = ['-received_time']
         verbose_name = 'BLASTN Run'
         verbose_name_plural = 'BLASTN Runs'
 
@@ -537,6 +539,8 @@ class BlastQuerySequence(models.Model):
         verbose_name_plural = 'BLASTN Query Sequences'
         # Prevent two query sequences in the same run from having the same definition
         unique_together = ('owner_run', 'definition')
+        # Display all instances in order of definition
+        ordering = ['definition'] 
 
     def __str__(self) -> str:
         return self.definition
@@ -562,7 +566,7 @@ class Hit(models.Model):
     bit_score = models.DecimalField(max_digits=110, decimal_places=100, help_text='Bit score')
 
     class Meta:
-        ordering = ['percent_identity']
+        ordering = ['-percent_identity', 'db_entry__version']
         verbose_name = 'BLASTN Run Hit'
         verbose_name_plural = 'BLASTN Run Hits'
 

@@ -251,20 +251,19 @@ class BlastDbForm(ModelForm):
             accessions_to_add.extend(list_text)
         
         # Get search string
-        search_term = cleaned_data.get('search_term', None)
+        # search_term = cleaned_data.get('search_term', None)
 
         # Check that accessions actually correspond with GenBank records
-        try:
-            retrieve_gb(accession_numbers=accessions_to_add, raise_if_missing=True, term=search_term)
-        except InsufficientAccessionData as exc:
-            raise ValidationError(f'Some number of following the accession numbers and search terms do not match any record. Accessions: {", ".join(exc.missing_accessions)}. Terms: {exc.term}.')
-        except GenBankConnectionError:
-            raise ValidationError(f'Encountered error connecting to GenBank')
-        except ValueError:
-            pass
+        # try:
+        #     retrieve_gb(accession_numbers=accessions_to_add, raise_if_missing=True, term=search_term)
+        # except InsufficientAccessionData as exc:
+        #     raise ValidationError(f'Some number of following the accession numbers and search terms do not match any record. Accessions: {", ".join(exc.missing_accessions)}. Terms: {exc.term}.')
+        # except GenBankConnectionError:
+        #     raise ValidationError(f'Encountered error connecting to GenBank')
+        # except ValueError:
+        #     pass
         # except BaseException as exc:
         #     raise ValidationError('None of the accession numbers or accession.versions match a GenBank record.')
-
         return cleaned_data
 
 @admin.register(BlastDb)
@@ -394,6 +393,7 @@ class BlastDbAdmin(SimpleHistoryAdmin):
         filter_args['blacklist'] = raw_blacklist.split('\n') if len(raw_blacklist) > 0 else []
         
         search_term = form.cleaned_data.get('search_term', None)
+        print('Submitting save request from admin with ', change, search_term, accessions)
         if not change:
             create_blastdb(additional_accessions=accessions, user=request.user, base=base, database=obj, search_term=search_term, **blastdb_fields, library=obj.library, **filter_args)
         else:
@@ -459,7 +459,6 @@ class BlastDbAdmin(SimpleHistoryAdmin):
 
     def changeform_view(self, request: HttpRequest, object_id: Union[str, None], form_url: str, extra_context: Optional[Dict[str, bool]]) -> Any:
         extra_context = extra_context or {}
-
         extra_context['show_save_and_continue'] = True # show Save and Continue button
         extra_context['show_save_and_add_another'] = True # hide Save and Add Another button
         extra_context['show_save'] = True # hide save button
