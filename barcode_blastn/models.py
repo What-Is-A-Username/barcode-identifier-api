@@ -1,7 +1,7 @@
 import uuid
 from collections import namedtuple
 from datetime import datetime
-from typing import Union
+from typing import Any, List, Union
 
 from django.contrib.auth.models import AbstractBaseUser, AnonymousUser, User
 from django.core.validators import MaxValueValidator
@@ -10,6 +10,7 @@ from django.utils.translation import gettext_lazy as _
 from simple_history.models import HistoricalRecords
 
 from barcode_blastn.database_permissions import DatabasePermissions
+from barcode_blastn.helper.compare_hits import compareHits
 
 class BlastDbHistoricalModel(models.Model):
     '''
@@ -533,6 +534,41 @@ class BlastQuerySequence(models.Model):
     accuracy_category = models.CharField(choices=QueryClassification.choices, max_length=32, help_text='Category assigned after comparing sequence against reference libraries, using categories in Janzen et al. 2022.', null=True, default=None)
     # Original label
     original_species_name = models.CharField(max_length=255, help_text='Original binomial species identity reported from the user query', null=True, default=None)
+
+    def best_hits(self) -> List[Any]:
+        '''
+        Return a list of best hits 
+        '''
+        best_hits: List[Any] = []
+        hit: Hit
+        for hit in self.hits.all():
+            if len(best_hits) == 0:
+                best_hits.append(hit)
+            else:
+                # Compare the hit with the current best hits
+                compare = compareHits(best_hits[0], hit)
+                # If current is better than previous best hit, replace previous
+                if compare == 1:
+                    best_hits = [hit]
+                # If current matches the previous best hit, keep all
+                elif compare == 0:
+                    best_hits.append(hit)
+        return best_hits
+        
+    def highest_percent_identity(self):
+        '''
+        Return the percent identity of the highest-performing hit
+        '''
+        best_hits = self.best_hits()
+        percent_identities = [hit.percent_identity for hit in best_hits]
+        return max(percent_identities) if len(percent_identities) > 0 else 0
+
+    def evalue(self):
+        '''
+        Return the evalue of the best-performing hit
+        '''
+        best_hits = self.best_hits()
+        return best_hits[0].evalue if len(best_hits) > 0 else 0
 
     class Meta:
         verbose_name = 'BLASTN Query Sequence'

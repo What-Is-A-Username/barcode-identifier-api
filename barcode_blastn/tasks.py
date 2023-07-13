@@ -11,7 +11,9 @@ from datetime import datetime, timezone
 import subprocess
 from typing import Dict, List
 from barcode_blastn.file_paths import get_data_fishdb_path, get_data_run_path, get_ncbi_folder, get_static_run_path
-from barcode_blastn.helper.calculate_distance import annotate_pair_comparison, calculate_genetic_distance
+from barcode_blastn.helper.assign_accuracy import annotate_accuracy_category
+from barcode_blastn.helper.calculate_distance import calculate_genetic_distance
+from barcode_blastn.helper.compare_hits import compareHits
 from barcode_blastn.helper.modified_clustalo import getMultipleAlignmentResult, submitMultipleAlignmentAsync
 from barcode_blastn.helper.parse_gb import retrieve_gb, save_taxonomy
 from barcode_blastn.helper.parse_results import parse_results
@@ -126,6 +128,8 @@ def run_blast_command(ncbi_blast_version: str, fishdb_id: str, run_id: str) -> b
         raise_error(run_details, f"Errored while handling results output.")
         raise RuntimeError('Errored while handling results output.') from exc
        
+    print('Results written. Now saving hits ...')
+    
     # bulk create hits
     try:
         parsed_data = parse_results(out)
@@ -143,17 +147,22 @@ def run_blast_command(ncbi_blast_version: str, fishdb_id: str, run_id: str) -> b
         raise_error(run_details, f"Errored while bulk creating hit results.")
         raise RuntimeError('Errored while bulk creating hit results.') from exc
     
+    print('Hits saved. Performing taxonomy assignments based on best hit ...')
+
     # Find the hit with the highest percent identity for each query_accession_version
     # Dictionary mapping query_accession_version -> highest scoring Hits
     best_hits: Dict[str, List[Hit]] = {}
     for hit in hit_objects:
-        current_hit = best_hits.get(hit.query_accession_version, [])
-        if len(current_hit) == 0:
+        current_best_hits = best_hits.get(hit.query_accession_version, [])
+        if len(current_best_hits) == 0:
             best_hits[hit.query_accession_version] = [hit]
         else:
-            if current_hit[0].percent_identity < hit.percent_identity:
+            comparison = compareHits(current_best_hits[0], hit)
+            if comparison == -1:
+                continue 
+            elif comparison == 1:
                 best_hits[hit.query_accession_version] = [hit]
-            elif current_hit[0].percent_identity == hit.percent_identity:
+            elif comparison == 0:
                 best_hits[hit.query_accession_version].append(hit)
         
     # assign identities to query sequences
@@ -168,12 +177,15 @@ def run_blast_command(ncbi_blast_version: str, fishdb_id: str, run_id: str) -> b
                     taxa.append(f'{species.version}_unspecified_species')
                 else:
                     taxa.append(species.taxon_species.scientific_name)
+            taxa = list(set(taxa))
             query.results_species_name = ', '.join(taxa)
         else:
             # If there was no hits on the reference sequences,
             # leave the result blank
             query.results_species_name = ''
     BlastQuerySequence.objects.bulk_update(queries, fields=['results_species_name'])
+
+    print('Updated and saved assignments. Cleaning up')
 
     # update run information
     try:
@@ -183,7 +195,7 @@ def run_blast_command(ncbi_blast_version: str, fishdb_id: str, run_id: str) -> b
         raise_error(run_details, f"Errored while updating run errors.")
         raise RuntimeError('Errored while updating run errors.') from exc
 
-    print('Queued BLAST search completed.')
+    print('Queued BLAST search and assignment completed.')
     print('Next parameters: ', run_details.create_hit_tree, run_details.create_db_tree)
     
     if run_details.create_hit_tree or run_details.create_db_tree:
@@ -397,7 +409,7 @@ def classify_genetic_distance(alignment_successful: bool, run: BlastRun) -> bool
     alignment_file_path = f'{get_static_run_path(run_id)}/{run.alignment_job_id}.aln-clustal_num.clustal_num'
     if os.path.exists(alignment_file_path) and os.path.isfile(alignment_file_path):
         matrix = calculate_genetic_distance(alignment_file_path)
-        annotation_result = annotate_pair_comparison(matrix, run)
+        annotation_result = annotate_accuracy_category(matrix, run)
         if annotation_result:
             print('Successfully finished annotating accuracy')
         return annotation_result

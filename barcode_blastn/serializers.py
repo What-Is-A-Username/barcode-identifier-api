@@ -339,25 +339,27 @@ class BlastDbSerializer(serializers.ModelSerializer):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        read_only_fields = ['id', 'library', 'sequences', 'version_number', 'created', 'modified']
+        read_only_fields = ['id', 'library', 'sequence_count', 'version_number', 'created', 'modified']
         for name in read_only_fields:
             self.fields[name].read_only = True
-        for name in ['id', 'library', 'description', 'locked', 'sequences', 'version_number', 'created', 'modified']:
+        for name in ['id', 'library', 'sequence_count', 'description', 'locked', 'version_number', 'created', 'modified']:
             self.fields[name].required = True
 
     library = LibraryShortSerializer(many=False, read_only=True)
-    sequences = BlastDbSequenceEntrySerializer(many=True, read_only=True)
+
+    def sequence_count(self, obj: BlastDb):
+        return obj.sequence_count()
 
     class Meta:
         model = BlastDb
         ref_name = blast_db_title
-        fields = ['id', 'library', 'custom_name', 'version_number', 'description', 'locked', 'sequences', 'created', 'modified']
+        fields = ['id', 'library', 'sequence_count', 'custom_name', 'version_number', 'description', 'locked', 'created', 'modified']
         example = {
             "id": "66855f2c-f360-4ad9-8c98-998ecb815ff5",
             "description": "This BLAST database is a collection of barcodes from 167 species of Neotropical electric knifefish (Teleostei: Gymnotiformes) which was presented by Janzen et al. 2022. All sequences and related feature data are updated daily at midnight (UTC) from NCBI's Genbank database.",
             "owner": LibraryOwnerSerializer.Meta.example,
             "locked": True,
-            "sequences": BlastDbSequenceEntrySerializer.Meta.example,
+            "sequence_count": 167,
             "created": "2023-06-26T14:04:43.879214Z",
             "modified": "2023-06-27T14:08:20.879214Z"
         }
@@ -542,13 +544,13 @@ class HitEntrySerializer(serializers.ModelSerializer):
 class BlastQuerySequenceShortSerializer(serializers.ModelSerializer):
     '''
     Show the minimal set of information for a sequence submitted in a run. \
-        The hits are not included.
+        Only the best hit is included.
     '''
 
     class Meta:
         model = BlastQuerySequence
         ref_name = query_title
-        fields = ['id', 'definition', 'query_sequence', 'results_species_name', 'accuracy_category', 'original_species_name', 'write_tree_identifier']
+        fields = ['id', 'definition', 'query_sequence', 'results_species_name', 'accuracy_category', 'original_species_name', 'write_tree_identifier', 'highest_percent_identity', 'evalue']
         example = {
             "definition": "Steatogenys_elegans isolate 8807 cytochrome c oxidase subunit I (COI) gene, partial cds; mitochondrial",
             "query_sequence": "GGCACCCTTTATATAGTGTTTGGTGCCTGAGCCGGAATGGTTGGCACGGCCTTAAGCCTCCTTATTCGAGCCGAGCTAAGCCAACCCGGGGCCCTAATGGGTGATGACCAGATTTACAATGTTA"
@@ -637,9 +639,10 @@ class BlastQuerySequenceTaxonomySerializer(serializers.ModelSerializer):
     pertaining to taxonomic assignment made on the query sequence, as required by 
     BlastRunTaxonomyCSVRenderer as similar.
     '''
+
     class Meta:
         model = BlastQuerySequence
-        fields = ['definition', 'query_sequence', 'results_species_name', 'accuracy_category', 'original_species_name', 'write_tree_identifier']
+        fields = ['definition', 'query_sequence', 'results_species_name', 'accuracy_category', 'original_species_name', 'write_tree_identifier', 'highest_percent_identity', 'evalue']
 
 class BlastRunTaxonomySerializer(serializers.ModelSerializer):
     '''

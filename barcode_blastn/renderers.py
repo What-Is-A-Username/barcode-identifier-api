@@ -385,7 +385,7 @@ def blast_run_taxonomy_dict_writer(data, delimiter=','):
     '''
     response = io.StringIO()
     # get a list of displayed fields to display for each hit
-    query_fields = ['definition', 'tree_query_id', 'original_species_name', 'results_species_name', 'accuracy_category']
+    query_fields = ['definition', 'tree_query_id', 'original_species_name', 'results_species_name', 'accuracy_category', 'highest_percent_identity', 'evalue']
 
     def populate_fields(old_dict: dict):
         query_id = old_dict.pop('write_tree_identifier')

@@ -5,7 +5,7 @@ import os
 import re
 import uuid
 from typing import Any, Dict, List
-from barcode_blastn.pagination import BlastRunHitPagination, BlastRunQueryPagination
+from barcode_blastn.pagination import BlastDbSequencePagination, BlastRunHitPagination, BlastRunQueryPagination
 from barcode_blastn.tests import LibraryListTest, SequenceTester, LibraryCreateTest
 
 from barcode_identifier_api.celery import app
@@ -155,15 +155,42 @@ class LoginView(KnoxLoginView):
 
         return response
 
-class NuccoreSequenceAdd(mixins.UpdateModelMixin, mixins.DestroyModelMixin, generics.CreateAPIView):   
+class BlastDbSequences(mixins.UpdateModelMixin, mixins.DestroyModelMixin, mixins.ListModelMixin, generics.CreateAPIView):   
     '''
-    Bulk add sequences to a specified database
+    Retrieve, filter and bulk add sequences under a specified database.
     '''
-    serializer_class = NuccoreSequenceBulkAddSerializer
+    serializer_class = BlastDbSequenceEntrySerializer
     permission_classes = [NuccoreSequenceEndpointPermission]
     queryset = NuccoreSequence.objects.all()
     parser_classes = [JSONParser, FormParser, MultiPartParser]
+    pagination_class = BlastDbSequencePagination
     
+    def get_queryset(self):
+        pk = self.kwargs.get('pk')
+        try:
+            database = BlastDb.objects.get(id=pk)
+        except BlastDb.DoesNotExist:
+            raise Http404
+        if DatabaseSharePermissions.has_view_permission(self.request.user, database):
+            return database.sequences.all()
+        else:
+            raise PermissionDenied
+
+    @swagger_auto_schema(
+        operation_summary='Retrieve all sequences in the database.',
+        operation_description=f'Get an object featuring a paginated list of all sequences in the reference database.',
+        tags = [tag_blastdbs, tag_sequences],
+        responses={
+            '200': openapi.Response(
+                description='Sequences successfully retrieved.',
+                schema=NuccoreSequenceBulkAddSerializer(many=True),
+            ),
+            '404': 'BLAST database matching the specified ID was not found.',
+        }
+    )
+    def get(self, request, *args, **kwargs):
+        return self.list(request, *args, **kwargs)
+        
     @swagger_auto_schema(
         operation_summary='Add accession numbers to database.',
         operation_description=f'From a list of accession numbers, add them to an existing database. List must contain between 1-{ACCESSIONS_PER_REQUEST} accession numbers inclusive.',
@@ -214,7 +241,7 @@ class NuccoreSequenceAdd(mixins.UpdateModelMixin, mixins.DestroyModelMixin, gene
             desired_numbers.extend(file_accessions)
 
         # Check if accession numbers provided
-        serializer = self.get_serializer_class()(data=request.data)
+        serializer = NuccoreSequenceBulkAddSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(status=status.HTTP_400_BAD_REQUEST)
 
@@ -319,7 +346,7 @@ class NuccoreSequenceAdd(mixins.UpdateModelMixin, mixins.DestroyModelMixin, gene
         if db.locked:
             return Response({'message': 'The database is locked and its accession numbers cannot be added, edited or removed.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        serializer = self.get_serializer_class()(data=request.data)
+        serializer = NuccoreSequenceBulkAddSerializer(data=request.data)
         if serializer.is_valid():
             # Subset kwargs 
             min_length = serializer.validated_data.get('min_length', -1)
