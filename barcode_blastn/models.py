@@ -318,7 +318,7 @@ class NuccoreSequence(models.Model):
     lat_lon = models.CharField(max_length=64, blank=True, default='', help_text='Latitude and longitude from which specimen originated')
     type_material = models.CharField(max_length=255, blank=True, default='', help_text='Specimen type of the source')
 
-    taxid = models.IntegerField('Taxonomic identifier of source organism.', blank=True, default=-2)
+    taxid = models.IntegerField(help_text='Taxonomic identifier of source organism.', blank=True, default=-2)
 
     taxon_species = models.ForeignKey(TaxonomyNode, related_name='species_member', related_query_name='species_members', help_text='Species taxa of the source organism', on_delete=models.CASCADE, null=True) 
     taxon_genus = models.ForeignKey(TaxonomyNode, related_name='genus_member', related_query_name='genus_members', help_text='Genus of the source organism', on_delete=models.CASCADE, null=True) 
@@ -333,7 +333,7 @@ class NuccoreSequence(models.Model):
     title = models.CharField(max_length=512, help_text='Title of a publication by the authors of the sequence record.', blank=True, default='')
     journal = models.CharField(max_length=512, help_text='The journal of a publication, expressed with the MEDLINE abbreviation.', blank=True, default='')
     authors = models.CharField(max_length=512, help_text='Author list from the publication.', blank=True, default='')
-    taxonomy = models.CharField(max_length=512,help_text='Comma-separated list of taxonomic lineage from GenBank', blank=True, default='')
+    taxonomy = models.CharField(max_length=512, help_text='Comma-separated list of taxonomic lineage from GenBank', blank=True, default='')
     
     genbank_modification_date = models.DateField(help_text='Modification date of the GenBank entry, shown in the locus field of the flat file.')
 

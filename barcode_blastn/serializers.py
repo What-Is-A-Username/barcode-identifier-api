@@ -474,7 +474,7 @@ class HitSerializer(serializers.ModelSerializer):
     class Meta:
         model = Hit
         ref_name = hit_title + ' item'
-        fields = ['db_entry', 'query_accession_version', 'subject_accession_version', 'percent_identity', 'alignment_length', 'mismatches', 'gap_opens', 'query_start', 'query_end', 'sequence_start', 'sequence_end', 'evalue', 'bit_score']
+        fields = ['db_entry', 'query_accession_version', 'subject_accession_version', 'percent_identity', 'alignment_length', 'mismatches', 'gap_opens', 'query_start', 'query_end', 'sequence_start', 'sequence_end', 'evalue', 'bit_score', 'position', 'best_hit']
         example = {
             "db_entry": BlastDbSequenceEntrySerializer.Meta.example,
             "query_accession_version": "MG653404.1",
@@ -488,7 +488,9 @@ class HitSerializer(serializers.ModelSerializer):
             "sequence_start": 1,
             "sequence_end": 490,
             "evalue": "0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-            "bit_score": "905.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+            "bit_score": "905.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+            "position": 2,
+            "best_hit": True
         }
         
 class NuccoreSequenceHitSerializer(serializers.ModelSerializer):

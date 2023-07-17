@@ -5,7 +5,7 @@ import os
 import re
 import uuid
 from typing import Any, Dict, List
-from barcode_blastn.ordering import CustomSequenceOrderingFilter
+from barcode_blastn.ordering import CustomHitOrderingFilter, CustomSequenceOrderingFilter
 from barcode_blastn.pagination import BlastDbSequencePagination, BlastRunHitPagination, BlastRunQueryPagination
 from barcode_blastn.tests import LibraryListTest, SequenceTester, LibraryCreateTest
 
@@ -1558,7 +1558,7 @@ class BlastQueryHitList(generics.ListAPIView):
     Return a paginated list of all hits for a given query sequence
     '''
     pagination_class = BlastRunHitPagination
-    filter_backends = [OrderingFilter]
+    filter_backends = [CustomHitOrderingFilter]
     ordering_fields = '__all__'
     ordering = ['query_accession_version']
     serializer_class = HitSerializer
