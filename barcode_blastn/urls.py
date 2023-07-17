@@ -42,14 +42,14 @@ urlpatterns = [
     path('users/', views.UserDetailView.as_view()),
 
     # Reference Libraries
-    path('libraries/', views.LibraryListView.as_view()),
+    path('libraries/', views.LibrariesList.as_view()),
     path('libraries/<uuid:library>/versions/', views.LibraryBlastDbList.as_view()),
     path('libraries/<uuid:library>', views.LibraryDetailView.as_view()),
 
     # Library Versions
     path('blastdbs/<uuid:pk>/', views.BlastDbDetail.as_view()),
     path('blastdbs/<uuid:pk>/history/', views.BlastDbHistory.as_view()),
-    path('blastdbs/<uuid:pk>/sequences/', views.BlastDbSequences.as_view()),
+    path('blastdbs/<uuid:pk>/sequences/', views.BlastDbSequenceList.as_view()),
     path('blastdbs/<uuid:pk>/run/', views.BlastRunRun.as_view()),
     path('blastdbs/<uuid:pk>/export/', views.BlastDbExport.as_view()),
 
@@ -59,8 +59,9 @@ urlpatterns = [
     # runs
     path('runs/', views.BlastRunList.as_view()),
     path('runs/<uuid:pk>', views.BlastRunDetail.as_view()),
+    path('runs/<uuid:pk>/queries', views.BlastRunQueryList.as_view()),
     path('runs/<uuid:pk>/queries/<str:query>', views.BlastQuerySequenceDetail.as_view()),
-    path('runs/<uuid:pk>/queries/<str:query>/hits', views.BlastRunResultsHit.as_view()),
+    path('runs/<uuid:pk>/queries/<str:query>/hits', views.BlastQueryHitList.as_view()),
     path('runs/<uuid:pk>/status/', views.BlastRunStatus.as_view()),
     path('runs/<uuid:pk>/download/', views.BlastRunDetailDownload.as_view()),
     path('runs/<uuid:pk>/download/input', views.BlastRunInputDownload.as_view()),

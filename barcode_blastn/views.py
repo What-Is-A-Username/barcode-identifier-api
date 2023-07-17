@@ -5,6 +5,7 @@ import os
 import re
 import uuid
 from typing import Any, Dict, List
+from barcode_blastn.ordering import CustomSequenceOrderingFilter
 from barcode_blastn.pagination import BlastDbSequencePagination, BlastRunHitPagination, BlastRunQueryPagination
 from barcode_blastn.tests import LibraryListTest, SequenceTester, LibraryCreateTest
 
@@ -29,6 +30,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.renderers import (BrowsableAPIRenderer, JSONRenderer,
                                       TemplateHTMLRenderer)
 from rest_framework.response import Response
+from rest_framework.filters import OrderingFilter
 
 from barcode_blastn.controllers.blastdb_controller import (
     AccessionsAlreadyExist, AccessionsNotFound, DatabaseLocked, InsufficientAccessionData,
@@ -155,7 +157,7 @@ class LoginView(KnoxLoginView):
 
         return response
 
-class BlastDbSequences(mixins.UpdateModelMixin, mixins.DestroyModelMixin, mixins.ListModelMixin, generics.CreateAPIView):   
+class BlastDbSequenceList(mixins.UpdateModelMixin, mixins.DestroyModelMixin, mixins.ListModelMixin, generics.CreateAPIView):   
     '''
     Retrieve, filter and bulk add sequences under a specified database.
     '''
@@ -164,7 +166,10 @@ class BlastDbSequences(mixins.UpdateModelMixin, mixins.DestroyModelMixin, mixins
     queryset = NuccoreSequence.objects.all()
     parser_classes = [JSONParser, FormParser, MultiPartParser]
     pagination_class = BlastDbSequencePagination
-    
+    ordering_fields = '__all__'
+    ordering = ['version']
+    filter_backends = [CustomSequenceOrderingFilter]
+
     def get_queryset(self):
         pk = self.kwargs.get('pk')
         try:
@@ -244,7 +249,6 @@ class BlastDbSequences(mixins.UpdateModelMixin, mixins.DestroyModelMixin, mixins
         serializer = NuccoreSequenceBulkAddSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(status=status.HTTP_400_BAD_REQUEST)
-
         # Subset kwargs 
         min_length = serializer.validated_data.get('min_length', -1)
         max_length = serializer.validated_data.get('min_length', -1)
@@ -499,11 +503,14 @@ class NuccoreSequenceDetail(mixins.DestroyModelMixin, generics.RetrieveAPIView):
             save_blastdb(database, request.user, perform_lock=False)
             return self.destroy(request, *args, **kwargs)
 
-class LibraryListView(mixins.ListModelMixin, generics.CreateAPIView):
+class LibrariesList(mixins.ListModelMixin, generics.CreateAPIView):
     '''
     Return a list of all reference libraries.
     '''
     queryset = Library.objects.all()
+    filter_backends = [OrderingFilter]
+    ordering_fields = '__all__'
+    ordering = ['custom_name']
 
     def get_serializer_class(self):
         if self.request is None:
@@ -700,7 +707,7 @@ class LibraryDetailView(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixi
 
 class LibraryBlastDbList(mixins.ListModelMixin, generics.CreateAPIView):
     '''
-    Return a list of all blast databases under a library
+    Return a list of all runnable blast databases under a library
     '''
     queryset = BlastDb.objects.all()
     serializer_class = BlastDbCreateSerializer
@@ -712,6 +719,18 @@ class LibraryBlastDbList(mixins.ListModelMixin, generics.CreateAPIView):
             return BlastDbCreateSerializer
         else:
             return BlastDbListSerializer
+
+    def get_queryset(self):
+        library_pk: str = self.kwargs.get('library')
+        try:
+            library: Library = Library.objects.get(id=library_pk)
+        except Library.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        if not LibrarySharePermissions.has_view_permission(self.request.user, library):
+            return Response(status=status.HTTP_403_FORBIDDEN) 
+        
+        return BlastDb.objects.runnable(self.request.user).filter(library=library_pk).order_by('genbank_version', 'major_version', 'minor_version') 
 
     @swagger_auto_schema(
         operation_summary='Get all databases.',
@@ -731,25 +750,7 @@ class LibraryBlastDbList(mixins.ListModelMixin, generics.CreateAPIView):
         '''
         List all blast databases under a specific library
         '''
-
-        library_pk: str = kwargs['library']     
-        try:
-            library: Library = Library.objects.get(id=library_pk)
-        except Library.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
-
-        if not LibrarySharePermissions.has_view_permission(request.user, library):
-            return Response(status=status.HTTP_403_FORBIDDEN) 
-
-        queryset = BlastDb.objects.runnable(request.user).filter(library=library_pk).reverse()
-
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
+        return super().list(request, *args, **kwargs)
 
     @swagger_auto_schema(
         operation_summary='Create a database for this reference library.',
@@ -1089,6 +1090,12 @@ class BlastRunList(mixins.CreateModelMixin, generics.ListAPIView):
 
     serializer_class = BlastRunResultsShortSerializer
 
+    def get_queryset(self):
+        if isinstance(self.request.user, User):
+            return BlastRun.objects.listable(self.request.user)
+        else:
+            return BlastRun.objects.none()
+
     @swagger_auto_schema(
         operation_summary='List all runs.',
         operation_description='Return a list of runs/jobs/queries saved by the API, including queued, running, and completed jobs.',
@@ -1105,12 +1112,6 @@ class BlastRunList(mixins.CreateModelMixin, generics.ListAPIView):
         List all blast runs viewable
         '''
         return super().get(request, *args, **kwargs)
-    
-    def get_queryset(self):
-        if isinstance(self.request.user, User):
-            return BlastRun.objects.listable(self.request.user)
-        else:
-            return BlastRun.objects.none()
 
 class BlastRunRun(generics.CreateAPIView):
     '''
@@ -1480,13 +1481,16 @@ class BlastRunDetail(mixins.DestroyModelMixin, generics.RetrieveAPIView):
     def get(self, request, *args, **kwargs):
         return super().get(request, *args, **kwargs)
 
-class BlastRunResultsQueries(generics.ListAPIView):
+class BlastRunQueryList(generics.ListAPIView):
     '''
     Return a paginated list of query sequences for a given run, \
         minus with data of all the resulting hits.
     '''
     pagination_class = BlastRunQueryPagination
     serializer_class = BlastQuerySequenceShortSerializer
+    filter_backends = [OrderingFilter]
+    ordering_fields = '__all__'
+    ordering = ['definition']
 
     def get_queryset(self):
         pk: str = self.kwargs.get('pk')
@@ -1509,7 +1513,7 @@ class BlastRunResultsQueries(generics.ListAPIView):
         }
     )
     def get(self, request, *args, **kwargs):
-        return super().get(request, *args, **kwargs)
+        return super().list(request, *args, **kwargs)
 
 class BlastQuerySequenceDetail(generics.RetrieveAPIView):
     '''
@@ -1549,11 +1553,14 @@ class BlastQuerySequenceDetail(generics.RetrieveAPIView):
     def get(self, request, *args, **kwargs):
         return super().get(request, *args, **kwargs)
 
-class BlastRunResultsHit(generics.ListAPIView):
+class BlastQueryHitList(generics.ListAPIView):
     '''
     Return a paginated list of all hits for a given query sequence
     '''
     pagination_class = BlastRunHitPagination
+    filter_backends = [OrderingFilter]
+    ordering_fields = '__all__'
+    ordering = ['query_accession_version']
     serializer_class = HitSerializer
 
     def get_queryset(self):

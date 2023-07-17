@@ -43,7 +43,7 @@ class TaxonomyNode(models.Model):
         return f'{self.scientific_name}: {self.id} ({self.rank})'
 
     class Meta:
-        ordering = ['id']
+        ordering = ['scientific_name']
         verbose_name = 'NCBI Taxonomy Node'
         verbose_name_plural = 'NCBI Taxonomy Nodes'
 
@@ -205,7 +205,7 @@ class BlastDbManager(models.Manager):
         libs: models.QuerySet[Library] = Library.objects.viewable(user)
         return BlastDb.objects.filter(library__in=libs)
 
-    def runnable(self, user: User):
+    def runnable(self, user: Union[AbstractBaseUser, AnonymousUser]):
         '''Return a QuerySet of BLAST databases that are runnable by the given user. BLAST databases are editable if their reference library are runnable by the same user.'''
         libs: models.QuerySet[Library] = Library.objects.runnable(user)
         return BlastDb.objects.filter(library__in=libs, locked=True)
@@ -235,6 +235,7 @@ class BlastDb(models.Model):
 
     library = models.ForeignKey(Library, on_delete=models.CASCADE, help_text='The reference library which this database is a version of.')
 
+    # TODO: Reorganize version numbers, deciding whether to integrate GenBank version
     genbank_version = models.SmallIntegerField(default=0, validators=[MaxValueValidator(32767), MaxValueValidator(0)], help_text='Version number reflective of changes in sequence data, accession.versions, and the set of accessions included.')
     major_version = models.SmallIntegerField(default=0, validators=[MaxValueValidator(32767), MaxValueValidator(0)], help_text='Version number reflective of changes in important metadata such as source information, location, specimen identifiers.')
     minor_version = models.SmallIntegerField(default=0, validators=[MaxValueValidator(32767), MaxValueValidator(0)], help_text='Version number reflective of minor changes such as database description, names, references.')
