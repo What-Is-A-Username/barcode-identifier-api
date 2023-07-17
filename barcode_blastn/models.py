@@ -4,13 +4,12 @@ from datetime import datetime
 from typing import Any, List, Union
 
 from django.contrib.auth.models import AbstractBaseUser, AnonymousUser, User
-from django.core.validators import MaxValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from simple_history.models import HistoricalRecords
 
 from barcode_blastn.database_permissions import DatabasePermissions
-from barcode_blastn.helper.compare_hits import compareHits
 
 class BlastDbHistoricalModel(models.Model):
     '''
@@ -539,21 +538,7 @@ class BlastQuerySequence(models.Model):
         '''
         Return a list of best hits 
         '''
-        best_hits: List[Any] = []
-        hit: Hit
-        for hit in self.hits.all():
-            if len(best_hits) == 0:
-                best_hits.append(hit)
-            else:
-                # Compare the hit with the current best hits
-                compare = compareHits(best_hits[0], hit)
-                # If current is better than previous best hit, replace previous
-                if compare == 1:
-                    best_hits = [hit]
-                # If current matches the previous best hit, keep all
-                elif compare == 0:
-                    best_hits.append(hit)
-        return best_hits
+        return [h for h in self.hits.filter(best_hit=True)]
         
     def highest_percent_identity(self):
         '''
@@ -591,20 +576,26 @@ class Hit(models.Model):
     query_accession_version = models.CharField(max_length=128, help_text='Sequence identifier of query sequence')
     subject_accession_version = models.CharField(max_length=128, help_text='Sequence identifier of sequence in database')
     percent_identity = models.DecimalField(max_digits=6, decimal_places=3, help_text='Percent identity')
-    alignment_length = models.IntegerField(help_text='Alignment length')
-    mismatches = models.IntegerField(help_text='Number of mismatches')
-    gap_opens = models.IntegerField(help_text='Number of Gap openings')
-    query_start = models.IntegerField(help_text='Start of alignment in query')
-    query_end = models.IntegerField(help_text='End of alignment in query')
-    sequence_start = models.IntegerField(help_text='Start of alignment in subject')
-    sequence_end = models.IntegerField(help_text='End of alignment in subject')
+    alignment_length = models.PositiveIntegerField(help_text='Alignment length')
+    mismatches = models.PositiveIntegerField(help_text='Number of mismatches')
+    gap_opens = models.PositiveIntegerField(help_text='Number of Gap openings')
+    query_start = models.PositiveIntegerField(help_text='Start of alignment in query')
+    query_end = models.PositiveIntegerField(help_text='End of alignment in query')
+    sequence_start = models.PositiveIntegerField(help_text='Start of alignment in subject')
+    sequence_end = models.PositiveIntegerField(help_text='End of alignment in subject')
     evalue = models.DecimalField(max_digits=110, decimal_places=100, help_text='Expect value')
     bit_score = models.DecimalField(max_digits=110, decimal_places=100, help_text='Bit score')
+    position = models.PositiveSmallIntegerField(help_text='Position of the hit within the results table. 1 = 1st (top) of the table.', validators=[MinValueValidator(1)])
+    best_hit = models.BooleanField(help_text='Was this the best hit used for taxonomic assignment?', default=False)
+
+    def first_hit(self):
+        return self.position == 1
 
     class Meta:
         ordering = ['-percent_identity', 'db_entry__version']
         verbose_name = 'BLASTN Run Hit'
         verbose_name_plural = 'BLASTN Run Hits'
+        unique_together = ['query_sequence', 'position']
 
 class Annotation(models.Model):
     sequence = models.ForeignKey(NuccoreSequence, related_name='annotations', on_delete=models.CASCADE, help_text='Sequence to which this annotation was made.')

@@ -735,7 +735,8 @@ class BlastQuerySequenceAdmin(admin.ModelAdmin):
     inlines = [HitInline]
     fields = ['definition', 'query_sequence', 'original_species_name', 'results_species_name', 'accuracy_category']
     list_display = ['definition', 'length', 'number_of_hits', 'owner_run']
-    list_display_links = ['owner_run']
+    list_display_links = ['definition']
+    search_fields = ['definition']
 
     def number_of_hits(self, obj: Optional[BlastQuerySequence]):
         if not obj is None:

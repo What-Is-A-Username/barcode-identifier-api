@@ -2,7 +2,7 @@ import copy
 from io import StringIO
 import os
 import shutil
-from typing import Tuple
+from typing import Any, Tuple
 from ratelimit import limits
 from shlex import quote
 from Bio import SeqIO
@@ -13,7 +13,6 @@ from typing import Dict, List
 from barcode_blastn.file_paths import get_data_fishdb_path, get_data_run_path, get_ncbi_folder, get_static_run_path
 from barcode_blastn.helper.assign_accuracy import annotate_accuracy_category
 from barcode_blastn.helper.calculate_distance import calculate_genetic_distance
-from barcode_blastn.helper.compare_hits import compareHits
 from barcode_blastn.helper.modified_clustalo import getMultipleAlignmentResult, submitMultipleAlignmentAsync
 from barcode_blastn.helper.parse_gb import retrieve_gb, save_taxonomy
 from barcode_blastn.helper.parse_results import parse_results
@@ -132,7 +131,9 @@ def run_blast_command(ncbi_blast_version: str, fishdb_id: str, run_id: str) -> b
     
     # bulk create hits
     try:
-        parsed_data = parse_results(out)
+        best_hits: Dict[str, List[int]]
+        parsed_data: List[Dict[str, Any]]
+        parsed_data, best_hits = parse_results(out)
         accessions = [hit['subject_accession_version'] for hit in parsed_data]
         accession_entries = NuccoreSequence.objects.filter(version__in=accessions, owner_database=run_details.db_used)
 
@@ -141,49 +142,40 @@ def run_blast_command(ncbi_blast_version: str, fishdb_id: str, run_id: str) -> b
         query_entry_ids = [q.query_seq_identifier() for q in query_entries]
         query_entries_dict: dict[str, BlastQuerySequence] = dict(zip(query_entry_ids, query_entries))
 
-        all_hits = [Hit(**hit, query_sequence=query_entries_dict[hit['query_accession_version']], db_entry = accession_entries.get(version=hit['subject_accession_version'])) for hit in parsed_data]
+        for i in range(len(parsed_data)):
+            parsed_data[i].update({
+                'query_sequence': query_entries_dict[parsed_data[i]['query_accession_version']],
+                'db_entry': accession_entries.get(version=parsed_data[i]['subject_accession_version'])
+            })
+        all_hits = [Hit(**hit) for hit in parsed_data]
         hit_objects = Hit.objects.bulk_create(all_hits)
     except BaseException as exc:
         raise_error(run_details, f"Errored while bulk creating hit results.")
         raise RuntimeError('Errored while bulk creating hit results.') from exc
     
     print('Hits saved. Performing taxonomy assignments based on best hit ...')
-
-    # Find the hit with the highest percent identity for each query_accession_version
-    # Dictionary mapping query_accession_version -> highest scoring Hits
-    best_hits: Dict[str, List[Hit]] = {}
-    for hit in hit_objects:
-        current_best_hits = best_hits.get(hit.query_accession_version, [])
-        if len(current_best_hits) == 0:
-            best_hits[hit.query_accession_version] = [hit]
-        else:
-            comparison = compareHits(current_best_hits[0], hit)
-            if comparison == -1:
-                continue 
-            elif comparison == 1:
-                best_hits[hit.query_accession_version] = [hit]
-            elif comparison == 0:
-                best_hits[hit.query_accession_version].append(hit)
         
     # assign identities to query sequences
-    queries: List[BlastQuerySequence] = list(run_details.queries.all())
-    for query in queries:
-        best_hit = best_hits.get(query.query_seq_identifier(), [])
+    for query in query_entries:
+        best_hit: List[int] = best_hits.get(query.query_seq_identifier(), [])
         if len(best_hit) > 0:
             taxa = []
-            for hit in best_hit:
-                species: NuccoreSequence = hit.db_entry
-                if species.taxon_species is None:
-                    taxa.append(f'{species.version}_unspecified_species')
+            for hit_index in best_hit:
+                hit = parsed_data[hit_index]
+                assert hit.get('best_hit') == True
+                seq: NuccoreSequence = hit.get('db_entry', None)
+                assert not seq is None
+                if seq.taxon_species is None:
+                    taxa.append(f'{seq.version}_unspecified_species')
                 else:
-                    taxa.append(species.taxon_species.scientific_name)
+                    taxa.append(seq.taxon_species.scientific_name)
             taxa = list(set(taxa))
             query.results_species_name = ', '.join(taxa)
         else:
             # If there was no hits on the reference sequences,
             # leave the result blank
             query.results_species_name = ''
-    BlastQuerySequence.objects.bulk_update(queries, fields=['results_species_name'])
+    BlastQuerySequence.objects.bulk_update(query_entries, fields=['results_species_name'])
 
     print('Updated and saved assignments. Cleaning up')
 
