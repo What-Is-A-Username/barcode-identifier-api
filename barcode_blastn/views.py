@@ -1126,58 +1126,26 @@ class BlastRunRun(generics.CreateAPIView):
         operation_summary='Submit a run.',
         operation_description='Submit query sequence(s) and associated data to begin a run. Sequences can be supplied as either raw text in "query_sequence" or in an uploaded file named "query_file". Unless the submission is erroneous, the response will contain a unique run ID used to keep track of the status (the run is run asynchronously) and look up results when complete.\n\nA run will perform a BLASTN query of each query sequence against the sequences found within the BLAST database. Based on the values of the "create_hit_tree" and "create_db_tree" parameters, then up to 2 multiple alignment jobs will be performed using the query sequences and sequences from the hits or entire database, respectively.',
         # TODO: Add request / parameter schema
-
-        # request_body=openapi.Schema(
-        #     type=openapi.TYPE_OBJECT,
-        #     title='Parameters',
-        #     properties={
-        #         'job_name': openapi.Schema(
-        #             type=openapi.TYPE_STRING,
-        #             example='two sequences'
-        #         ),
-        #         'query_sequence': openapi.Schema(
-        #             type=openapi.TYPE_STRING,
-        #             example='>MG653404.1 Compsaraia iara isolate SA217 cytochrome c oxidase subunit 1 (COI) gene, partial cds; mitochondrial\nCCAACCAGGCGCCCTCCTGGGAGACGACCAAATTTACAATGTGGTCGTTACCGCCCATGCCTTCGTAATAATTTTCTTTATAGTAATGCCAATTATAATCGGAGGCTTTGGCAATTGACTTATCCCCTTAATAATTGCCGCGCCCGATATGGCATTCCCACGAATAAATAATATAAGCTTCTGACTGCTTCCCCCATCATTCTTCCTCCTACTTGCCTCTGCCGGGTTAGAGGCCGGAGTCGGGACAGGCTGAACGCTTTACCCCCCTCTTGCCGGTAATGCAGCACACGCTGGAGCCTCTGTAGACCTAACCATTTTCTCCCTTCACTTGGCCGGTGTCTCATCTATCCTCGGATCTATTAACTTTATCACTACAATTATTAATATGAAACCCCCAACAATATCCCAATACCAGCTTCCATTATTTATTTGATCCTTACTAGTAACCACAGTACTTCTACTACTCTCCCTTCCTGTTCTAGCTGCTGGA\n>MK401918.1 Porotergus gymnotus isolate ANSP189647 cytochrome oxidase subunit I (COI) gene, partial cds; mitochondrial\nGGCACACTATACATGGTGTTNGGCGCCTGGGCGGGTATAATTGGTACTGCTCTTANGCTTCTAATCCGGGCCGAGCTAAATCAACCGGGCACCCTCCTAGAAGACGACCAAATTTACAATGTGGCCGTCACTGCCCATGCCTTTGTAATAATTTTCTTTATAGTTATGCCAATCATAATTGGAGGCTTTGGCAATTGGCTTATCCCCCTAATAATTGCCGCGCCAGACATAGCATTCCCACGAATAAATAACATAAGCTTCTGGCTACTCCCCCCATCATTCTTCCTGCTCCTCGCCTCTGCTGGCTTAGAGGCCGGAGTTGGAACAGGTTGGACCCTATACCCCCCTCTTGCCGCTAATGCAGCACACGCCGGAGCTTCCGTAGACCTAACTATCTTCTCCCTTCACTTGGCGGGTGTTTCATCCATCCTCGGCTCCATTAACTTTATTACTACAATTATTAATATAAAACCTCCAACAATATCCCAATACCAACTCCCACTCTTTATCTGGTCCCTGCTGGTTACTACCGTGCTTCTACTACTCTCCCTTCCTGTCCTAGCTGCTGGTATTACCATGCTACTCACAGACCGAAATCTAAACACAGCATTCTTCGACCCAACGGGCGGCGGTGACCCAATTCTGTACCAACACTTGTTCTGGTT'
-        #         ),
-        #         'query_file': openapi.Schema(
-        #             type=openapi.TYPE_FILE
-        #         ),
-        #         'create_hit_tree': openapi.Schema(
-        #             type=openapi.TYPE_BOOLEAN,
-        #             example=True
-        #         ),
-        #         'create_db_tree': openapi.Schema(
-        #             type=openapi.TYPE_BOOLEAN,
-        #             example=False
-        #         )
-        #     }),
-        tags = [tag_runs]
-        # responses={
-        #     '400': openapi.Response(
-        #         description='Bad request parameters. An accompanying message may specify the error with the request.',
-        #         schema=openapi.Schema(
-        #             type=openapi.TYPE_OBJECT,
-        #             properties={
-        #                 'message': openapi.Schema(
-        #                     type=openapi.TYPE_STRING,
-        #                     description='Helper message clarifying the cause of the error.'
-        #                 )
-        #             }
-        #         ),
-        #         examples={
-        #             'application/json': {
-        #                 'message': 'Request did not have raw sequence text or file upload specified to run with.'
-        #             }
-        #         }
-        #         ),
-        #     '404': 'The BLAST database specified by the ID does not exist.',
-        #     '201': openapi.Response(
-        #         description='Run was successfully added to queue and a new unique run identifier is returned. Users should now use the given ID to continually check the status of the run to check whether it has completed.',
-        #         schema=BlastRunSerializer(),
-        #         examples={'application/json': BlastRunSerializer.Meta.example}
-        #     ),
-        #     '500': 'Unexpected error. No new run was created.'
-        # }
+        request_body=BlastRunRunSerializer,
+        tags = [tag_runs],
+        responses={
+            '400': openapi.Response(
+                description='Bad request parameters. An accompanying message may specify the error with the request.',
+                schema=BlastRunSerializer,
+                examples={
+                    'application/json': {
+                        'message': 'Request did not have raw sequence text or file upload specified to run with.'
+                    }
+                }
+                ),
+            '404': 'The BLAST database specified by the ID does not exist.',
+            '201': openapi.Response(
+                description='Run was successfully added to queue and a new unique run identifier is returned. Users should now use the given ID to continually check the status of the run to check whether it has completed.',
+                schema=BlastRunSerializer(),
+                examples={'application/json': BlastRunSerializer.Meta.example}
+            ),
+            '500': 'Unexpected error. No new run was created.'
+        }
     )
     def post(self, request, *args, **kwargs):      
         '''
@@ -1520,6 +1488,9 @@ class BlastQuerySequenceDetail(generics.RetrieveAPIView):
     Return a query sequence with hits.
     '''
     serializer_class = BlastQuerySequenceSerializer
+
+    def get_queryset(self):
+        return BlastQuerySequence.objects.all()
 
     def get_object(self):
         pk: str = self.kwargs.get('pk')

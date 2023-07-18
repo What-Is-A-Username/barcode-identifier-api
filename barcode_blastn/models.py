@@ -415,7 +415,7 @@ class BlastRun(models.Model):
     # Reference to the database used
     db_used = models.ForeignKey(BlastDb, related_name='usages', on_delete=models.CASCADE, help_text='The curated BLAST database against which the query BLAST was run.')
     # Job name
-    job_name = models.CharField(max_length=255, blank=True, default='', help_text='Job name given by run submission')
+    job_name = models.CharField(max_length=255, blank=True, default='', help_text='A customizable name given by the submitter to refer to and describe this run.')
 
     # Perform alignment and construct NJ tree of query sequences + hits?
     create_hit_tree = models.BooleanField(default=True, help_text='Perform alignment and construct "hit tree" of query sequences and hits?')

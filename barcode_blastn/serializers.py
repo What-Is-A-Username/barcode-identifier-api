@@ -384,6 +384,26 @@ class BlastDbExportSerializer(BlastDbSerializer):
     '''
     sequences = BlastDbSequenceExportSerializer(many=True, read_only=True)
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['sequences'].read_only = True 
+        self.fields['sequences'].required = True
+
+    class Meta:
+        model = BlastDb
+        ref_name = blast_db_title
+        fields = ['id', 'library', 'sequence_count', 'sequences', 'custom_name', 'version_number', 'description', 'locked', 'created', 'modified']
+        example = {
+            "id": "66855f2c-f360-4ad9-8c98-998ecb815ff5",
+            "description": "This BLAST database is a collection of barcodes from 167 species of Neotropical electric knifefish (Teleostei: Gymnotiformes) which was presented by Janzen et al. 2022. All sequences and related feature data are updated daily at midnight (UTC) from NCBI's Genbank database.",
+            "owner": LibraryOwnerSerializer.Meta.example,
+            "locked": True,
+            "sequence_count": 167,
+            "sequences": [],
+            "created": "2023-06-26T14:04:43.879214Z",
+            "modified": "2023-06-27T14:08:20.879214Z"
+        }
+
 class LibrarySerializer(serializers.ModelSerializer):
     f'''
     Show detailed information about a specific {library_title}
@@ -578,17 +598,17 @@ class BlastRunRunSerializer(serializers.ModelSerializer):
     Required fields for submitting a blast run
     '''
     # Query headers and sequence in a string 
-    query_sequence = serializers.CharField(allow_blank=True, required=False)
+    query_sequence = serializers.CharField(allow_blank=True, required=False, help_text='A text string which either represents one nucleotide sequence, or multiple query sequences in FASTA format.')
     # Query headers and sequence in a file
-    query_file = serializers.FileField(max_length=2621440, validators=[QueryFileValidator()], required=False)
+    query_file = serializers.FileField(max_length=2621440, validators=[QueryFileValidator()], required=False, help_text='A FASTA sequence file containing the query sequences and headers. Can optionally include taxonomy.')
     # Query identifiers in a string, one identifier per line
-    query_identifiers = serializers.CharField(allow_blank=True, required=False)
+    query_identifiers = serializers.CharField(allow_blank=True, required=False, help_text='A file containing a list of accession numbers or versions on GenBank, one per line.')
     # Query identifiers as a file, one identifier per line 
-    query_identifiers_file = serializers.FileField(max_length=2621440, validators=[QueryFileValidator()], required=False)
+    query_identifiers_file = serializers.FileField(max_length=2621440, validators=[QueryFileValidator()], required=False, help_text='List of accession numbers or versions on GenBank, one per line.')
     # Job name
-    job_name = serializers.CharField(allow_blank=True, min_length=0, required=False)
-    create_hit_tree = serializers.BooleanField(required=False)
-    create_db_tree = serializers.BooleanField(required=False)
+    job_name = serializers.CharField(allow_blank=True, min_length=0, required=False, help_text='A customizable name given by the submitter to refer to and describe this run.')
+    create_hit_tree = serializers.BooleanField(required=False, help_text='Perform alignment and construct "hit tree" of query sequences and hits?')
+    create_db_tree = serializers.BooleanField(required=False, help_text='Perform alignment and construct "database tree" of query sequences and all database sequences?')
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
