@@ -8,7 +8,7 @@ python manage.py wait_for_db
 # collect static files from all Django apps into STATIC_ROOT (--noinput prevents prompt)
 python manage.py collectstatic --noinput
 
-echo Creating superuser with $DJANGO_SUPERUSER_NAME $DJANGO_SUPERUSER_EMAIL $DJANGO_SUPERUSER_PASSWORD
+echo Creating superuser for $DJANGO_SUPERUSER_NAME
 
 python manage.py createsuperuser --noinput
 

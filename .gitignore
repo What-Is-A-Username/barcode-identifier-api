@@ -42,8 +42,9 @@ coverage.xml
 .python-version
 
 # Environments
-.env
-.venv 
+**.env
+**.venv
+!**/example.env
 env/
 venv/
 ENV/
