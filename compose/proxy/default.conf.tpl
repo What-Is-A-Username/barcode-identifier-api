@@ -22,8 +22,17 @@ server {
         client_max_body_size    10M;
     }
 
+    location /app/static {
+        alias /frontend/static;
+    }
+
     location /app {
         alias /frontend;
-        index index.html;
+        location ~* \.(jpeg|jpg|png|txt|json|svg|ico)$ {
+            expires 1h;
+        }
+        location /app {
+            try_files /index.html =404;
+        }
     }
 }

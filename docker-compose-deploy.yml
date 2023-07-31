@@ -77,7 +77,7 @@ services:
     depends_on:
       - barrel
     ports:
-      - 8002:8000
+      - 8000:8000
     # static-data is shared between app and proxy
     volumes:
       - static-data:/vol/static
