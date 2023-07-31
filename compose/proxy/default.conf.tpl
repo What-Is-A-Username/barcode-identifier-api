@@ -15,11 +15,15 @@ server {
         alias /vol/static;
     }
 
-    location / {
-        {* where APP_HOST is container containing app, APP_PORT is the port on it *}
+    location /api {
+        rewrite                 ^/api/(.*)$ /$1 break;
         uwsgi_pass              ${APP_HOST}:${APP_PORT};
         include                 /etc/nginx/uwsgi_params;
-        {* max size of request is 10 MB, to limit file upload*}
         client_max_body_size    10M;
+    }
+
+    location /app {
+        alias /frontend;
+        index index.html;
     }
 }

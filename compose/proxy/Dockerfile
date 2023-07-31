@@ -6,6 +6,9 @@ COPY ./default.conf.tpl /etc/nginx/default.conf.tpl
 COPY ./uwsgi_params /etc/nginx/uwsgi_params 
 COPY ./run.sh /run.sh
 
+# Copy static website files from subdirectory into the proxy container
+COPY ./frontend /frontend
+
 # Listen to port 8000
 ENV LISTEN_PORT=8000
 # Name of service running Django app
@@ -24,8 +27,6 @@ RUN mkdir -p /vol/static && \
     chown nginx:nginx /etc/nginx/conf.d/default.conf && \
     # allow script to execute
     chmod +x /run.sh
-
-# VOLUME /vol/static
 
 # switch to nginx user
 USER nginx 
