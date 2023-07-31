@@ -9,7 +9,7 @@ COPY ./run.sh /run.sh
 # Listen to port 8000
 ENV LISTEN_PORT=8000
 # Name of service running Django app
-ENV APP_HOST=barcode_identifier_api
+ENV APP_HOST=barrel
 # Run on port 9000
 ENV APP_PORT=9000
 
@@ -25,7 +25,7 @@ RUN mkdir -p /vol/static && \
     # allow script to execute
     chmod +x /run.sh
 
-VOLUME /vol/static
+# VOLUME /vol/static
 
 # switch to nginx user
 USER nginx 

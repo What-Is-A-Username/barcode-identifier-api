@@ -1,45 +1,93 @@
 version: '3'
 
 services:
-  barcode_identifier_api:
-    build:
-      context: .
-    # auto-restart on crash
-    restart: always
-    volumes:
-      - static-data:/vol/web
-    environment:
-      - DB_HOST=db
-      - DB_NAME=${DB_NAME}
-      - DB_USER=${DB_USER}
-      - DB_PASS=${DB_PASS}
-      - SECRET_KEY=${SECRET_KEY}
-      - ALLOWED_HOSTS=${ALLOWED_HOSTS}
-    depends_on:
-      - db
-  db:
+  barrel_db:
     image: postgres
-    restart: always
-    # for persistance, we used named volume that will be always stored on the server
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
+    container_name: barrel_db
+    env_file: docker.env
     environment:
       - POSTGRES_DB=${DB_NAME}
       - POSTGRES_USER=${DB_USER}
-      - POSTGRES_PASSWORD=${DB_PASS}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    # for persistance, we used named volume that will be always stored on the server
+    # restart: always
 
-  proxy:
+  barrel_venv_image:
+    container_name: barrel_venv_image 
+    env_file: docker.env
+    build:
+      context: .
+      dockerfile: ./compose/barrel_venv_image/Dockerfile
+    depends_on:
+      - barrel_db
+    volumes:
+      - "parent-data:/barrel"
+
+  barrel:
+    image: barrel_venv_image
+    container_name: barrel
+    build:
+      context: .
+      dockerfile: ./compose/barrel/Dockerfile
+    # auto-restart on crash
+    # restart: always
+    env_file: docker.env
+    environment:
+      - DB_HOST=barrel_db
+      - DB_PORT=5432
+    depends_on:
+      - barrel_db
+    volumes:
+      - "parent-data:/barrel"
+      - "static-data:/vol/static"
+      - "var-data:/var/data"
+
+  barrel_rabbitmq:
+    image: bitnami/rabbitmq:latest
+    container_name: barrel_rabbitmq
+    env_file: docker.env
+
+  celery_worker:
+    image: barrel_venv_image
+    container_name: barrel_celery_worker
+    build: 
+      context: ./compose/barrel_celery_worker
+      dockerfile: Dockerfile
+    env_file: docker.env
+    environment:
+      - DB_HOST=barrel_db
+      - DB_PORT=5432
+    volumes:
+      - "parent-data:/barrel/"
+      - "var-data:/var/data/"
+      - "static-data:/vol/static/"
+    command: >
+      sh -c "celery_run.sh"
+    depends_on:
+      - barrel_rabbitmq
+      - barrel_db
+
+  barrel_proxy:
+    container_name: barrel_proxy
     build:
       context: ./compose/proxy
-    restart: always
+    # restart: always
     depends_on:
-      - barcode_identifier_api
+      - barrel
     ports:
-      - 80:8000
+      - 8002:8000
     # static-data is shared between app and proxy
     volumes:
       - static-data:/vol/static
 
+  barrel_debug:
+    image: barrel_venv_image
+    container_name: barrel
+
 volumes:
+  parent-data: 
   postgres-data:
   static-data:
+  var-data:
