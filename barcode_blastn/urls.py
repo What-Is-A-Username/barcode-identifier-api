@@ -43,18 +43,18 @@ urlpatterns = [
 
     # Reference Libraries
     path('libraries/', views.LibrariesList.as_view()),
-    path('libraries/<uuid:library>/versions/', views.LibraryBlastDbList.as_view()),
+    path('libraries/<uuid:library>/versions', views.LibraryBlastDbList.as_view()),
     path('libraries/<uuid:library>', views.LibraryDetailView.as_view()),
 
     # Library Versions
-    path('blastdbs/<uuid:pk>/', views.BlastDbDetail.as_view()),
-    path('blastdbs/<uuid:pk>/history/', views.BlastDbHistory.as_view()),
-    path('blastdbs/<uuid:pk>/sequences/', views.BlastDbSequenceList.as_view()),
-    path('blastdbs/<uuid:pk>/run/', views.BlastRunRun.as_view()),
-    path('blastdbs/<uuid:pk>/export/', views.BlastDbExport.as_view()),
+    path('blastdbs/<uuid:pk>', views.BlastDbDetail.as_view()),
+    path('blastdbs/<uuid:pk>/history', views.BlastDbHistory.as_view()),
+    path('blastdbs/<uuid:pk>/sequences', views.BlastDbSequenceList.as_view()),
+    path('blastdbs/<uuid:pk>/run', views.BlastRunRun.as_view()),
+    path('blastdbs/<uuid:pk>/export', views.BlastDbExport.as_view()),
 
     # nuccore sequence
-    path('nuccores/<uuid:pk>/', views.NuccoreSequenceDetail.as_view()),
+    path('nuccores/<uuid:pk>', views.NuccoreSequenceDetail.as_view()),
 
     # runs
     path('runs/', views.BlastRunList.as_view()),
@@ -62,8 +62,8 @@ urlpatterns = [
     path('runs/<uuid:pk>/queries', views.BlastRunQueryList.as_view()),
     path('runs/<uuid:pk>/queries/<str:query>', views.BlastQuerySequenceDetail.as_view()),
     path('runs/<uuid:pk>/queries/<str:query>/hits', views.BlastQueryHitList.as_view()),
-    path('runs/<uuid:pk>/status/', views.BlastRunStatus.as_view()),
-    path('runs/<uuid:pk>/download/', views.BlastRunDetailDownload.as_view()),
+    path('runs/<uuid:pk>/status', views.BlastRunStatus.as_view()),
+    path('runs/<uuid:pk>/download', views.BlastRunDetailDownload.as_view()),
     path('runs/<uuid:pk>/download/input', views.BlastRunInputDownload.as_view()),
     path('runs/<uuid:pk>/download/taxonomy', views.BlastRunTaxonomyDownload.as_view()),
 ]

@@ -1,6 +1,6 @@
-# Barcode Identifier API
+# Barrel API
 
-The Barcode Identifier API is a work-in-progress web API that allows users to BLAST against sequences in customized databases.
+The Barrel API is a work-in-progress web API that allows users to BLAST against sequences in customized databases.
 
 Built in Python with the Django Rest Framework.
 
