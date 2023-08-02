@@ -1,5 +1,6 @@
 server {
     listen ${LISTEN_PORT};
+    server_name ${SERVER_NAME};
 
     location /static/runs/ {
         deny all;
@@ -13,26 +14,30 @@ server {
 
     location /static {
         alias /vol/static;
+        add_header X-Robots-Tag "noindex, follow" always;
     }
 
     location /api {
-        rewrite                 ^/api/(.*)$ /$1 break;
         uwsgi_pass              ${APP_HOST}:${APP_PORT};
         include                 /etc/nginx/uwsgi_params;
         client_max_body_size    10M;
+        add_header X-Robots-Tag "noindex, follow" always;
     }
 
     location /app/static {
         alias /frontend/static;
+        add_header X-Robots-Tag "noindex, follow" always;
     }
 
     location /app {
         alias /frontend;
         location ~* \.(jpeg|jpg|png|txt|json|svg|ico)$ {
             expires 1h;
+            add_header X-Robots-Tag "noindex, follow" always;
         }
         location /app {
             try_files /index.html =404;
+            add_header X-Robots-Tag "noindex, follow" always;
         }
     }
 }

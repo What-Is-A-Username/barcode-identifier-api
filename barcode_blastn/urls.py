@@ -28,45 +28,45 @@ schema_view = get_schema_view(
 )
 
 urlpatterns = [
-    # Swagger Docs 
-    re_path(r'^swagger(?P<format>\.json|\.yaml)$', schema_view.without_ui(cache_timeout=0), name='schema-json'),
-    re_path(r'^swagger/$', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
-    re_path(r'^redoc/$', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
+        # Swagger Docs 
+        re_path(r'^swagger(?P<format>\.json|\.yaml)$', schema_view.without_ui(cache_timeout=0), name='schema-json'),
+        re_path(r'^swagger/$', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
+        re_path(r'^redoc/$', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
 
-    # Django-Rest-Knox Authentication
-    path(r'login/', views.LoginView.as_view(), name='knox_login'),
-    path(r'logout/', views.LogoutView.as_view(), name='knox_logout'),
-    path(r'logoutall/', views.LogoutAllView.as_view(), name='knox_logoutall'),
+        # Django-Rest-Knox Authentication
+        path(r'login/', views.LoginView.as_view(), name='knox_login'),
+        path(r'logout/', views.LogoutView.as_view(), name='knox_logout'),
+        path(r'logoutall/', views.LogoutAllView.as_view(), name='knox_logoutall'),
 
-    # Token Authentication Testing 
-    path('users/', views.UserDetailView.as_view()),
+        # Token Authentication Testing 
+        path('users/', views.UserDetailView.as_view()),
 
-    # Reference Libraries
-    path('libraries/', views.LibrariesList.as_view()),
-    path('libraries/<uuid:library>/versions', views.LibraryBlastDbList.as_view()),
-    path('libraries/<uuid:library>', views.LibraryDetailView.as_view()),
+        # Reference Libraries
+        path('libraries/', views.LibrariesList.as_view()),
+        path('libraries/<uuid:library>/versions', views.LibraryBlastDbList.as_view()),
+        path('libraries/<uuid:library>', views.LibraryDetailView.as_view()),
 
-    # Library Versions
-    path('blastdbs/<uuid:pk>', views.BlastDbDetail.as_view()),
-    path('blastdbs/<uuid:pk>/history', views.BlastDbHistory.as_view()),
-    path('blastdbs/<uuid:pk>/sequences', views.BlastDbSequenceList.as_view()),
-    path('blastdbs/<uuid:pk>/run', views.BlastRunRun.as_view()),
-    path('blastdbs/<uuid:pk>/export', views.BlastDbExport.as_view()),
+        # Library Versions
+        path('blastdbs/<uuid:pk>', views.BlastDbDetail.as_view()),
+        path('blastdbs/<uuid:pk>/history', views.BlastDbHistory.as_view()),
+        path('blastdbs/<uuid:pk>/sequences', views.BlastDbSequenceList.as_view()),
+        path('blastdbs/<uuid:pk>/run', views.BlastRunRun.as_view()),
+        path('blastdbs/<uuid:pk>/export', views.BlastDbExport.as_view()),
 
-    # nuccore sequence
-    path('nuccores/<uuid:pk>', views.NuccoreSequenceDetail.as_view()),
+        # nuccore sequence
+        path('nuccores/<uuid:pk>', views.NuccoreSequenceDetail.as_view()),
 
-    # runs
-    path('runs/', views.BlastRunList.as_view()),
-    path('runs/<uuid:pk>', views.BlastRunDetail.as_view()),
-    path('runs/<uuid:pk>/queries', views.BlastRunQueryList.as_view()),
-    path('runs/<uuid:pk>/queries/<str:query>', views.BlastQuerySequenceDetail.as_view()),
-    path('runs/<uuid:pk>/queries/<str:query>/hits', views.BlastQueryHitList.as_view()),
-    path('runs/<uuid:pk>/status', views.BlastRunStatus.as_view()),
-    path('runs/<uuid:pk>/download', views.BlastRunDetailDownload.as_view()),
-    path('runs/<uuid:pk>/download/input', views.BlastRunInputDownload.as_view()),
-    path('runs/<uuid:pk>/download/taxonomy', views.BlastRunTaxonomyDownload.as_view()),
-]
+        # runs
+        path('runs/', views.BlastRunList.as_view()),
+        path('runs/<uuid:pk>', views.BlastRunDetail.as_view()),
+        path('runs/<uuid:pk>/queries', views.BlastRunQueryList.as_view()),
+        path('runs/<uuid:pk>/queries/<str:query>', views.BlastQuerySequenceDetail.as_view()),
+        path('runs/<uuid:pk>/queries/<str:query>/hits', views.BlastQueryHitList.as_view()),
+        path('runs/<uuid:pk>/status', views.BlastRunStatus.as_view()),
+        path('runs/<uuid:pk>/download', views.BlastRunDetailDownload.as_view()),
+        path('runs/<uuid:pk>/download/input', views.BlastRunInputDownload.as_view()),
+        path('runs/<uuid:pk>/download/taxonomy', views.BlastRunTaxonomyDownload.as_view()),
+    ]
 
 # give access to media files if in debug mode (i.e. when nginx not serving them)
 if settings.DEBUG:

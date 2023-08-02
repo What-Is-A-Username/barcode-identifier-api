@@ -1,4 +1,4 @@
-FROM python:3.8.10 AS barrel_venv_image
+FROM python:3.8.10
 LABEL Author="barrel_authors"
 
 ENV PYTHONBUFFERED 1
@@ -25,17 +25,33 @@ RUN python -m venv /py && \
 RUN mkdir /barrel
 WORKDIR /barrel
 
-COPY ./scripts /scripts
 # export scripts and virtualenv to path
-ENV PATH="/scripts:/py/bin:$PATH"
+ENV PATH="/barrel/scripts:/py/bin:$PATH"
 
 COPY ./requirements.txt /barrel/
 RUN pip install -r requirements.txt
 
-RUN chmod -R u+x /scripts && \
+COPY ./barcode_identifier_api /barrel/barcode_identifier_api
+COPY ./barcode_blastn /barrel/barcode_blastn
+COPY ./ncbi-blast-2.12.0+ /barrel/ncbi-blast-2.12.0+
+COPY ./manage.py /barrel/ 
+COPY ./docker.env /barrel/
+COPY ./scripts /barrel/scripts
+COPY ./compose /barrel/compose
+
+RUN chmod -R u+x /barrel/scripts && \
     addgroup --system appgroup && \
     adduser --ingroup appgroup appuser --disabled-password --gecos "" --no-create-home && \
-    chown -R appuser:appgroup /scripts
+    chown -R appuser:appgroup /barrel/scripts && \
+    chown -R appuser:appgroup /barrel/barcode_blastn/migrations && \
+    touch /barrel/barcode_blastn/migrations/__init__.py && \
+    # Ensure that the soon-to-be named volumes have the correct permissions for other containers
+    mkdir -p /vol/static && \
+    mkdir -p /var/data && \
+    chmod 755 /vol/static && \
+    chmod 755 /var/data && \
+    chown -R appuser:appgroup /vol/static && \ 
+    chown -R appuser:appgroup /var/data
     # mkdir -p /var/www/runs && \ 
     # chmod -R 764 /var/www/runs && \
     # chown -R appuser:appgroup /var/www/runs && \
@@ -58,6 +74,5 @@ RUN chmod -R u+x /scripts && \
     # chown -R appuser:appgroup /vol && \
     # chmod -R 755 /vol
 
-USER appuser
 EXPOSE 8000
 

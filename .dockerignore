@@ -4,8 +4,8 @@
 .docker
 
 env_barcode/
-ncbi-blast-2.12.0+/**
 compose/proxy/
+barcode_blastn/migrations/*.py
 
 !ncbi-blast-2.12.0+/blastn
 !ncbi-blast-2.12.0+/makeblastdb

@@ -21,7 +21,7 @@ admin.site.site_header = 'Barrel API Console'
 admin.site.index_title = 'Database Console'
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('', include('barcode_blastn.urls')),
+    path('api/admin/', admin.site.urls),
+    path('api/', include('barcode_blastn.urls')),
 ]
 

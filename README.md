@@ -383,6 +383,30 @@ In the event that the database should be dumped/downloaded to a file, run the fo
 pg_dump -U admin -h 127.0.0.1 barcode_identifier_db > db.sql
 ```
 
+## Developer resources; deploying to Docker 
+
+The following assumes that Docker is already installed on the system and you already possess a Docker account.
+
+From the terminal, log into Docker, replacing your username:
+```
+docker login -u <username>
+```
+
+Build the images. Below is an example of the command used to build the production venv_image using the docker compose files.
+```
+docker compose -f ./docker-compose-deploy.yml -p barrel up --build barrel_venv_image
+```
+
+Tag the image.
+```
+docker tag barrel_venv_image username/barrel-dev:barrel_venv_image
+```
+
+Push to Docker.
+```
+docker push username/barrel-dev:barrel_venv_image
+```
+
 
 ## Troubleshooting
 

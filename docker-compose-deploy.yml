@@ -22,11 +22,13 @@ services:
       dockerfile: ./compose/barrel_venv_image/Dockerfile
     depends_on:
       - barrel_db
+    command: >
+      sh -c "echo barrel_venv_image success"
     volumes:
-      - "parent-data:/barrel"
+      - "static-data:/vol/static"
+      - "var-data:/var/data"
 
   barrel:
-    image: barrel_venv_image
     container_name: barrel
     build:
       context: .
@@ -40,9 +42,10 @@ services:
     depends_on:
       - barrel_db
     volumes:
-      - "parent-data:/barrel"
       - "static-data:/vol/static"
       - "var-data:/var/data"
+    command: >
+      sh -c "/barrel/scripts/run.sh"
 
   barrel_rabbitmq:
     image: bitnami/rabbitmq:latest
@@ -50,7 +53,6 @@ services:
     env_file: docker.env
 
   celery_worker:
-    image: barrel_venv_image
     container_name: barrel_celery_worker
     build: 
       context: ./compose/barrel_celery_worker
@@ -60,7 +62,6 @@ services:
       - DB_HOST=barrel_db
       - DB_PORT=5432
     volumes:
-      - "parent-data:/barrel/"
       - "var-data:/var/data/"
       - "static-data:/vol/static/"
     command: >
@@ -87,7 +88,6 @@ services:
     container_name: barrel
 
 volumes:
-  parent-data: 
   postgres-data:
   static-data:
   var-data:
