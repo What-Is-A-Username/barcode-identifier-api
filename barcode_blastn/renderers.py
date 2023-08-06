@@ -421,14 +421,3 @@ class BlastRunTaxonomyTSVRenderer(BaseRenderer):
 
     def render(self, data, accepted_media_type=None, renderer_context=None):
         return blast_run_taxonomy_dict_writer(data, delimiter='\t').getvalue().encode(self.charset)
-
-class BlastRunHTMLRenderer(BlastRunHitsTxtRenderer):
-    '''
-    Return BLAST text results as an HTML page
-    '''
-    media_type = 'text/plain'
-    format = 'html'
-    charset = 'utf-8'
-
-    def render(self, data, accepted_media_type=None, renderer_context=None):
-        return super().render(data, accepted_media_type, renderer_context)

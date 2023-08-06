@@ -66,6 +66,12 @@ REST_FRAMEWORK = {
         'knox.auth.TokenAuthentication',
         'rest_framework.authentication.SessionAuthentication'
     ),
+    'DEFAULT_RENDERER_CLASSES': (
+        'rest_framework.renderers.JSONRenderer',
+        # Only enable browsable API renderer in development,
+        # to prevent scraping by bots and search engines.
+        # 'rest_framework.renderers.BrowsableAPIRenderer'
+    )
 }
 
 REST_KNOX = {
@@ -125,14 +131,9 @@ CORS_ALLOWED_ORIGINS = [
     # Allow local React app
     'http://localhost:3000',
     'https://localhost:3000',
+    # Allow production website
     'http://localhost:8000',
     'https://localhost:8000',
-    'http://127.0.0.1',
-    'http://localhost:5501',
-    # Allow custom domain
-    # 'https://barcode_identifier.com'
-    # Allow static site directly accessible on S3
-    'http://barcode-identifier.s3-website.us-east-2.amazonaws.com'
 ]
 
 CORS_ALLOW_CREDENTIALS = True

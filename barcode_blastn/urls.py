@@ -52,6 +52,7 @@ urlpatterns = [
         path('blastdbs/<uuid:pk>/sequences', views.BlastDbSequenceList.as_view()),
         path('blastdbs/<uuid:pk>/run', views.BlastRunRun.as_view()),
         path('blastdbs/<uuid:pk>/export', views.BlastDbExport.as_view()),
+        path('blastdbs/<uuid:pk>/summary', views.BlastDbSummary.as_view()),
 
         # nuccore sequence
         path('nuccores/<uuid:pk>', views.NuccoreSequenceDetail.as_view()),

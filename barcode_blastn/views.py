@@ -15,6 +15,8 @@ from celery import signature, chain
 from barcode_blastn.tasks import run_blast_command
 from django.contrib.auth import login
 from django.contrib.auth.models import User
+from django.db.models import QuerySet, Count, When, Case, F, Value, PositiveSmallIntegerField, CharField
+from django.db.models.functions import Substr, StrIndex, Length, Trim
 from django.http import Http404
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
@@ -27,8 +29,7 @@ from rest_framework.authtoken.serializers import AuthTokenSerializer
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from rest_framework.renderers import (BrowsableAPIRenderer, JSONRenderer,
-                                      TemplateHTMLRenderer)
+from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.filters import OrderingFilter
 
@@ -441,6 +442,7 @@ class NuccoreSequenceDetail(mixins.DestroyModelMixin, generics.RetrieveAPIView):
     queryset = NuccoreSequence.objects.all()
     serializer_class = NuccoreSequenceSerializer
     permission_classes = (NuccoreSequenceEndpointPermission,)
+    lookup_url_kwarg = 'pk'
 
     @swagger_auto_schema(
         operation_summary='Get information about a sequence entry.',
@@ -862,12 +864,11 @@ class LibraryBlastDbList(mixins.ListModelMixin, generics.CreateAPIView):
                 return Response(BlastDbSerializer(BlastDb.objects.get(id=new_database.id)).data, status = status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.DestroyModelMixin, generics.GenericAPIView):
+class BlastDbDetail(mixins.UpdateModelMixin, mixins.DestroyModelMixin, generics.RetrieveAPIView):
     '''
     Retrieve the details of a given blast database
     '''
     queryset = BlastDb.objects.all()
-    renderer_classes = [JSONRenderer, BrowsableAPIRenderer, TemplateHTMLRenderer, BlastDbCSVRenderer, BlastDbFastaRenderer]
     permission_classes = [BlastDbEndpointPermission]
 
     def get_serializer_class(self):
@@ -900,28 +901,7 @@ class BlastDbDetail(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.D
         '''
         Retrieve data in the blastdb.
         '''
-
-        db_primary_key = kwargs['pk']
-
-        try:
-            db: BlastDb = BlastDb.objects.get(id = db_primary_key)
-            # Check if user has access permissions to this database
-            self.check_object_permissions(request, db)
-        except BlastDb.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
-        except PermissionDenied:
-            return Response(status=status.HTTP_403_FORBIDDEN)
-
-        response = Response(self.get_serializer_class()(db).data, status=status.HTTP_200_OK, template_name='blastdb.html')
-
-        # based on the media type file returned, specify attachment and file name
-        file_name_root = get_data_fishdb_path(db)
-        if request.accepted_media_type.startswith('text/csv'):
-            response['Content-Disposition'] = f'attachment; filename={file_name_root}.csv";'
-        elif request.accepted_media_type.startswith('text/x-fasta'):
-            response['Content-Disposition'] = f'attachment; filename="{file_name_root}.fasta";'
-
-        return response
+        return super().get(request, *args, **kwargs)
 
     @swagger_auto_schema(
         operation_summary='Update information of an existing BLAST database.',
@@ -1029,14 +1009,15 @@ class BlastDbHistory(mixins.RetrieveModelMixin, generics.GenericAPIView):
 
         return Response(self.get_serializer_class()(database.history.all(), many=True).data, status=status.HTTP_200_OK)
 
-class BlastDbExport(generics.GenericAPIView):
+class BlastDbExport(generics.RetrieveAPIView):
     '''
     Export the reference library to JSON and different file formats.
     '''
     serializer_class = BlastDbExportSerializer
-    renderer_classes = [JSONRenderer, BrowsableAPIRenderer, BlastDbCSVRenderer, BlastDbTSVRenderer, BlastDbXMLRenderer, BlastDbFastaRenderer, BlastDbCompatibleRenderer]
+    renderer_classes = [JSONRenderer, BlastDbCSVRenderer, BlastDbTSVRenderer, BlastDbXMLRenderer, BlastDbFastaRenderer, BlastDbCompatibleRenderer]
     queryset = BlastDb.objects.all()
     permission_classes = [BlastDbEndpointPermission]
+    lookup_url_kwarg = 'pk'
 
     def get_renderer_context(self):
         context = super().get_renderer_context()
@@ -1048,19 +1029,8 @@ class BlastDbExport(generics.GenericAPIView):
         '''
         Export blastdb to compatible formats for taxonomic assignment.
         '''
-
-        db_primary_key = kwargs['pk']
-
-        try:
-            db: BlastDb = BlastDb.objects.get(id = db_primary_key)
-            # Check if user has access permissions to this database
-            self.check_object_permissions(request, db)
-        except BlastDb.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
-        except PermissionDenied:
-            return Response(status=status.HTTP_403_FORBIDDEN)
-
-        response = Response(self.get_serializer_class()(db).data, status=status.HTTP_200_OK, template_name='blastdb.html')
+        db: BlastDb = self.get_object()
+        response = super().get(request, *args, **kwargs)
 
         # based on the media type file to be returned, specify attachment and file name
         if request.accepted_media_type.startswith('text/csv'):
@@ -1082,6 +1052,56 @@ class BlastDbExport(generics.GenericAPIView):
             # fails, then return a 406 response
             return Response(status=status.HTTP_406_NOT_ACCEPTABLE)
         return response
+
+class BlastDbSummary(generics.GenericAPIView):
+    lookup_url_kwarg = 'pk'
+    queryset = BlastDb.objects.all()
+    permission_classes = [BlastDbEndpointPermission]
+
+    '''
+    Return statistics of a blastdb, such as the number at each taxon level and country of origin
+    '''
+    def get(self, request, *args, **kwargs):
+        db = self.get_object()
+        sequences : QuerySet[NuccoreSequence] = db.sequences.all()
+        taxon_levels = ['taxon_superkingdom', 'taxon_kingdom', 'taxon_phylum', 'taxon_class', 'taxon_order', 'taxon_family', 'taxon_genus', 'taxon_species']
+        fields = [f'{taxa}__scientific_name' for taxa in taxon_levels]
+        fields.extend([f'annotations__annotation_type', 'country', 'publication'])
+        data = {}
+        for field in fields:
+            verbose_name: str = field
+            # verbose_name = verbose_names.get(field, field)
+            if field == 'country':
+                data[verbose_name] = sequences.annotate(
+                    colon_ind=StrIndex(field, Value(':'), output_field=PositiveSmallIntegerField()), 
+                    comma_ind=StrIndex(field, Value(','), output_field=PositiveSmallIntegerField())
+                ).annotate(
+                    country_name=Case(
+                        When(colon_ind__gt=1,then=Trim(Substr(field, Value(1), F('colon_ind') - Value(1)))),
+                        # default=Value('Unknown', output_field=CharField()),
+                        output_field=CharField()
+                    ),
+                    region_name=Case(
+                        # has ; and ,
+                        When(colon_ind__gt=1, comma_ind__gt=1, then=Trim(Substr(field, F('colon_ind') + 1, F('comma_ind') - Value(1) - F('colon_ind')))),
+                        # has ; only
+                        When(colon_ind__gt=1, then=Trim(Substr(field, F('colon_ind') + 1, Length(field)))),
+                        default=Value('Unknown'),
+                        output_field=CharField()
+                    ),
+                    locality_name=Case(
+                        When(colon_ind__gt=1, comma_ind__gt=1, then=Trim(Substr(field, F('comma_ind') + 1, Length(field) - Value(1)))),
+                        default=Value('Unknown'),
+                        output_field=CharField()
+                    )
+                ).values('country', 'country_name', 'region_name', 'locality_name').annotate(count=Count('country'))
+            elif field.startswith('taxon_'):
+                data[verbose_name] = sequences.values(field, field.replace('__scientific_name', '__id', 1)).annotate(count=Count(field))
+            elif field == 'publication':
+                data[verbose_name] = sequences.values('title', 'journal').annotate(count=Count('title'))
+            else:
+                data[verbose_name] = sequences.values(field).annotate(count=Count(field))
+        return Response(data, status=status.HTTP_200_OK)
 
 class BlastRunList(mixins.CreateModelMixin, generics.ListAPIView):
     '''
