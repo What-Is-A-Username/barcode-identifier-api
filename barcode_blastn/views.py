@@ -1066,7 +1066,7 @@ class BlastDbSummary(generics.GenericAPIView):
         sequences : QuerySet[NuccoreSequence] = db.sequences.all()
         taxon_levels = ['taxon_superkingdom', 'taxon_kingdom', 'taxon_phylum', 'taxon_class', 'taxon_order', 'taxon_family', 'taxon_genus', 'taxon_species']
         fields = [f'{taxa}__scientific_name' for taxa in taxon_levels]
-        fields.extend([f'annotations__annotation_type', 'country', 'publication'])
+        fields.extend([f'annotations__annotation_type', 'country', 'title'])
         data = {}
         for field in fields:
             verbose_name: str = field
@@ -1097,7 +1097,7 @@ class BlastDbSummary(generics.GenericAPIView):
                 ).values('country', 'country_name', 'region_name', 'locality_name').annotate(count=Count('country'))
             elif field.startswith('taxon_'):
                 data[verbose_name] = sequences.values(field, field.replace('__scientific_name', '__id', 1)).annotate(count=Count(field))
-            elif field == 'publication':
+            elif field == 'title':
                 data[verbose_name] = sequences.values('title', 'journal').annotate(count=Count('title'))
             else:
                 data[verbose_name] = sequences.values(field).annotate(count=Count(field))
