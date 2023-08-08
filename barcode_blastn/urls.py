@@ -11,15 +11,14 @@ from django.conf import settings
 schema_view = get_schema_view(
     openapi.Info(
         title="Barrel API",
-        default_version="v0.0.1",
+        default_version="v0.0.2",
         description="This web-based API compares DNA sequence input against curated sequence libraries using a streamlined multi-step workflow with nucleotide BLAST (BLASTN), multiple sequence alignment and tree construction.",
         # TODO: Add terms of service?
         # terms_of_service="https://www.google.com/policies/terms/",
-        # TODO: Contact required?
         contact=openapi.Contact(
-            name="Contact",
-            url="https://google.com",
-            email="email@domain.com"),
+            name="Lab Inquiries",
+            url="http://www.utsc.utoronto.ca/~lovejoy/",
+            email="nathan.lovejoy@utoronto.ca"),
         # TODO: Is licence required?
         # license=openapi.License(name='MIT License")
     ),

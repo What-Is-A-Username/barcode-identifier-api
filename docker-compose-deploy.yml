@@ -55,8 +55,8 @@ services:
   celery_worker:
     container_name: barrel_celery_worker
     build: 
-      context: ./compose/barrel_celery_worker
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./compose/barrel_celery_worker/Dockerfile
     env_file: docker.env
     environment:
       - DB_HOST=barrel_db
