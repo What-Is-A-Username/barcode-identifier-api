@@ -54,6 +54,9 @@ INSTALLED_APPS = [
     'simple_history',
     'corsheaders',
     'drf_yasg',
+    # Django extensions can be installed and used to generate 
+    # graph models: https://django-extensions.readthedocs.io/en/latest/graph_models.html
+    # 'django_extensions', 
     'barcode_blastn.apps.BarcodeBlastnConfig'
 ]
 
@@ -245,3 +248,8 @@ FILE_UPLOAD_MAX_NUMBER_FILES = 0 # Ensure that we disable file uploads to the fi
 
 # DJANGO-SIMPLE-HISTORY
 SIMPLE_HISTORY_REVERT_DISABLED = True # Prevent users from reverting to earlier versions
+
+GRAPH_MODELS = {
+    'all_applications': True,
+    'group_models': True
+}

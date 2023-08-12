@@ -55,6 +55,7 @@ venv.bak/
 # VirtualEnv
 .venv/
 env_barcode/
+docs/docs_env/
 
 # Developers
 *.sw*

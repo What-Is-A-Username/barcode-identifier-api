@@ -4,24 +4,6 @@ The BLAST database allows for different levels of permissions to be assigned to 
 
 The [Permission Table](#permission-table) summarizes what actions a user can perform based on user and database settings. For explanations of the terminology used, follow the links or directly read from the [Definitions](#definitions) section.
 
-## Table of Contents
-- [Permissions](#permissions)
-	- [Table of Contents](#table-of-contents)
-	- [Permission Table](#permission-table)
-	- [Definitions](#definitions)
-		- [Users and Accounts](#users-and-accounts)
-		- [BLAST database-level settings](#blast-database-level-settings)
-			- [Ownership](#ownership)
-			- [Public vs. private](#public-vs-private)
-			- [Permission Levels](#permission-levels)
-		- [Database Actions](#database-actions)
-			- [Viewing an existing BLAST database](#viewing-an-existing-blast-database)
-			- [Running BLAST on an existing BLAST database](#running-blast-on-an-existing-blast-database)
-			- [Editing an existing BLAST database](#editing-an-existing-blast-database)
-			- [Granting user permissions to a BLAST database](#granting-user-permissions-to-a-blast-database)
-			- [Deleting an existing BLAST database](#deleting-an-existing-blast-database)
-			- [Creating a new BLAST database](#creating-a-new-blast-database)
-
 ## Permission Table
 
 <table>
@@ -152,21 +134,24 @@ People with edit permissions of a BLAST database can designate it as **public**,
 
 #### Permission Levels
 The database owner and any superusers can assign different levels of **database permissions** to authenticated users:
+
 -   `Can Edit Db`
 -   `Can Run Db`
 -   `Can View Db`
 -   `Deny Access`
 
 ### Database Actions
-The user details and assigned database permission level will be used to determine what actions a given user can perform.
 
+The user details and assigned database permission level will be used to determine what actions a given user can perform.
 
 #### Viewing an existing BLAST database
 
 **This action allows a user to**
+
 - view associated database information (sequences, database name, database description, version, etc.)
 
 **This action requires the user to meet any ONE of the following conditions**
+
 -   [user can run the database](#running-blast-on-an-existing-blast-database)
 -   user is an authenticated user and has been given any of the following database permission levels:
 	- `Can Edit Db`
@@ -176,9 +161,11 @@ The user details and assigned database permission level will be used to determin
 #### Running BLAST on an existing BLAST database
 
 **This action allows a user to**
+
 - submit a BLAST query on the database
 
 **This action requires the user to meet any ONE of the following conditions**
+
 -   [the user can edit the database](#editing-an-existing-blast-database)
 -   user is public and the database is public
 -   user is authenticated and possesses any ONE of following database permission levels:
@@ -188,10 +175,12 @@ The user details and assigned database permission level will be used to determin
 #### Editing an existing BLAST database
 
 **This action allows a user to**
+
 - edit associated database information (database name, database description, version, etc.)
 - add, edit and remove accession numbers from the database
 
 **This action requires the user to meet any ONE of the following conditions**
+
 -   [the user can delete the database](#deleting-an-existing-blast-database)
 -   the user is authenticated and is the database owner
 -   the user is authenticated and possesses any ONE of the following database permission levels:
@@ -200,9 +189,11 @@ The user details and assigned database permission level will be used to determin
 #### Granting user permissions to a BLAST database
 
 **This action allows a user to**
+
 - add, edit, and delete a [permission level](#permission-levels) for another user
 
 **This action requires the user to meet any ONE of the following conditions**
+
 -   [the user can delete the database](#deleting-an-existing-blast-database)
 -   the user is authenticated and is the database owner
 
