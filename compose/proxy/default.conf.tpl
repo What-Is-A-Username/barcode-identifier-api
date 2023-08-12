@@ -4,7 +4,7 @@ server {
 
     location /static/runs/ {
         deny all;
-        alias /var/www/runs/;
+        alias /vol/static/runs/;
         # only allow .clustal_num, .ph, and .txt files
         location ~ \.(clustal_num|ph|txt)$ {
             add_header X-Robots-Tag "noindex, follow" always;
