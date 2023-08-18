@@ -10,7 +10,7 @@ services:
       - POSTGRES_USER=${DB_USER}
       - POSTGRES_PASSWORD=${DB_PASSWORD}
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - /var/lib/postgresql/data:/var/lib/postgresql/data
     # for persistance, we used named volume that will be always stored on the server
     # restart: always
     healthcheck:
@@ -30,8 +30,8 @@ services:
     command: >
       sh -c "echo barrel_venv_image success"
     volumes:
-      - "static-data:/vol/static"
-      - "var-data:/var/data"
+      - "./var/static:/vol/static"
+      - "./var/data:/var/data"
 
   barrel:
     container_name: barrel
@@ -48,8 +48,9 @@ services:
       barrel_db:
         condition: service_healthy
     volumes:
-      - "static-data:/vol/static"
-      - "var-data:/var/data"
+      - "./var/static:/vol/static"
+      - "./var/data:/var/data"
+      - ".:/barrel"
     command: >
       sh -c "/barrel/scripts/run.sh"
 
@@ -73,8 +74,8 @@ services:
       - DB_HOST=barrel_db
       - DB_PORT=5432
     volumes:
-      - "var-data:/var/data/"
-      - "static-data:/vol/static/"
+      - "./var/data:/var/data/"
+      - "./var/static:/vol/static/"
     command: >
       sh -c "celery_run.sh"
     depends_on:
@@ -95,9 +96,4 @@ services:
       - 8000:8000
     # static-data is shared between app and proxy
     volumes:
-      - static-data:/vol/static
-
-volumes:
-  postgres-data:
-  static-data:
-  var-data:
+      - ./var/static:/vol/static

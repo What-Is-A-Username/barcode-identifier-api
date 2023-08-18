@@ -128,19 +128,12 @@ DATABASES = {
     }
 }
 
-# TODO: Refine CORS_HEADERS settings once the domain is known.
 # Docs: https://github.com/adamchainz/django-cors-headers#configuration
-CORS_ALLOWED_ORIGINS = [
-    # Allow local React app
-    'http://localhost:3000',
-    'https://localhost:3000',
-    # Allow production website
-    'http://localhost:8000',
-    'https://localhost:8000',
-]
+CORS_ALLOW_ALL_ORIGINS = True
 
 CORS_ALLOW_CREDENTIALS = True
 
+SESSION_COOKIE_SAMESITE = None
 
 # Password validation
 # https://docs.djangoproject.com/en/4.1/ref/settings/#auth-password-validators

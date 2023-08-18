@@ -18,12 +18,12 @@ echo "/var/data/runs complete."
 # collect static files from all Django apps into STATIC_ROOT (--noinput prevents prompt)
 python manage.py collectstatic --noinput
 
-echo Deleting existing migrations ...
+# echo Deleting existing migrations ...
 # Delete remaining migrations
-rm -rf ./barcode_blastn/migrations/*.py
-mkdir -p ./barcode_blastn/migrations
+# rm -rf ./barcode_blastn/migrations/*.py
+# mkdir -p ./barcode_blastn/migrations
 # Add __init__ file 
-echo "" > ./barcode_blastn/migrations/__init__.py
+# echo "" > ./barcode_blastn/migrations/__init__.py
 
 echo Setting up database and creating necessary migrations ... 
 

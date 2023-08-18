@@ -31,9 +31,9 @@ ENV PATH="/barrel/scripts:/py/bin:$PATH"
 COPY ./requirements.txt /barrel/
 RUN pip install -r requirements.txt
 
+COPY ./ncbi-blast-2.12.0+ /barrel/ncbi-blast-2.12.0+
 COPY ./barcode_identifier_api /barrel/barcode_identifier_api
 COPY ./barcode_blastn /barrel/barcode_blastn
-COPY ./ncbi-blast-2.12.0+ /barrel/ncbi-blast-2.12.0+
 COPY ./manage.py /barrel/ 
 COPY ./docker.env /barrel/
 COPY ./scripts /barrel/scripts

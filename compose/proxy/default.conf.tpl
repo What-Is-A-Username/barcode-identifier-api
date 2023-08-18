@@ -24,8 +24,8 @@ server {
         add_header X-Robots-Tag "noindex, follow" always;
     }
 
-    location /app/static {
-        alias /frontend/static;
+    location /app/assets {
+        alias /frontend/assets;
         add_header X-Robots-Tag "noindex, follow" always;
     }
 
