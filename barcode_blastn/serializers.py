@@ -165,24 +165,9 @@ class NuccoreSequenceSerializer(serializers.ModelSerializer):
     class Meta:
         model = NuccoreSequence
         ref_name = nuccore_title + ' summary'
-        fields = ['id', 'annotations', 'owner_database', 'accession_number', 'version', 'definition', 'organism', 'organelle', 'isolate', 'country', 'specimen_voucher', 'lat_lon', 'dna_sequence', 'translation', 'type_material', 'created', 'genbank_modification_date', 'taxid', 'taxonomy', 'title', 'journal', 'authors', 'taxonomy', 'taxon_superkingdom', 'taxon_kingdom', 'taxon_phylum', 'taxon_class', 'taxon_order', 'taxon_family', 'taxon_genus', 'taxon_species']
-        example = {
-            "id": "5100cbd8-2fda-4b42-8aa1-10ede078448b",
-            "owner_database": BlastDbShortSerializer.Meta.example,
-            "accession_number": "ON303341",
-            "version": "ON303341.1",
-            "definition": "Brachyhypopomus arrayae isolate 12586 cytochrome c oxidase subunit I (COX1) gene, partial cds; mitochondrial",
-            "organism": "Brachyhypopomus arrayae",
-            "organelle": "mitochondrion",
-            "isolate": "12586", 
-            "country": "Bolivia",
-            "specimen_voucher": "ANSP:197574",
-            "lat_lon": "11.03 S 66.09 W",
-            "dna_sequence": "ATAGTATTTGGTGCATGAGCTGGGATAGTAGGCACAGCCTTAAGCCTCTTAATCCGAGCAGAACTAAGCCAGCCAGGAGCTCTTATGGGCGACGACCAAATTTACAATGTGATTGTTACTGCGCACGCTTTCGTAATAATTTTCTTCATGGTTATGCCCATTATAATCGGCGGGTTCGGCAACTGATTAATTCCCCTAATACTCGGTGCCCCTGACATGGCATTCCCACGAATAAACAACATAAGCTTCTGACTTCTGCCCCCATCATTCCTTCTACTCCTTGCATCCTCTGGGGTCGAAGCGGGAGCCGGAACCGGCTGAACTGTTTACCCCCCTCTCGCTAGCAACCTCGCCCACGCAGGGGCCTCCGTTGATCTAACTATCTTCTCCCTTCACCTTGCTGGGGTTTCTTCCATCCTTGGCTCTATCAACTTCATTACTACCATTATTAACATGAAACCCCCAGCCATATCTCAGTATCAAACCCCTCTATTTATTTGAGCGCTCCTAATTACCACAGTTCTCCTACTGTTATCCCTTCCCGTACTGGCCGCTGGTATCACCATGCTGCTAACAGACCGAAACCTAAATACAACCTTCTTCGACCCCGCAGGAGGAGGGGACCCCGTCCTTTATCAGCACTTA",
-            "translation": "",
-            "type_material": "paratype of Brachyhypopomus arrayae",
-            "created": "2023-02-20T01:00:31.240961Z"
-        }
+        fields = ['id', 'annotations', 'owner_database', 'accession_number', 'version', 'definition', 'organism', 'organelle', 'isolate', 'country', 'specimen_voucher', 'lat_lon', 'dna_sequence', 
+        'collected_by', 'collection_date', 'identified_by', 
+        'type_material', 'created', 'genbank_modification_date', 'taxid', 'taxonomy', 'title', 'journal', 'authors', 'taxonomy', 'taxon_superkingdom', 'taxon_kingdom', 'taxon_phylum', 'taxon_class', 'taxon_order', 'taxon_family', 'taxon_genus', 'taxon_species']
 
 class NuccoreSequenceBulkAddSerializer(serializers.Serializer):
     '''
@@ -267,7 +252,9 @@ class BlastDbSequenceEntrySerializer(serializers.ModelSerializer):
     class Meta:
         model = NuccoreSequence
         ref_name = nuccore_title
-        fields = ['id', 'accession_number', 'version', 'organism', 'organelle', 'isolate', 'country', 'specimen_voucher', 'dna_sequence', 'lat_lon', 'type_material', 'created', 'updated', 'genbank_modification_date', 'taxonomy', 'taxon_superkingdom', 'taxon_kingdom', 'taxon_phylum', 'taxon_class', 'taxon_order', 'taxon_family', 'taxon_genus', 'taxon_species', 'annotations'] 
+        fields = ['id', 'accession_number', 'version', 'organism', 'organelle', 'isolate', 'country', 'specimen_voucher', 'dna_sequence', 
+        'collected_by', 'collection_date', 'identified_by', 
+        'lat_lon', 'type_material', 'created', 'updated', 'genbank_modification_date', 'taxonomy', 'taxon_superkingdom', 'taxon_kingdom', 'taxon_phylum', 'taxon_class', 'taxon_order', 'taxon_family', 'taxon_genus', 'taxon_species', 'annotations'] 
         example = {
             "id": "5100cbd8-2fda-4b42-8aa1-10ede078448b",
             "accession_number": "ON303341",
@@ -280,6 +267,9 @@ class BlastDbSequenceEntrySerializer(serializers.ModelSerializer):
             "specimen_voucher": "ANSP:197574",
             "lat_lon": "11.03 S 66.09 W",
             "dna_sequence": "ATAGTATTTGGTGCATGAGCTGGGATAGTAGGCACAGCCTTAAGCCTCTTAATCCGAGCAGAACTAAGCCAGCCAGGAGCTCTTATGGGCGACGACCAAATTTACAATGTGATTGTTACTGCGCACGCTTTCGTAATAATTTTCTTCATGGTTATGCCCATTATAATCGGCGGGTTCGGCAACTGATTAATTCCCCTAATACTCGGTGCCCCTGACATGGCATTCCCACGAATAAACAACATAAGCTTCTGACTTCTGCCCCCATCATTCCTTCTACTCCTTGCATCCTCTGGGGTCGAAGCGGGAGCCGGAACCGGCTGAACTGTTTACCCCCCTCTCGCTAGCAACCTCGCCCACGCAGGGGCCTCCGTTGATCTAACTATCTTCTCCCTTCACCTTGCTGGGGTTTCTTCCATCCTTGGCTCTATCAACTTCATTACTACCATTATTAACATGAAACCCCCAGCCATATCTCAGTATCAAACCCCTCTATTTATTTGAGCGCTCCTAATTACCACAGTTCTCCTACTGTTATCCCTTCCCGTACTGGCCGCTGGTATCACCATGCTGCTAACAGACCGAAACCTAAATACAACCTTCTTCGACCCCGCAGGAGGAGGGGACCCCGTCCTTTATCAGCACTTA",
+            "collection_date": "2015-10-11T17:53:03Z",
+            "collected_by": "John Doe",
+            "identified_by": "Jane Doe",
             "translation": "",
             "type_material": "paratype of Brachyhypopomus arrayae",
             "created": "2023-02-20T01:00:31.240961Z",
@@ -374,7 +364,9 @@ class BlastDbSequenceExportSerializer(BlastDbSequenceEntrySerializer):
     class Meta:
         model = NuccoreSequence
         ref_name = nuccore_title + ' export'
-        fields = ['accession_number', 'version', 'organism', 'organelle', 'isolate', 'country', 'specimen_voucher', 'dna_sequence', 'lat_lon', 'type_material', 'created', 'updated', 'genbank_modification_date', 'taxonomy', 'taxon_superkingdom', 'taxon_kingdom', 'taxon_phylum', 'taxon_class', 'taxon_order', 'taxon_family', 'taxon_genus', 'taxon_species', 'authors', 'title', 'journal']
+        fields = ['accession_number', 'version', 'organism', 'organelle', 'isolate', 'country', 'specimen_voucher', 'dna_sequence', 
+        'collected_by', 'collection_date', 'identified_by', 
+        'lat_lon', 'type_material', 'created', 'updated', 'genbank_modification_date', 'taxonomy', 'taxon_superkingdom', 'taxon_kingdom', 'taxon_phylum', 'taxon_class', 'taxon_order', 'taxon_family', 'taxon_genus', 'taxon_species', 'authors', 'title', 'journal']
 
 class BlastDbExportSerializer(BlastDbSerializer):
     '''
@@ -655,16 +647,30 @@ class BlastRunSerializer(serializers.ModelSerializer):
         fields = ['id', 'job_name', 'queries', 'db_used', 'start_time', 'status', 'received_time', 'start_time', 'end_time', 'error_time', 'create_hit_tree', 'hit_tree', 'alignment_job_id', 'create_db_tree', 'db_tree', 'complete_alignment_job_id']
         example = load_run_example()
 
+class NuccoreTaxonomySerializer(serializers.ModelSerializer):
+    taxon_species = TaxonomyNodeSerializer(read_only=True)
+
+    class Meta:
+        model = NuccoreSequence
+        fields = ['id', 'accession_number', 'version', 'definition', 'organism', 'country', 'specimen_voucher', 'type_material', 'lat_lon', 'collected_by', 'collection_date', 'identified_by', 'annotations', 'taxon_species']
+
+
+class HitTaxonomySerializer(serializers.ModelSerializer):
+    db_entry = NuccoreTaxonomySerializer(read_only=True)
+    class Meta:
+        model = Hit
+        fields = ['db_entry']
+
 class BlastQuerySequenceTaxonomySerializer(serializers.ModelSerializer):
     '''
     Retrieve query sequences, without also retrieving hits, to gather run data
     pertaining to taxonomic assignment made on the query sequence, as required by 
     BlastRunTaxonomyCSVRenderer as similar.
     '''
-
+    best_hits = HitTaxonomySerializer(many=True, read_only=True)
     class Meta:
         model = BlastQuerySequence
-        fields = ['definition', 'query_sequence', 'results_species_name', 'accuracy_category', 'original_species_name', 'write_tree_identifier', 'highest_percent_identity', 'evalue']
+        fields = ['definition', 'query_sequence', 'results_species_name', 'accuracy_category', 'original_species_name', 'write_tree_identifier', 'highest_percent_identity', 'evalue', 'best_hits']
 
 class BlastRunTaxonomySerializer(serializers.ModelSerializer):
     '''
@@ -730,15 +736,18 @@ class NuccoreAnnotationSerializer(serializers.ModelSerializer):
     Show a very brief summary of the sequence which is the subject of
     a user annotation.
     '''
+    taxon_species = TaxonomyNodeSerializer(read_only=True)
+
     class Meta:
         model = NuccoreSequence
         ref_name = nuccore_title + ' entry'
-        fields = ['version', 'organism']
+        fields = ['version', 'taxon_species']
 
 class AnnotationPoster(serializers.ModelSerializer):
     '''
     Required data to post/create an annotation
     '''
+    sequence = NuccoreAnnotationSerializer(read_only=True)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

@@ -1,10 +1,14 @@
 from datetime import datetime
+from math import log
 from typing import List
 
 from barcode_blastn.file_paths import get_data_run_path
-from barcode_blastn.models import (BlastQuerySequence, BlastRun,
-                                   Hit, NuccoreSequence)
+from barcode_blastn.helper.calculate_distance import calculate_genetic_distance_for_sequence
+from barcode_blastn.models import (BlastQuerySequence, BlastRun, Hit,
+                                   NuccoreSequence)
+from Bio import AlignIO
 from Bio.Phylo.TreeConstruction import DistanceMatrix
+from Bio.SeqRecord import SeqRecord
 from django.db.models import QuerySet
 
 
@@ -25,7 +29,7 @@ def parse_taxonomic_abbreviations(source_organism: str) -> str:
     new_delim = [d for d in delim if d not in exclude]
     return ' '.join(new_delim)
 
-def annotate_accuracy_category(matrix: DistanceMatrix, run: BlastRun, threshold: float = 0.01) -> bool:
+def annotate_accuracy_category(run: BlastRun, alignment_file_path: str, threshold: float = 0.01) -> bool:
     '''
     Annotate each query sequence in the matrix using the categorization proposed in
     Janzen et al. 2022. Return True if operation was successful, False otherwise.
@@ -34,8 +38,17 @@ def annotate_accuracy_category(matrix: DistanceMatrix, run: BlastRun, threshold:
     take the form of 'version|species_name' while query sequences take the form of 
     version|species_name|query
     '''
-    # 
-    names: List[str] = matrix.names
+
+    # Load the multiple alignment to perform distance calculations with
+    alignment: AlignIO.MultipleSeqAlignment = AlignIO.read(open(alignment_file_path), "clustal")
+    # Index the records by their id and in a list
+    sequences: dict[str, SeqRecord] = {}
+    record: SeqRecord
+    names: List[str] = []
+    for record in alignment:
+        sequences[record.id] = record
+        names.append(record.id)
+
     info_database = [BlastQuerySequence.extract_header_info(name) for name in names]
 
     # keep a list of all reference species in the db
@@ -48,8 +61,6 @@ def annotate_accuracy_category(matrix: DistanceMatrix, run: BlastRun, threshold:
     seq: BlastQuerySequence
 
     output_path = get_data_run_path(str(run.id))
-    with open(output_path + '/k2p_matrix.phy', 'w') as matrix_handle:
-        matrix.format_phylip(matrix_handle)
 
     debug_handle = open(output_path + '/debug.txt', 'w')
     debug_handle.write(str(names))
@@ -99,7 +110,7 @@ def annotate_accuracy_category(matrix: DistanceMatrix, run: BlastRun, threshold:
             debug_handle.write(f'{ref_id}\t{query_id}\n')
 
             # Retrieve the calculated distance between the query and the reference
-            divergence = matrix[query_id, ref_id]
+            divergence = calculate_genetic_distance_for_sequence(sequences[query_id].seq, sequences[ref_id].seq)
             if not isinstance(divergence, float):
                 raise ValueError('Distance value is not a float.')
 

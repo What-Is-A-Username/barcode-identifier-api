@@ -385,11 +385,31 @@ def blast_run_taxonomy_dict_writer(data, delimiter=','):
     '''
     response = io.StringIO()
     # get a list of displayed fields to display for each hit
-    query_fields = ['definition', 'tree_query_id', 'original_species_name', 'results_species_name', 'accuracy_category', 'highest_percent_identity', 'evalue']
+    query_fields = ['definition', 'tree_query_id', 'original_species_name', 
+        'results_species_name', 'results_accession_version', 'accuracy_category', 
+        'highest_percent_identity', 'evalue']
 
     def populate_fields(old_dict: dict):
+        '''
+        Modify fields before printing
+        '''
+        # Rename write_tree_identifier -> tree_query_id
         query_id = old_dict.pop('write_tree_identifier')
         old_dict['tree_query_id'] = query_id
+        # Make lists from best_hits
+        best_hits = old_dict.pop('best_hits')
+        species_names = []
+        species_accessions = []
+        for h in best_hits:
+            entry = h['db_entry']
+            if entry['taxon_species'] is None:
+                species_names.append('')
+            else:
+                species_names.append(entry['taxon_species']['scientific_name'])
+            species_accessions.append(entry['version'])
+        old_dict['results_species_name'] = '*'.join(species_names)
+        old_dict['results_accession_version'] = '*'.join(species_accessions)
+
         return old_dict
 
     finalData = [populate_fields(q) for q in data['queries']]

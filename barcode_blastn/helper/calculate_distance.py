@@ -1,3 +1,4 @@
+from typing import List
 from Bio import AlignIO
 from Bio.SeqRecord import SeqRecord
 from Bio.Phylo.TreeConstruction import DistanceMatrix
@@ -47,4 +48,5 @@ def calculate_genetic_distance(alignment_file_path: str) -> DistanceMatrix:
             y: SeqRecord = records[y_index]
             matrix[x.id, y.id] = calculate_genetic_distance_for_sequence(x.seq, y.seq)
             matrix[y.id, x.id] = matrix[x.id, y.id]
+
     return matrix

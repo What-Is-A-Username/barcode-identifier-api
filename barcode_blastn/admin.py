@@ -600,22 +600,14 @@ class NuccoreAdmin(admin.ModelAdmin):
 
     def get_fields(self, request, obj=None):
         fields = [
-            'owner_database',
-            'organism',
-            'accession_number',
-            'version',
-            'definition',
-            'organelle',
-            'specimen_voucher',
-            'id',
-            'isolate',
-            'country',
-            'dna_sequence',
-            'lat_lon',
-            'type_material',
-            'translation',
-            'created',
-            'updated'
+            'owner_database', 'organism', 'version', 'definition', 
+            'organelle', 'accession_number', 'specimen_voucher', 
+            'id', 'isolate', 'country', 'dna_sequence', 'collected_by', 
+            'collection_date',  'identified_by', 'lat_lon', 'type_material',
+            'created', 'updated', 'taxonomy', 'taxon_species', 
+            'taxon_genus', 'taxon_family', 'taxon_order', 'taxon_class', 
+            'taxon_phylum', 'taxon_kingdom', 'taxon_superkingdom', 'title', 
+            'authors', 'journal'
         ]
         return fields
 
@@ -623,11 +615,12 @@ class NuccoreAdmin(admin.ModelAdmin):
         fields = [
             'organism', 'version', 'definition', 'organelle',
             'specimen_voucher', 'id', 'isolate', 'country',
-            'dna_sequence', 'lat_lon', 'type_material',
+            'dna_sequence', 'collected_by', 'collection_date', 
+            'identified_by', 'lat_lon', 'type_material',
             'created', 'updated', 'taxonomy', 'taxon_species', 
             'taxon_genus', 'taxon_family', 'taxon_order', 'taxon_class', 
             'taxon_phylum', 'taxon_kingdom', 'taxon_superkingdom','title', 
-            'authors', 'journal'
+            'authors', 'journal', 
         ]
         if not obj is None:
             fields.extend(['owner_database', 'accession_number'])
@@ -637,7 +630,7 @@ class NuccoreAdmin(admin.ModelAdmin):
     def get_fieldsets(self, request: HttpRequest, obj: Optional[NuccoreSequence] = None) -> List[Tuple[Optional[str], Dict[str, Any]]]:
         return [
             ('Summary', { 'fields': ['id', 'accession_number', 'version', 'definition', 'taxonomy', 'owner_database']}), 
-            ('Source Information', {'fields': ['specimen_voucher', 'type_material', 'organelle', 'isolate', 'country', 'lat_lon']}),
+            ('Source Information', {'fields': ['specimen_voucher', 'type_material', 'organelle', 'isolate', 'country', 'collected_by', 'collection_date', 'lat_lon', 'identified_by']}),
             ('History', { 'fields': ['created', 'updated']}),
             ('Taxonomy', { 'fields': ['taxonomy', 'taxon_species', 'taxon_genus', 'taxon_family', 'taxon_order', 'taxon_class', 'taxon_phylum', 'taxon_kingdom', 'taxon_superkingdom']}),
             ('Reference', { 'fields': ['title', 'authors', 'journal']}),

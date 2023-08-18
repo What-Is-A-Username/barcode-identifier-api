@@ -92,7 +92,7 @@ def parse_gb_handle(handle) -> List[Dict[Any, Any]]:
 
         # Parse feature data
         features : List[ SeqFeature ] = seq_record.features
-        qualifiers_to_extract = ['organism', 'organelle', 'isolate', 'country', 'specimen_voucher', 'type_material', 'lat_lon', 'db_xref']
+        qualifiers_to_extract = ['organism', 'organelle', 'isolate', 'country', 'specimen_voucher', 'type_material', 'lat_lon', 'db_xref', 'identified_by', 'collected_by', 'collection_date']
         try: 
             source_feature : SeqFeature = [feature for feature in features if feature.type == 'source'][0]
         except IndexError:

@@ -22,8 +22,8 @@ from barcode_blastn.models import BlastDb, BlastQuerySequence, BlastRun, Hit, Nu
 from django.db.models import QuerySet
 from barcode_identifier_api.celery import app
 
-# Max time
-HARD_TIME_LIMIT_IN_SECONDS = 600
+# Max time for any task to be running for
+HARD_TIME_LIMIT_IN_SECONDS = 900
 
 def raise_error(run: BlastRun, err: str) -> None:
     '''
@@ -43,7 +43,7 @@ def mark_run_complete(run: BlastRun) -> None:
     run.save()
     return 
 
-@app.task(time_limit=HARD_TIME_LIMIT_IN_SECONDS)  # hard time limit of 30 seconds 
+@app.task(time_limit=HARD_TIME_LIMIT_IN_SECONDS)  
 def run_blast_command(ncbi_blast_version: str, fishdb_id: str, run_id: str) -> bool:   
     '''Performs a BLASTn search using the specified ncbi_blast_version, database with id fishdb_id, for the run of id run_id
 
@@ -400,11 +400,15 @@ def classify_genetic_distance(alignment_successful: bool, run: BlastRun) -> bool
 
     alignment_file_path = f'{get_static_run_path(run_id)}/{run.alignment_job_id}.aln-clustal_num.clustal_num'
     if os.path.exists(alignment_file_path) and os.path.isfile(alignment_file_path):
-        matrix = calculate_genetic_distance(alignment_file_path)
-        annotation_result = annotate_accuracy_category(matrix, run)
-        if annotation_result:
-            print('Successfully finished annotating accuracy')
-        return annotation_result
+        try:
+            annotation_result = annotate_accuracy_category(run, alignment_file_path)
+            if annotation_result:
+                print('Successfully finished annotating accuracy')
+            return annotation_result
+        except BaseException:
+            raise_error(run=run, err='Errored while annotating accuracy category.')
+            return False
+            
     else:
         raise_error(run, f'Could not find multiple alignment file at {alignment_file_path}\n' + run.errors)
         return False

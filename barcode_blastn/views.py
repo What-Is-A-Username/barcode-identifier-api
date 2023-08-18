@@ -43,7 +43,7 @@ from barcode_blastn.helper.parse_gb import (ACCESSIONS_PER_REQUEST,
                                             AccessionLimitExceeded,
                                             GenBankConnectionError, retrieve_gb)
 from barcode_blastn.helper.verify_query import verify_dna, verify_header
-from barcode_blastn.models import (BlastDb, BlastQuerySequence, BlastRun,
+from barcode_blastn.models import (BlastDb, BlastQuerySequence, BlastRun, Hit,
                                    Library, NuccoreSequence)
 from barcode_blastn.permissions import (BlastDbEndpointPermission, BlastRunEndpointPermission,
                                         DatabaseSharePermissions,
@@ -63,7 +63,7 @@ from barcode_blastn.serializers import (BlastDbCreateSerializer,
                                         BlastDbSerializer, BlastQuerySequenceSerializer, BlastQuerySequenceShortSerializer, BlastRunResultsShortSerializer,
                                         BlastRunRunSerializer,
                                         BlastRunSerializer,
-                                        BlastRunStatusSerializer, BlastRunTaxonomySerializer, HitSerializer,
+                                        BlastRunStatusSerializer, BlastRunTaxonomySerializer, HitSerializer, HitTaxonomySerializer,
                                         LibraryCreateSerializer,
                                         LibraryEditSerializer,
                                         LibraryListSerializer,
@@ -1196,7 +1196,7 @@ class BlastRunRun(generics.CreateAPIView):
             query_string = serializer.data.get('query_sequence', '').strip()
             query_file = request.FILES.get('query_file', None)
             query_identifiers = serializer.data.get('query_identifiers', '').strip()
-            query_identifiers_file = serializer.data.get('query_identifiers_file', None)
+            query_identifiers_file = request.FILES.get('query_identifiers_file', None)
             job_name = serializer.data.get('job_name', '')
             create_db_tree = serializer.data.get('create_db_tree', False) 
             create_hit_tree = serializer.data.get('create_hit_tree', False)
@@ -1299,7 +1299,7 @@ class BlastRunRun(generics.CreateAPIView):
 
             # Add identifiers from file upload
             if not query_identifiers_file is None:
-                query_file_io = io.StringIO(query_file.file.read().decode('UTF-8'))
+                query_file_io = io.StringIO(query_identifiers_file.file.read().decode('UTF-8'))
                 file_ids = query_file_io.readlines()
                 ids.extend([id.strip() for id in file_ids])
 
@@ -1327,12 +1327,23 @@ class BlastRunRun(generics.CreateAPIView):
                 if identifier_sequences is None:
                     return Response({'message': f'No identifiers could not be retrieved from \
                     GenBank.'}, status=status.HTTP_400_BAD_REQUEST)
+                
+                # Find existing database entries if they match the query sequences in accession.version
+                existing: QuerySet[NuccoreSequence] = NuccoreSequence.objects.filter(owner_database=odb)
+
                 for identifier_sequence in identifier_sequences:
                     seqid = identifier_sequence.get('version')
+
+                    # Do not allow query sequences with accession.versions already in the database.
+                    # TODO: Fix bug where query can be identifiers in the reference database
+                    if existing.filter(version=seqid).exists():
+                        continue 
+
                     if seqid in unique_headers:
                         return Response({'message': f"The sequence identifier in the header '{seqid}'\
                             is not unique. All submitted sequences must have unique sequence identifiers \
                             (all text before the first space)."}, status = status.HTTP_400_BAD_REQUEST)
+                    
                     query_sequences.append({
                         'definition': seqid,
                         'query_sequence': identifier_sequence.get('dna_sequence'),
@@ -1341,7 +1352,7 @@ class BlastRunRun(generics.CreateAPIView):
 
         # Raise an error if nothing could be retrieved based on sequences or identifiers given
         if len(query_sequences) == 0:
-            return Response({'message': 'Could not successfully parse any query sequences or identifiers in the request to query with. Check the formatting and identifiers provided.'}, status = status.HTTP_400_BAD_REQUEST)
+            return Response({'message': 'Could not successfully parse any query sequences or identifiers in the request to query with. Check the formatting and identifiers provided. If identifiers were given corresponding to records already in the database, they were ignored.'}, status = status.HTTP_400_BAD_REQUEST)
         
         # path to output the results
         results_uuid = uuid.uuid4()
@@ -1667,9 +1678,17 @@ class BlastRunTaxonomyDownload(generics.GenericAPIView):
     '''
     Download the taxonomic classification results.
     '''
-    queryset = BlastRun.objects.all()
     serializer_class = BlastRunTaxonomySerializer
-    renderer_classes = [BlastRunTaxonomyCSVRenderer, BlastRunTaxonomyTSVRenderer]
+    renderer_classes = [JSONRenderer, BlastRunTaxonomyCSVRenderer, BlastRunTaxonomyTSVRenderer]
+
+    def get_queryset(self):
+        pk = self.kwargs.get('pk', '')
+        # Get all query sequences under the run specified by pk
+        try:
+            run: BlastRun = BlastRun.objects.get(id=pk)
+        except BlastRun.DoesNotExist:
+            raise Http404()
+        return run
     
     @swagger_auto_schema(
         operation_summary='Get taxonomic classification results',
@@ -1687,19 +1706,14 @@ class BlastRunTaxonomyDownload(generics.GenericAPIView):
         },
     )
     def get(self, request, *args, **kwargs):
-        db_primary_key = kwargs['pk']
-
-        try:
-            run = BlastRun.objects.get(id = db_primary_key)
-        except BlastRun.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
-        
-        serializer = self.get_serializer(run)
+        best_hits = self.get_queryset()
+        pk = self.kwargs.get('pk', '')
+        serializer = self.get_serializer(best_hits)
         response = Response(serializer.data, status=status.HTTP_200_OK)
         if request.accepted_media_type.startswith('text/csv'):
-            response['Content-Disposition'] = f'attachment; filename="barrel_{run.id}.taxonomy.csv";'
+            response['Content-Disposition'] = f'attachment; filename="barrel_{pk}.taxonomy.csv";'
         elif request.accepted_media_type.startswith('text/tsv'):
-            response['Content-Disposition'] = f'attachment; filename="barrel_{run.id}.taxonomy.tsv";'
+            response['Content-Disposition'] = f'attachment; filename="barrel_{pk}.taxonomy.tsv";'
 
         return response
 

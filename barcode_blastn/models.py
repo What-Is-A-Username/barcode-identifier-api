@@ -337,6 +337,10 @@ class NuccoreSequence(models.Model):
     
     genbank_modification_date = models.DateField(help_text='Modification date of the GenBank entry, shown in the locus field of the flat file.')
 
+    collection_date = models.CharField(max_length=128, help_text='The date/time of or date/time range in which the specimen was collected.', blank=True, default='')
+    collected_by = models.CharField(max_length=128, help_text='Persons or institute that collected the specimen, as indicated on GenBank', blank=True, default='')
+    identified_by = models.CharField(max_length=128, help_text='Persons or institute that collected the specimen, as indicated on GenBank', blank=True, default='')
+
     # Time when instance first created
     created = models.DateTimeField(auto_now_add=True, help_text='Date and time at which record was first created')
     # Date and time when data was last updated by this app
@@ -520,7 +524,8 @@ class BlastQuerySequence(models.Model):
 
     query_sequence = models.CharField(max_length=50000, help_text='Sequence text')
     # The binomial name of the classification made by nucleotide blast. None if assignment not yet done, empty string if no assignment could be made.
-    results_species_name = models.CharField(max_length=512, help_text='Binomial species identity assigned from nucleotide BLAST hits. If there are multiple best hits, this is a *-delimited list.', null=True, default=None)
+    results_species_name = models.CharField(max_length=512, help_text='Binomial species identity assigned from the best BLAST hits. If there are multiple best hits, this is a comma-delimited list.', null=True, default=None)
+
     # Classification
     class QueryClassification(models.TextChoices):
         CORRECT_ID = 'Correct ID'
