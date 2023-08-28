@@ -338,8 +338,8 @@ class NuccoreSequence(models.Model):
     genbank_modification_date = models.DateField(help_text='Modification date of the GenBank entry, shown in the locus field of the flat file.')
 
     collection_date = models.CharField(max_length=128, help_text='The date/time of or date/time range in which the specimen was collected.', blank=True, default='')
-    collected_by = models.CharField(max_length=128, help_text='Persons or institute that collected the specimen, as indicated on GenBank', blank=True, default='')
-    identified_by = models.CharField(max_length=128, help_text='Persons or institute that collected the specimen, as indicated on GenBank', blank=True, default='')
+    collected_by = models.CharField(max_length=128, help_text='Persons or institute that collected the specimen.', blank=True, default='')
+    identified_by = models.CharField(max_length=128, help_text='Name of expert who made the taxonomic identification of the species.', blank=True, default='')
 
     # Time when instance first created
     created = models.DateTimeField(auto_now_add=True, help_text='Date and time at which record was first created')
