@@ -92,3 +92,4 @@ barcode_tree/migrations/
 # generated files
 static/
 setup/
+docs/site/

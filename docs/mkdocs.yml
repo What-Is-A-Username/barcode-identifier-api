@@ -1,7 +1,9 @@
 site_name: Barrel Docs
+docs_dir: docs
+site_url: http://localhost:8000/docs
 theme: readthedocs
 nav:
-  - Introduction: introduction.md
+  - Welcome: index.md
   - Installation:
     - Setup: setup.md
   - Usage:

@@ -8,4 +8,5 @@ MkDocs runs with Python and the required packages can be downloaded into a new v
 python3 -m venv docs_env -r 
 source docs_env/bin/activate
 pip install -r docs_requirements.txt
+mkdocs serve
 ```
