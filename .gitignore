@@ -88,3 +88,7 @@ barcode_tree/migrations/
 
 # frontend
 # compose/proxy/frontend/
+
+# generated files
+static/
+setup/

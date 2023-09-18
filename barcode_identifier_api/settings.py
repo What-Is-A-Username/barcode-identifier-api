@@ -186,36 +186,10 @@ STATIC_ROOT = '/vol/static/static'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # CELERY
-AWS_ACCESS_KEY_ID = safequote(os.environ.get('AWS_ACCESS_KEY_ID', ''))
-
-AWS_SECRET_ACCESS_KEY = safequote(os.environ.get('AWS_SECRET_ACCESS_KEY', ''))
-
 CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL')
-
-# CELERY_BROKER_TRANSPORT_OPTIONS = {
-#     'region': 'us-east-2',
-#     'visibility_timeout': 1800,
-#     'polling_interval': 1,
-#     'wait_time_seconds': 10,
-#     'predefined_queues': {
-#         'BarcodeQueue.fifo': {
-#             'url': os.environ.get('CELERY_BROKER_TRANSPORT_BARCODE_URL'),
-#             'access_key_id': os.environ.get('CELERY_BROKER_TRANSPORT_ACCESS_KEY_ID'),
-#             'secret_access_key': os.environ.get('CELERY_BROKER_TRANSPORT_SECRET_ACCESS_KEY'),
-#             'backoff_policy': {1: 10, 2: 15, 3: 20},
-#             'backoff_tasks': ['barcode_blastn.tasks.run_blast_command'],
-#         }
-#     }
-# }
 
 CELERY_USER = "appuser" 
 CELERY_GROUP = "appgroup"
-
-# CELERY_ROUTES = {
-#     'barcode_blastn.tasks.run_blast_command': 'BarcodeQueue.fifo',
-# }
-
-# CELERY_TASK_DEFAULT_QUEUE = 'BarcodeQueue.fifo'
 
 # SWAGGER API DOC SETTINGS
 # https://drf-yasg.readthedocs.io/en/stable/settings.html
@@ -242,6 +216,7 @@ FILE_UPLOAD_MAX_NUMBER_FILES = 0 # Ensure that we disable file uploads to the fi
 # DJANGO-SIMPLE-HISTORY
 SIMPLE_HISTORY_REVERT_DISABLED = True # Prevent users from reverting to earlier versions
 
+# DJANGO GRAPH MODELS FOR DIAGRAM GENERATION
 GRAPH_MODELS = {
     'all_applications': True,
     'group_models': True

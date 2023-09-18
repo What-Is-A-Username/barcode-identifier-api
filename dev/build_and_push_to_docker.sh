@@ -6,13 +6,14 @@ NO_COLOR_ESCAPE='\033[0m'
 
 echo -e "${RED_COLOR_ESCAPE}WARNING: This setup script will overwrite any existing changes in .env.${NO_COLOR_ESCAPE}" 
 read -p "Enter version of new build: " version
-read -p "Enter docker username:" username
+read -p "Enter Docker Hub username:" username
+read -p "Enter Docker Hub repository name: " repo
 
 docker compose -f ./docker-compose-deploy.yml -p barrel build barrel_venv_image
 docker compose -f ./docker-compose-deploy.yml -p barrel build celery_worker barrel --no-cache
 
-docker tag barrel-barrel ${username}/barrel-dev:barrel-${version}
-docker push ${username}/barrel-dev:barrel-${version}
+docker tag barrel-barrel ${username}/${repo}:barrel-${version}
+docker push ${username}/${repo}:barrel-${version}
 
-docker tag barrel-celery_worker ${username}/barrel-dev:celery_worker-${version}
-docker push ${username}/barrel-dev:celery_worker-${version}
+docker tag barrel-celery_worker ${username}/${repo}:celery_worker-${version}
+docker push ${username}/${repo}:celery_worker-${version}

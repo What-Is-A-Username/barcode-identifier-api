@@ -1,2 +1,0 @@
-2023/03/08 02:31:29 [crit] 634374#634374: *7208 SSL_do_handshake() failed (SSL: error:0A00006C:SSL routines::bad key share) while SSL handshaking, client: 165.227.76.114, server: 0.0.0.0:443
-2023/03/08 02:59:11 [crit] 634374#634374: *7228 SSL_do_handshake() failed (SSL: error:0A00006C:SSL routines::bad key share) while SSL handshaking, client: 212.102.40.218, server: 0.0.0.0:443

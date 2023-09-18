@@ -204,7 +204,6 @@ class BlastDbForm(ModelForm):
 
     # If True, filter if taxonomy missing
     require_taxonomy = forms.BooleanField(help_text='Filter out records without taxonomic information between the superkingdom to species levels (inclusive). Uncheck to ignore this option.', required=False, initial=False)
-
     accession_list_upload = forms.FileField(help_text='Add large numbers of sequences at once by uploading a .txt file, with each accession number on a separate line.', required=False)
     accession_list_text = forms.CharField(widget=forms.Textarea, help_text='Add multiple sequences by pasting in a list of accession numbers, one per line.', required=False)
     search_term = forms.CharField(widget=forms.Textarea, help_text='Add sequences by GenBank search terms.', required=False)
