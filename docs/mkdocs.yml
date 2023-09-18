@@ -1,0 +1,18 @@
+site_name: Barrel Docs
+docs_dir: docs
+site_url: http://localhost:8000/docs
+theme: readthedocs
+nav:
+  - Welcome: index.md
+  - Installation:
+    - Setup: setup.md
+  - Usage:
+    - Creating your first database: create_database.md
+    - Configure User Permissions: permissions.md
+    - Submitting jobs: run.md
+    - Reading results: results.md
+    - Export Databases: export.md
+  - Advanced:
+    - Navigating the filesystem: filesystem.md
+    - Understanding database versioning: versioning.md
+    - Container structure: containers.md 

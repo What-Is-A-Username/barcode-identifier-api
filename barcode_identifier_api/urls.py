@@ -16,7 +16,12 @@ Including another URLconf
 from django.urls import path, include
 from django.contrib import admin
 
+admin.site.site_title = 'Admin'
+admin.site.site_header = 'Barrel API Console'
+admin.site.index_title = 'Database Console'
+
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('', include('barcode_blastn.urls'))
+    path('api/admin/', admin.site.urls),
+    path('api/', include('barcode_blastn.urls')),
 ]
+

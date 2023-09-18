@@ -1,0 +1,12 @@
+;copy to /etc/systemd/system/emperor.uwsgi.service
+
+Description=uWSGI Emperor
+After=network.target
+
+[Service]
+User=ubuntu
+ExecStart=/home/ubuntu/.local/bin/uwsgi --emperor /home/ubuntu/vassals --uid www-data --gid www-data
+
+[Install]
+WantedBy=multi-user.target
+

@@ -1,0 +1,22 @@
+# Copy to /etc/conf.d/celery
+
+# Name of nodes to start
+# here we have a single node
+CELERYD_NODES="worker"
+
+# Absolute or relative path to the 'celery' command:
+CELERY_BIN="/home/ubuntu/barcode_identifier_api/env_barcode/bin/celery"
+
+# App instance to use
+# comment out this line if you don't use an app
+CELERY_APP="barcode_identifier_api"
+
+# - %n will be replaced with the first part of the nodename.
+# - %I will be replaced with the current child process index
+#   and is important when using the prefork pool to avoid race conditions.
+CELERYD_PID_FILE="/var/run/celery/%n.pid"
+CELERYD_LOG_FILE="/var/log/celery/%n%I.log"
+CELERYD_LOG_LEVEL="INFO"
+
+# set the queue, and enforce the concurrency
+CELERYD_OPTS="-Q BarcodeQueue.fifo -B -s /var/log/celery/celerybeat-schedule -c 1"

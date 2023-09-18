@@ -4,6 +4,7 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
+
         {
             "name": "Python: Django",
             "type": "python",
@@ -13,6 +14,47 @@
                 "runserver"
             ],
             "django": true
+        },
+        {
+            "name": "Python: ClustalO",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/clustalo.py",
+            "args": [
+                "--asyncjob", "--email", "william.huang1212@gmail.com", "./aggregate.fasta"
+            ],
+        },
+        {
+            "name": "Python: Simple Phylogeny",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/simple_phylogeny.py",
+            "args": [
+                "--asyncjob", "--email", "william.huang1212@gmail.com", "./clustalo-R20230207-024801-0870-6020700-p1m.aln-clustal_num.clustal_num"
+            ],
+        },
+        {
+            "name": "Python: Celery",
+            "type": "python",
+            "request": "launch",
+            "module": "celery",
+            // "program": "${workspaceFolder}/env_barcode/bin/celery",
+            "console": "integratedTerminal",
+            "args": [
+                "-A",
+                "barcode_identifier_api worker",
+                "--loglevel",
+                "INFO",
+                "-Q",
+                "BarcodeQueue.fifo",
+                "-B",
+                "-s",
+                "/var/log/celery/celerybeat-schedule",
+                "-c",
+                "1",
+                "-P",
+                "solo"
+            ]
         }
     ]
 }

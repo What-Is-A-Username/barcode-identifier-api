@@ -41,9 +41,21 @@ coverage.xml
 .cache/
 .python-version
 
+# Environments
+**.env
+**.venv
+!**/example.env
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+
 # VirtualEnv
 .venv/
 env_barcode/
+docs/docs_env/
 
 # Developers
 *.sw*
@@ -52,14 +64,6 @@ manage.py
 
 # example database
 drf_example
-
-
-# CUSTOM
-# scripts /
-scripts/
-
-# settings
-barcode_identifier_api/settings.py
 
 # ncbi-blast
 ncbi-blast-*/
@@ -70,3 +74,22 @@ old_requirements.txt
 
 # results
 fishdb/
+runs/
+
+# log files
+barcode_identifier_api.log
+
+# debug folder for docker container
+data/
+
+# migrations
+barcode_blastn/migrations/
+barcode_tree/migrations/
+
+# frontend
+# compose/proxy/frontend/
+
+# generated files
+static/
+setup/
+docs/site/

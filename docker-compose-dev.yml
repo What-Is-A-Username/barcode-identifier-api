@@ -1,0 +1,99 @@
+version: '3'
+
+services:
+  barrel_db:
+    image: postgres
+    container_name: barrel_db
+    env_file: docker.env
+    environment:
+      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - /var/lib/postgresql/data:/var/lib/postgresql/data
+    # for persistance, we used named volume that will be always stored on the server
+    # restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d $DB_NAME -U $DB_USER"]
+      interval: 2s
+      timeout: 10s
+      retries: 5
+
+  barrel_venv_image:
+    container_name: barrel_venv_image 
+    env_file: docker.env
+    build:
+      context: .
+      dockerfile: ./compose/barrel_venv_image/Dockerfile
+    depends_on:
+      - barrel_db
+    command: >
+      sh -c "echo barrel_venv_image success"
+    volumes:
+      - "./var/static:/vol/static"
+      - "./var/data:/var/data"
+
+  barrel:
+    container_name: barrel
+    build:
+      context: .
+      dockerfile: ./compose/barrel/Dockerfile
+    # auto-restart on crash
+    # restart: always
+    env_file: docker.env
+    environment:
+      - DB_HOST=barrel_db
+      - DB_PORT=5432
+    depends_on:
+      barrel_db:
+        condition: service_healthy
+    volumes:
+      - "./var/static:/vol/static"
+      - "./var/data:/var/data"
+      - ".:/barrel"
+    command: >
+      sh -c "/barrel/scripts/run.sh"
+
+  barrel_rabbitmq:
+    image: bitnami/rabbitmq:latest
+    container_name: barrel_rabbitmq
+    env_file: docker.env
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping 
+      interval: 10s
+      timeout: 10s
+      retries: 12
+
+  celery_worker:
+    container_name: barrel_celery_worker
+    build: 
+      context: .
+      dockerfile: ./compose/barrel_celery_worker/Dockerfile
+    env_file: docker.env
+    environment:
+      - DB_HOST=barrel_db
+      - DB_PORT=5432
+    volumes:
+      - "./var/data:/var/data/"
+      - "./var/static:/vol/static/"
+    command: >
+      sh -c "celery_run.sh"
+    depends_on:
+      barrel_rabbitmq:
+        condition: service_healthy
+      barrel_db:
+        condition: service_healthy
+
+  barrel_proxy:
+    container_name: barrel_proxy
+    env_file: docker.env
+    build:
+      context: ./compose/proxy
+    # restart: always
+    depends_on:
+      - barrel
+    ports:
+      - 8000:8000
+    # static-data is shared between app and proxy
+    volumes:
+      - ./var/static:/vol/static
