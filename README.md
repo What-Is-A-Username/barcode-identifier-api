@@ -1,10 +1,10 @@
 # Barrel API
 
-The Barrel API is the backend server API powering the [Barrel app](https://github.com/clwillhuang/barrel).
+The Barrel API is the backend server API powering the [Barrel app](https://barrel.utsc.utoronto.ca/app).
 
 It is a web service, provided as a Django web API, which allows biological researchers to collaboratively work on DNA barcoding projects through a shared server platform.
 
-The project is still under active development and testing. For downloadable releases, visit our [main repository](https://github.com/clwillhuang/barrel).
+The project is still under active development and testing. In the future, downloadable releases will be available at our [main repository](https://github.com/clwillhuang/barrel).
 
 ## Quickstart
 
@@ -19,10 +19,10 @@ Ensure that Docker is installed on the machine. If not, install it over at https
 Run the containers using Docker Compose:
 ```
 docker compose -f ./docker-compose-dev.yml -p barrel build barrel_venv_image
-docker compose -f ./docker-compose-dev.yml -p barrel build celery_worker barrel --no-cache
+docker compose -f ./docker-compose-dev.yml -p barrel up --build celery_worker barrel barrel_proxy --no-cache
 ```
 
-The primary difference between the development (docker-compose-dev.yml) and the deployment builds (docker-compose-deploy.yml) is that in the development build, the files are also mounted to the local filesystem for easier access.
+The primary difference between the development (docker-compose-dev.yml) and the deployment builds (docker-compose-deploy.yml) is that in the development build, the files are in bind mounts so that they are reachable more easily through the local filesystem. For deployment, files are in named volumes managed by Docker.
 
 ### Docs (optional)
 This repo is also accompanied with documentation built with MKDocs.
