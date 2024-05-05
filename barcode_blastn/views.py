@@ -79,13 +79,14 @@ tag_sequences = 'GenBank Accessions'
 tag_admin = 'Admin Tools'
 tag_users = 'User Authentication'
 
-class UserDetailView(generics.GenericAPIView):
+class UserDetailView(generics.RetrieveAPIView):
     '''
     Return the user details associated with the authenticated
     user
     '''
     authentication_classes = (TokenAuthentication,)
     permission_classes = (IsAuthenticated,)
+    serializer_class = (UserSerializer,)
 
     @swagger_auto_schema(
         operation_summary='Get user details.',
@@ -102,8 +103,11 @@ class UserDetailView(generics.GenericAPIView):
             '403': 'User could not be authenticated.'
         }
     )
-    def get(self, request, format=None):
-        return Response(UserSerializer(request.user).data)
+    def get(self, request, *args, **kwargs):
+        return super(UserDetailView, self).get(request, *args, **kwargs)
+
+    def get_object(self):
+        return self.request.user
 
 class LogoutAllView(KnoxLogoutAllView):
     @swagger_auto_schema(
@@ -113,7 +117,7 @@ class LogoutAllView(KnoxLogoutAllView):
         tags = [tag_users],
     )
     def post(self, request, format=None):
-        return super().post(request, format)
+        return super(LogoutAllView, self).post(request, format)
 
 class LogoutView(KnoxLogoutView):
     '''
@@ -126,7 +130,7 @@ class LogoutView(KnoxLogoutView):
         tags = [tag_users],
     )
     def post(self, request, format=None):
-        return super().post(request, format)
+        return super(LogoutView, self).post(request, format)
 
 class LoginView(KnoxLoginView):
     '''
@@ -248,7 +252,7 @@ class BlastDbSequenceList(mixins.UpdateModelMixin, mixins.DestroyModelMixin, mix
 
         # Check if accession numbers provided
         serializer = NuccoreSequenceBulkAddSerializer(data=request.data)
-        if not serializer.is_valid():
+        if not serializer.is_valid() or not isinstance(serializer.validated_data, dict):
             return Response(status=status.HTTP_400_BAD_REQUEST)
         # Subset kwargs 
         min_length = serializer.validated_data.get('min_length', -1)
@@ -268,7 +272,7 @@ class BlastDbSequenceList(mixins.UpdateModelMixin, mixins.DestroyModelMixin, mix
             return Response({'message': 'The database is locked and its accession numbers cannot be added, edited or removed.'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            created_sequences = add_sequences_to_database(db, desired_numbers=desired_numbers, search_term=search_term, \
+            created_sequences = add_sequences_to_database(db, request.user, desired_numbers=desired_numbers, search_term=search_term, \
                 min_length=min_length, max_length=max_length, max_ambiguous_bases=max_ambiguous_bases, blacklist=blacklist, \
                 require_taxonomy=require_taxonomy)
         except DatabaseLocked as exc:
@@ -352,7 +356,7 @@ class BlastDbSequenceList(mixins.UpdateModelMixin, mixins.DestroyModelMixin, mix
             return Response({'message': 'The database is locked and its accession numbers cannot be added, edited or removed.'}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = NuccoreSequenceBulkAddSerializer(data=request.data)
-        if serializer.is_valid():
+        if serializer.is_valid() and isinstance(serializer.validated_data, dict):
             # Subset kwargs 
             min_length = serializer.validated_data.get('min_length', -1)
             max_length = serializer.validated_data.get('min_length', -1)
@@ -384,7 +388,7 @@ class BlastDbSequenceList(mixins.UpdateModelMixin, mixins.DestroyModelMixin, mix
                         type=openapi.TYPE_OBJECT,
                         properties={
                             'deleted': openapi.Schema(
-                                type=openapi.TYPE_STRING,
+                                type=openapi.TYPE_NUMBER,
                                 description='The number of objects deleted',
                                 example=1
                             ),

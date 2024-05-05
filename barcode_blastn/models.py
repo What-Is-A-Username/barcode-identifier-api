@@ -179,11 +179,11 @@ class Library(models.Model):
         verbose_name_plural = 'Reference Libraries'
 
     def latest(self):
-        '''Retrieve the instance of the latest database version of the library'''
-        return self.blastdb_set.latest(self)
+        '''Retrieve the latest blastdb that is published (locked=True) from a given library'''
+        return BlastDb.objects.latest(self)
 
     def latest_version(self):
-        '''Return the name of the latest database version'''
+        '''Retrieve a string of the latest database that is published (locked=True) for this library'''
         db = self.latest()
         if db is None:
             return ""
@@ -192,7 +192,7 @@ class Library(models.Model):
 
 class BlastDbManager(models.Manager):
     def latest(self, library: Library):
-        '''Retrieve the latest blastdb from a given library'''
+        '''Retrieve the latest blastdb that is published (locked=True) from a given library'''
         return BlastDb.objects.filter(library=library, locked=True).last()
 
     def editable(self, user: User):

@@ -17,9 +17,7 @@ class NuccoreSequencePublicationFilter(admin.SimpleListFilter):
         '''
         qs: QuerySet[NuccoreSequence] = model_admin.get_queryset(request)
         distinct = qs.order_by().values('title', 'journal', 'authors').distinct()
-        options = [('all', 'All')]
-        addOps = [(d['title'], f"{d['journal']}, {d['title']}") for d in distinct]
-        options.extend(addOps)
+        options = [('all', 'All')] + [(str(d['title']), f"{d['journal']}, {d['title']}") for d in distinct]
         return options
 
     def queryset(self, request, queryset: QuerySet[NuccoreSequence]) -> Optional[QuerySet[NuccoreSequence]]:

@@ -460,7 +460,8 @@ def filter_sequences_in_database(database: BlastDb, user: User, min_length: int 
     # Log the filtered/deleted objects into history regardless of whether objects were deleted
     log_filter_options(database, min_length=min_length, max_length=max_length, max_ambiguous_bases=max_ambiguous_bases, \
         blacklist=blacklist, require_taxonomy=require_taxonomy)
-    log_deleted_sequences(instances=deleted_objects, database=database)
+    if len(deleted_objects) > 0:
+        log_deleted_sequences(instances=deleted_objects, database=database)
     save_blastdb(database, user=user, perform_lock=False)
     return deleted_objects
 
