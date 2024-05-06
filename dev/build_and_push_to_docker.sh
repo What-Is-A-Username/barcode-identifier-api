@@ -17,3 +17,5 @@ docker push ${username}/${repo}:barrel-${version}
 
 docker tag barrel-celery_worker ${username}/${repo}:celery_worker-${version}
 docker push ${username}/${repo}:celery_worker-${version}
+
+echo -e "Success"

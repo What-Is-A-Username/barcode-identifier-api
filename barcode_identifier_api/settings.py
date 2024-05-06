@@ -218,6 +218,7 @@ SIMPLE_HISTORY_REVERT_DISABLED = True # Prevent users from reverting to earlier 
 
 # DJANGO GRAPH MODELS FOR DIAGRAM GENERATION
 GRAPH_MODELS = {
-    'all_applications': True,
-    'group_models': True
+    # 'all_applications': True,
+    'group_models': True,
+    'app_labels': ["barcode_blastn"]
 }
