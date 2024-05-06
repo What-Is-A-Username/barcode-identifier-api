@@ -5,9 +5,6 @@ LABEL maintainer="barcode_identifier_dev"
 COPY ./uwsgi_params /etc/nginx/uwsgi_params 
 COPY ./run.sh /run.sh
 
-# Copy static website files from subdirectory into the proxy container
-COPY ./frontend /frontend
-
 # Listen to port 8000
 ENV LISTEN_PORT=8000
 # Name of service running Django app

@@ -1000,7 +1000,17 @@ class BlastDbHistory(mixins.RetrieveModelMixin, generics.GenericAPIView):
     queryset = BlastDb.objects.all()
     permission_classes = [BlastDbEndpointPermission]
 
-    # TODO: Write docs for this method
+    @swagger_auto_schema(
+        operation_summary='Show edit history of the database.',
+        operation_description='Show a time log of the edit actions of the database including the removal and addition of sequences, as well as the editing of database metadata.',
+        tags = [tag_blastdbs],
+        responses={
+            '200': 'Success.',
+            '403': 'Insufficient permissions.',
+            '404': 'BLAST database with the given ID does not exist',
+            '500': 'Unexpected error.',
+        }
+    )
     def get(self, request, *args, **kwargs):
         db_id: str = kwargs.pop('pk', None)
         if db_id is None:
@@ -1028,13 +1038,44 @@ class BlastDbExport(generics.RetrieveAPIView):
         context['export_format'] = self.request.GET.get('export_format', '')
         return context
     
-    # TODO: Write docs for this method
+    @swagger_auto_schema(
+        operation_summary='Export BLAST database to file.',
+        operation_description='Export the sequences and/or metadata of the database to different file types.\n \
+            The file type exported will depend on the `format` parameter in the request.\n\
+            Exports can also be made to be compatible with popular bioinformatics tools such as SINTAX, DADA2 and QIIME2, by using the `export_format` parameter. Consult the documentation for all supported combinations of parameters.',
+        tags = [tag_blastdbs],
+        manual_parameters=[
+            openapi.Parameter(
+                name='format',
+                description='Specify the file format. For .zip and .fasta files, additional settings can be set with the `export_format` parameter.',
+                required=True,
+                in_=openapi.IN_QUERY,
+                type=openapi.TYPE_STRING,
+                enum=['csv', 'tsv', 'fasta', 'json', 'xml', 'zip']
+            ),
+            openapi.Parameter(
+                name='export_format',
+                description='Only applicable for `.zip` or `.fasta` file exports. This specifies the format of the file export to be compatible with a third-party bioinformatics tool. Leave blank for the default minimalistic fasta format.',
+                required=False,
+                in_=openapi.IN_QUERY,
+                type=openapi.TYPE_STRING,
+                enum=['', 'qiime2', 'dada2tax', 'dada2sp', 'sintax', 'rdp', 'mothur']
+            ),
+        ],
+        responses={
+            '200': 'Export successful. Response should contain a file for download.',
+            '403': 'Insufficient permissions.',
+            '404': 'BLAST database with the given ID does not exist',
+            '500': 'Unexpected error. Database with the given ID may also not exist',
+            '502': 'Unexpected error.',
+        }
+    )
     def get(self, request, *args, **kwargs):
         '''
         Export blastdb to compatible formats for taxonomic assignment.
         '''
+        response = super(BlastDbExport, self).get(request, *args, **kwargs)
         db: BlastDb = self.get_object()
-        response = super().get(request, *args, **kwargs)
 
         # based on the media type file to be returned, specify attachment and file name
         if request.accepted_media_type.startswith('text/csv'):
@@ -1062,9 +1103,66 @@ class BlastDbSummary(generics.GenericAPIView):
     queryset = BlastDb.objects.all()
     permission_classes = [BlastDbEndpointPermission]
 
-    '''
-    Return statistics of a blastdb, such as the number at each taxon level and country of origin
-    '''
+    @swagger_auto_schema(
+        operation_summary='Show some general statistics about the database\'s sequences.',
+        operation_description='Show aggregate summaries of the database\'s sequences, including the number of sequences from each taxon, country of origin, and publication.',
+        tags = [tag_blastdbs],
+        
+        responses={
+            '200': openapi.Response(description='Success.', schema=openapi.Schema(
+                title='Summary data',
+                description='Number of sequences per each taxon, country and publication.',
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    **{
+                        f'taxon_{i}__scientific_name': openapi.Schema(
+                            title=f'Summary by {i}',
+                            type=openapi.TYPE_ARRAY,
+                            items=openapi.Items(
+                                type=openapi.TYPE_OBJECT,
+                                properties={
+                                    f'taxon_{i}__scientific_name': openapi.Schema(title=f'Name of {i}', type=openapi.TYPE_STRING),
+                                    f'taxon_{i}__id': openapi.Schema(title='Taxon id',type=openapi.TYPE_INTEGER),
+                                    'count': openapi.Schema(title='Number of entries',type=openapi.TYPE_INTEGER),
+                                }
+                            )
+                        )
+                        for i in ['superkingdom', 'kingdom', 'phylum', 'class', 'order', 'family', 'genus', 'species']
+                    },
+                    'country': openapi.Schema(
+                        title='Summary by country',
+                        type=openapi.TYPE_ARRAY,
+                        items=openapi.Items(
+                            type=openapi.TYPE_OBJECT,
+                            properties={
+                                f'country': openapi.Schema(title=f'Full description of collection locale', type=openapi.TYPE_STRING),
+                                **{
+                                    f'{i}_name': openapi.Schema(title=f'Name of {i}, as extracted from country value.', type=openapi.TYPE_STRING)
+                                    for i in ['country', 'region', 'locality']
+                                },
+                                'count': openapi.Schema(title='Number of entries', type=openapi.TYPE_INTEGER),
+                            }
+                        )
+                    ),
+                    'title': openapi.Schema(
+                        title='Summary by title of reference',
+                        type=openapi.TYPE_ARRAY,
+                        items=openapi.Items(
+                            type=openapi.TYPE_OBJECT,
+                            properties={
+                                f'title': openapi.Schema(title=f'Title of the reference resource, such as an article', type=openapi.TYPE_STRING),
+                                f'journal': openapi.Schema(title=f'Journal name of the reference resource.', type=openapi.TYPE_STRING),
+                                'count': openapi.Schema(title='Number of entries', type=openapi.TYPE_INTEGER),
+                            }
+                        )
+                    ),
+                }
+            )),
+            '403': 'Insufficient permissions.',
+            '404': 'BLAST database with the given ID does not exist',
+            '500': 'Unexpected error.',
+        }
+    )
     def get(self, request, *args, **kwargs):
         db = self.get_object()
         sequences : QuerySet[NuccoreSequence] = db.sequences.all()

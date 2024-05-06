@@ -1,6 +1,7 @@
-site_name: Barrel Docs
-docs_dir: docs
-site_url: http://localhost:8000/docs
+site_name: Barrel Documentation
+docs_dir: docs/
+site_url: http://localhost:8000/docs/
+site_dir: site/
 theme: readthedocs
 nav:
   - Welcome: index.md

@@ -96,6 +96,8 @@ services:
     # static-data is shared between app and proxy
     volumes:
       - static-data:/vol/static
+      - ./compose/proxy/docs:/docs
+      - ./compose/proxy/frontend:/frontend
 
 volumes:
   postgres-data:

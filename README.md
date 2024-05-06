@@ -16,13 +16,18 @@ The present project was developed for Linux Ubuntu.
 
 Ensure that Docker is installed on the machine. If not, install it over at https://docs.docker.com/engine/install/ubuntu/.
 
-Run the containers using Docker Compose:
+Build the containers using Docker Compose:
 ```
 docker compose -f ./docker-compose-dev.yml -p barrel build barrel_venv_image
 docker compose -f ./docker-compose-dev.yml -p barrel build celery_worker barrel --no-cache
 ```
 
 The primary difference between the development (docker-compose-dev.yml) and the deployment builds (docker-compose-deploy.yml) is that in the development build, the files are also mounted to the local filesystem for easier access.
+
+Run the containers
+```
+docker compose -f ./docker-compose-dev.yml -p barrel up celery_worker barrel
+```
 
 ### Docs (optional)
 This repo is also accompanied with documentation built with MKDocs.

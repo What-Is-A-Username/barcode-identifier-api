@@ -2,14 +2,19 @@
 
 Queries can be submitted to Barrel via the web app, on the `/blast` page.
 
+This page will summarize the process for submitting a query, including the parameters used.
+
+For help interpreting the results of a query, consult the [Results page](./results.md).
+
 <img src='../images/blast_run.png' width='80%' alt='Drawing'>
 </img>
 
 ## Query sequences
 
-Query sequences can be uploaded in four ways:
+Sequences to be processed (i.e. "query sequences") can be submitted in four ways:
 
-**Method 1**. Upload of sequences in a FASTA format 
+**Method 1**. Upload of sequences in a FASTA format. If the description line (with the `>`) is missing or the format
+could not be parsed correctly, Method 2 will be used as fallback.
 
 ```
 >query1 Gymnotus cylindricus
@@ -20,14 +25,14 @@ ATAGTATTTGGTGCCTGAGCTGGAATAGTTGGCACAGCCTTGAGCCTACTGATCCGAGCAGAACTAAGCC
 AACCCGGAACCCTCCTAGGCGATGACCAAATTTATAATGTAATCGTTACTGCCCACGC
 ```
 
-**Method 2**. Pasting raw text of a FASTA file, or a single string of nucleotides to be interpreted as a single query sequence
+**Method 2**. Pasting raw text of a FASTA file, or a single string of nucleotides to be interpreted as a single query sequence. The whitespace between lines will be removed.
 
 ```
 ATAGTATTTGGTGCCTGAGCCGGAATAGTTGGCACAGCTTTAAGCCTCCTTATCCGAGCAGAACTAAGTC
 AACCCGGAGCCCTCCTCGGGGACGACCAAATTTATAATGTAATTGTTACTGCCCACGC
 ```
    
-*Note: this sequence will be identified as "query_sequence" by Barrel.*
+*Note: this single sequence will be identified as "query_sequence" by Barrel.*
 
 **Method 3**. Upload of GenBank accession numbers or accession versions in a file, with one identifier per line
 ```

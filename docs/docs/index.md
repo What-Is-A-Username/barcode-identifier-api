@@ -18,4 +18,4 @@ Barrel thus provides an intuitive and user-friendly interface for users to colla
 
 **Barrel can be configured to run locally, or as a web server.** When run as a web server, fellow researchers can see your publicly published reference libraries and run their sequences.
 
-For more detailed API documentation, view our [interactive API documentation](/app/api-docs)
+For more detailed API documentation, view our [interactive API documentation](./app/api-docs)
