@@ -1,10 +1,8 @@
 # Barrel API
 
-The Barrel API is the backend server API powering the [Barrel app](https://barrel.utsc.utoronto.ca/app).
+Barrel is a web service, provided as a Django web API, which allows biological researchers to collaboratively work on DNA barcoding projects through a shared server platform.
 
-It is a web service, provided as a Django web API, which allows biological researchers to collaboratively work on DNA barcoding projects through a shared server platform.
-
-The project is still under active development and testing. In the future, downloadable releases will be available at our [main repository](https://github.com/clwillhuang/barrel).
+The project is still under active development. In the future, downloadable releases will be available and deployable using Docker containers.
 
 ## Quickstart
 
