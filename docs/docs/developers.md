@@ -6,7 +6,7 @@ This page is for developers who want to run the repository in the development en
 
 Barrel uses [MKDocs](https://www.mkdocs.org/) to generate the documentation for Barrel.
 
-MkDocs runs with Python and the required packages can be downloaded into a new virtual environment using [./docs_requirements.txt](./docs_requirements.txt).
+MkDocs runs with Python and the required packages can be downloaded into a new virtual environment using the dependencies listed in `./docs_requirements.txt`.
 
 Starting from the main project directory, enter the docs folder
 ```
@@ -84,7 +84,7 @@ The release file includes:
 - files required to show the website documentation
 - (optional) files required for the frontend web application
 
-Before building the release, ensure that the virtual environment for building the documentation is already setup. Consult the [docs README](../README.md) for more information.
+Before building the release, ensure that the virtual environment for building the documentation is already setup. Consult the README.md in the docs folder of the code repository for more information.
 
 From the main project directory, simply run the shell script, which will create the `.tar.gz` and `.zip` files.
 ```

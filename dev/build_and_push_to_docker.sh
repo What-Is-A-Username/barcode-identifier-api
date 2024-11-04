@@ -4,7 +4,7 @@
 RED_COLOR_ESCAPE='\033[0;31m'
 NO_COLOR_ESCAPE='\033[0m'
 
-echo -e "${RED_COLOR_ESCAPE}WARNING: This setup script will overwrite any existing changes in .env.${NO_COLOR_ESCAPE}" 
+echo -e "${RED_COLOR_ESCAPE}WARNING: This setup script will rebuild images and push to docker.${NO_COLOR_ESCAPE}" 
 read -p "Enter version of new build: " version
 read -p "Enter Docker Hub username:" username
 read -p "Enter Docker Hub repository name: " repo
