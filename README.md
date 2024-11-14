@@ -1,18 +1,12 @@
 # Barrel API
 
-The Barrel API is the backend server API powering the [Barrel app](https://github.com/clwillhuang/barrel).
+The Barrel API is a web service, provided as a Django web API, which allows biological researchers to collaboratively work on DNA barcoding projects through a shared server platform.
 
-It is a web service, provided as a Django web API, which allows biological researchers to collaboratively work on DNA barcoding projects through a shared server platform.
+The project is still under active development and testing. Downloadable releases will be available upon future full release.
 
-The project is still under active development and testing. For downloadable releases, visit our [main repository](https://github.com/clwillhuang/barrel).
+## Development Environment Quickstart
 
-## Quickstart
-
-Below are the steps for running the backend API for Barrel locally, meant for those familiar with development servers such as software developers and bioinformaticians. 
--   If you are instead looking to host your own version of Barrel, [visit and download from official releases](https://github.com/clwillhuang/barrel/releases).
--   If you are instead looking for documentation on how to use Barrel for your own sequence analysis and research, view our documentation 
-
-The present project was developed for Linux Ubuntu. 
+Below are the steps for running the backend API for Barrel locally, meant for those familiar with development servers such as software developers and bioinformaticians. Use for Linux Ubuntu. 
 
 Ensure that Docker is installed on the machine. If not, install it over at https://docs.docker.com/engine/install/ubuntu/.
 
