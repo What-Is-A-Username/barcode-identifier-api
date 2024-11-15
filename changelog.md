@@ -36,13 +36,12 @@
 
 ## Version 0.0.4
 
-### Feature changes
--   Added documentation pages to website, using Read The Docs styles. Raw markdown content is found in the `docs` folder of this repository
--   Added accuracy classification between supposed species identity and BLAST result species, using Kimura-2-parameter genetic distance between sequences.
-
 ### Bug Fixes
 -   Cleaned unnecessary files from repo.
 
 ### Changes for Developers and Admins
 -   Added helper scripts to push updates to docker.
--   Added scripts for server deployment, but these scripts will be moved to another repo for full release.
+-   Added build script in anticipation of future full release
+-   Added additional docs for developers
+-   Blast is now longer installed in the main barrel container
+-   Docs now served as static files
