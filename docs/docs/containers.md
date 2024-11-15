@@ -54,36 +54,4 @@ Retrieve the images from the web by pulling from Docker:
 ```
 ```
 
-## For developers
-
-### Building containers in the development environment.
-
-This section is a reference for developers about how to build the Docker containers from the complete source code (i.e. not pulling images from the Docker Hub website). The following assumes that Docker is already installed on the system and you already possess a Docker account.
-
-From the terminal, ensure that you're logged into Docker. Login by running the command, substituting in your username:
-```
-docker login -u <username>
-```
-
-Build and run the images. Below is an example of the command used to build the production image for barrel_venv_image using the docker compose files.
-```
-docker compose -f ./docker-compose-deploy.yml -p barrel up --build barrel_venv_image
-```
-
-Tag the image.
-```
-docker tag barrel_venv_image username/barrel-dev:barrel_venv_image
-```
-
-Push to Docker.
-```
-docker push username/barrel-dev:barrel_venv_image
-``` 
-
-To build the docker containers, build them in the following order:
-- barrel_venv_image
-- celery_worker
-- barrel
-- barrel_proxy
-
 

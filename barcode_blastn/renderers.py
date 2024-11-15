@@ -10,6 +10,20 @@ from barcode_blastn.models import BlastRun
 
 from barcode_blastn.serializers import BlastDbSequenceExportSerializer,  BlastRunSerializer, HitSerializer
 
+class BaseBlastDbRenderer(BaseRenderer):
+    """
+        Base renderer for BlastDb exports to file. Handles the case where
+        blastdb is not in the data retrieved (such as when there is 404).
+    """
+    def render(self, data, *args, **kwargs):
+        if data is None or data.get('sequences', None) is None:
+            return b''
+        else:
+            return self.render_db(data, *args, **kwargs)
+
+    def render_db(self, data, accepted_media_type=None, renderer_context=None):
+        raise NotImplementedError('This BlastDbRenderer must implement the render_db method.')
+
 def get_letter(rank: str) -> str:
     '''
     Return the letter abbreviation of the taxonomic rank.
@@ -72,7 +86,7 @@ def renderDefaultFasta(data) -> List[str]:
         sequence_file.append(f'>{sequence["accession_number"]}\n{sequence["dna_sequence"]}\n')
     return sequence_file
 
-class BlastDbXMLRenderer(BaseRenderer):
+class BlastDbXMLRenderer(BaseBlastDbRenderer):
     '''
     Return the entries of the blastdb in XML format.
     '''
@@ -80,11 +94,11 @@ class BlastDbXMLRenderer(BaseRenderer):
     format = 'xml'
     charset = 'utf-8'
 
-    def render(self, data, accepted_media_type=None, renderer_context=None):
+    def render_db(self, data, accepted_media_type=None, renderer_context=None):
         export_data = {'Database': data}
         return xmltodict.unparse(export_data).encode(self.charset)
 
-class BlastDbFastaRenderer(BaseRenderer):
+class BlastDbFastaRenderer(BaseBlastDbRenderer):
     '''
     Return the entries of blastdb in FASTA format.
     '''
@@ -92,7 +106,7 @@ class BlastDbFastaRenderer(BaseRenderer):
     format = 'fasta'
     charset = 'utf-8'
 
-    def render(self, data, accepted_media_type=None, renderer_context: Optional[Dict[Any, Any]]=None):
+    def render_db(self, data, accepted_media_type=None, renderer_context: Optional[Dict[Any, Any]]=None):
         fasta_format = renderer_context.get('fasta_format', '') if not renderer_context is None else ''
         
         sequence_file: List[str]
@@ -107,7 +121,7 @@ class BlastDbFastaRenderer(BaseRenderer):
             
         return ''.join(sequence_file).encode(self.charset)
 
-class BlastDbCompatibleRenderer(BaseRenderer):
+class BlastDbCompatibleRenderer(BaseBlastDbRenderer):
     '''
     Return the entries of blastdb in ZIP file format
     '''
@@ -120,7 +134,7 @@ class BlastDbCompatibleRenderer(BaseRenderer):
         assert rank.startswith('taxon_')
         return rank[6:]
 
-    def render(self, data, accepted_media_type=None, renderer_context=None):
+    def render_db(self, data, accepted_media_type=None, renderer_context=None):
         fasta_format = renderer_context.get('fasta_format', '') if not renderer_context is None else ''
 
         zip_buffer = io.BytesIO()
@@ -260,14 +274,14 @@ def BlastDbDictWriter(data, delimiter: str = ','):
     writer.writerows(sequence_data)
     return response
 
-class BlastDbTSVRenderer(BaseRenderer):
+class BlastDbTSVRenderer(BaseBlastDbRenderer):
     '''
     Return the entries of blastdb in TSV format.
     '''
     media_type = 'text/tsv'
     format = 'tsv'
     charset = 'utf-8'
-    def render(self, data, accepted_media_type=None, renderer_context=None):
+    def render_db(self, data, accepted_media_type=None, renderer_context=None):
         response = BlastDbDictWriter(data=data, delimiter='\t')
         return response.getvalue().encode(self.charset)
 
@@ -288,7 +302,7 @@ class BlastRunFastaRenderer(BaseRenderer):
                 sequence_file.append(f'>{sequence["definition"]}\n{sequence["query_sequence"]}\n')
         return ''.join(sequence_file).encode(self.charset)
 
-class BlastDbCSVRenderer(BaseRenderer):
+class BlastDbCSVRenderer(BaseBlastDbRenderer):
     '''
     Return the blastdb in CSV format
     '''
@@ -296,11 +310,11 @@ class BlastDbCSVRenderer(BaseRenderer):
     format = 'csv'
     charset = 'utf-8'
 
-    def render(self, data, accepted_media_type=None, renderer_context=None):
+    def render_db(self, data, accepted_media_type=None, renderer_context=None):
         response = BlastDbDictWriter(data=data, delimiter=',')
         return response.getvalue().encode(self.charset)
 
-class BlastRunHitsTxtRenderer(BaseRenderer):
+class BlastRunHitsTxtRenderer(BaseBlastDbRenderer):
     '''
     Return the blast run hits in txt format
     '''
@@ -308,7 +322,7 @@ class BlastRunHitsTxtRenderer(BaseRenderer):
     format = 'txt'
     charset = 'utf-8'
 
-    def render(self, data, accepted_media_type=None, renderer_context=None):
+    def render_db(self, data, accepted_media_type=None, renderer_context=None):
         out_lines = []
         run_id = data['id']
         run_folder = get_data_run_path(run_id)

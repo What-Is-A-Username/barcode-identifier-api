@@ -31,7 +31,7 @@ server {
 
     location /app {
         alias /frontend;
-        location ~* \.(jpeg|jpg|png|txt|json|svg|ico)$ {
+        location ~* \.(jpeg|jpg|png|txt|json|svg|ico|js|css)$ {
             expires 1h;
             add_header X-Robots-Tag "noindex, follow" always;
         }
@@ -40,4 +40,12 @@ server {
             add_header X-Robots-Tag "noindex, follow" always;
         }
     }
+
+    location /docs {
+        alias /docs;
+        expires 1h;
+        add_header X-Robots-Tag "noindex, follow" always;
+    }
+
+    rewrite  ^/$  /app  permanent;
 }

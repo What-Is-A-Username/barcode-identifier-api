@@ -4,7 +4,7 @@
 
 The BLASTN run will return a set of hits for each query sequence supplied. 
 
-<img src='/docs/blastn_results.png' width='80%' alt='Drawing'/>
+<img src='./blastn_results.png' width='80%' alt='Drawing'/>
 
 This is displayed in a table with the following columns:
 
@@ -17,7 +17,7 @@ This is displayed in a table with the following columns:
 
 The number of alignments performed will depend the multiple [alignment options selected](#multiple-alignment-and-tree-parameters).
 
-<img src='/docs/tree_results.png' width='80%' alt='Interactive phylogenetic tree of hits and query sequences'/>
+<img src='./tree_results.png' width='80%' alt='Interactive phylogenetic tree of hits and query sequences'/>
 
 For *each* tree there are three downloadable files, each directly obtained from the job ran on ClustalOmega at EMBL-EBI and unaltered:
 

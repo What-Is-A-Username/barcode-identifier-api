@@ -2,7 +2,7 @@
 
 Barrel is an upcoming web app designed to enable researchers to create, share and maintain barcode reference libraries collaboratively over the web. It consists of a backend application programming interface (API) as well as a modern and responsive frontend web interface.
 
-**Barrel is still under active development, so documentation pages and features may not be fully complete. We are currently aiming for a release at the end of 2023.**
+**Barrel is still under active development, so documentation pages and features may change.**
 
 At a glance, Barrel allows users to:
 
@@ -18,4 +18,4 @@ Barrel thus provides an intuitive and user-friendly interface for users to colla
 
 **Barrel can be configured to run locally, or as a web server.** When run as a web server, fellow researchers can see your publicly published reference libraries and run their sequences.
 
-For more detailed API documentation, view our [interactive API documentation](/app/api-docs)
+For more detailed API documentation, view our [interactive API documentation](./app/api-docs)

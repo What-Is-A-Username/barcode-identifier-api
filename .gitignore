@@ -87,9 +87,19 @@ barcode_blastn/migrations/
 barcode_tree/migrations/
 
 # frontend
-# compose/proxy/frontend/
+compose/proxy/frontend/
 
 # generated files
 static/
-setup/
 docs/site/
+compose/proxy/docs
+release/frontend
+release/docs
+
+# server config
+compose/proxy/*.crt
+compose/proxy/*.key
+release/proxy/*.crt
+release/proxy/*.key
+release/*.env
+!release/example.env
