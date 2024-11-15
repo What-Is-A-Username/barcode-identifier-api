@@ -87,7 +87,7 @@ barcode_blastn/migrations/
 barcode_tree/migrations/
 
 # frontend
-# compose/proxy/frontend/
+compose/proxy/frontend/
 
 # generated files
 static/
