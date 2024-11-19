@@ -1463,14 +1463,14 @@ class BlastRunRun(generics.CreateAPIView):
             os.mkdir(results_path)
             # ensure that celery worker has access to file to write results.txt later
             # shutil.chown(results_path, group='appgroup', user='appuser') 
-            os.chmod(results_path, 0o774)
+        os.chmod(results_path, 0o774)
 
         # static path to download results
         static_path = get_static_run_path(run_id=str(results_uuid))
         if not os.path.exists(static_path):
             os.mkdir(static_path)
             # shutil.chown(static_path, group='appgroup', user='appuser')
-            os.chmod(static_path, 0o775)
+        os.chmod(static_path, 0o775)
 
         print("Run id: " + str(results_uuid))
 

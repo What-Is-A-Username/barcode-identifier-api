@@ -37,6 +37,7 @@ COPY ./manage.py /barrel/
 COPY ./docker.env /barrel/
 COPY ./scripts /barrel/scripts
 COPY ./compose /barrel/compose
+COPY ./ncbi-blast-2.12.0+ /barrel/ncbi-blast-2.12.0+
 
 RUN chmod -R u+x /barrel/scripts && \
     addgroup --system appgroup && \

@@ -94,6 +94,8 @@ def save_blastdb(obj: BlastDb, user: User, perform_lock: bool = False) -> BlastD
         elif os.path.isfile(library_path):
             os.remove(library_path)
             os.mkdir(library_path)
+        os.chmod(library_path, 0o765)
+        
         fishdb_path = get_data_fishdb_path(obj)
         # make a directory for the database if it doesn't exist
         if not os.path.exists(fishdb_path):
@@ -106,6 +108,7 @@ def save_blastdb(obj: BlastDb, user: User, perform_lock: bool = False) -> BlastD
             except BaseException:
                 raise OSError('Encountered error while setting up database files.')
             os.mkdir(fishdb_path)
+        os.chmod(fishdb_path, 0o765)
         
         fasta_file = fishdb_path + f'/database.fasta'
         sequences: QuerySet[NuccoreSequence] = NuccoreSequence.objects.filter(owner_database=obj)
@@ -116,6 +119,7 @@ def save_blastdb(obj: BlastDb, user: User, perform_lock: bool = False) -> BlastD
                 my_file.write('>' + sequence_identifier + '\n' + dna_sequence + '\n')
         
         my_file.close()
+        os.chmod(fasta_file, 0o765)
 
         ncbi_blast_version = 'ncbi-blast-2.12.0+'
         blast_root = get_ncbi_folder(ncbi_blast_version=ncbi_blast_version)
