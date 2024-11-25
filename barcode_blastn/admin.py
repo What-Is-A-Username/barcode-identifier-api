@@ -280,11 +280,6 @@ class BlastDbAdmin(SimpleHistoryAdmin):
     inlines = [NuccoreSequenceInline]
     form = BlastDbForm
     list_display = ('custom_name', 'library', 'version_number', 'sequences_admin_count', 'id', 'locked')
-    fieldsets = [
-        ('Details', { 'fields': ['library', 'library_owner', 'custom_name', 'description', 'version_number']}), 
-        ('Visibility', { 'fields': ['locked', 'library_is_public']}),
-        ('Filter', { 'fields': ['min_length', 'max_length', 'max_ambiguous_bases', 'blacklist', 'require_taxonomy']}) 
-        ]
     search_fields = ['custom_name', 'id', 'library__custom_name', 'library__owner__username', 'library__description', 'description']
     list_filter = ['library__custom_name', 'genbank_version', 'locked']
     history_list_display = ['added', 'filter_options', 'deleted', 'search_terms', 'locked', 'changed_fields']
@@ -330,14 +325,23 @@ class BlastDbAdmin(SimpleHistoryAdmin):
         form.user = request.user
         return form
 
-    def get_fieldsets(self, request: HttpRequest, obj: Optional[BlastDb] = None) -> List[Tuple[Optional[str], Dict[str, Any]]]:
-        f = super().get_fieldsets(request, obj).copy()
+    def get_fieldsets(self, request: HttpRequest, obj: Optional[BlastDb] = None) -> List[Tuple[str, Dict[str, Any]]]:
+        f: List[Tuple[str, Dict[str, Any]]]
+        f = [('Details', { 'fields': ['library', 'library_owner', 'custom_name', 'description', 'version_number']})]
+        # Only allow filter options in creation mode, or in edit mode if database is not locked
+        if obj is None or not obj.locked:
+            f.append(('Filter', { 'fields': ['min_length', 'max_length', 'max_ambiguous_bases', 'blacklist', 'require_taxonomy']}))
         if obj is None:
-            f.append(('Download GenBank accessions', { 'fields': ('base_database', 'accession_list_upload', 'accession_list_text', 'search_term')}))
-            f.append(('Import custom sequences', { 'fields': ('dna_fasta_upload',)}))
+            f.extend([
+                ('Visibility', { 'fields': ['locked', 'library_is_public']}),
+                ('Download GenBank accessions', { 'fields': ('base_database', 'accession_list_upload', 'accession_list_text', 'search_term')}),
+                ('Import custom sequences', { 'fields': ('dna_fasta_upload',)})
+            ])
         elif not obj.locked and isinstance(request.user, User) and DatabaseSharePermissions.has_change_permission(request.user, obj=obj):
-            f.append(('Download additional GenBank accessions', { 'fields': ('accession_list_upload', 'accession_list_text', 'search_term')}))
-            f.append(('Import additional custom sequences', { 'fields': ('dna_fasta_upload',)}))
+            f.extend([
+                ('Download additional GenBank accessions', { 'fields': ('accession_list_upload', 'accession_list_text', 'search_term')}),
+                ('Import additional custom sequences', { 'fields': ('dna_fasta_upload',)}),
+            ])
         return f
 
     def save_formset(self, request: HttpRequest, form: Any, formset: BaseInlineFormSet, change: Any) -> None:
@@ -606,7 +610,7 @@ class CustomSequenceAdmin(admin.ModelAdmin):
                 if isinstance(request.user, User):
                     # Set the available choices of database the accession can belong to
                     # based on the user's permission
-                    kwargs['queryset'] = BlastDb.objects.editable(request.user)
+                    kwargs['queryset'] = BlastDb.objects.editable(request.user).filter(locked=False)
         elif db_field.name in ['taxon_species', 
             'taxon_genus', 'taxon_family', 'taxon_order', 'taxon_class', 
             'taxon_phylum', 'taxon_kingdom', 'taxon_superkingdom']:
