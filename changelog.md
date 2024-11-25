@@ -55,6 +55,11 @@
     -   The file used for uploading custom sequences must be a FASTA file.
         - The header can include the accession number, version, and definition in the format of `<accession>.<version> <definition>` (ie. accession and version cannot contain spaces and are period-separated, and the definition is the rest).
 -   Sequences in the database now have a `data_source` attribute which indicate where the sequence originated (from GenBank or custom import/creation)
+-   When viewing a blast database summary in the web app, number of sequences is now also tabulated by origin of sequence (in addition to previously available options such as journal title, taxa and country)
+
+### Bug Fixes
+-   Fixed links on Blast run page to correctly direct user to browse database and reference libraries when clicked.
+-   
 
 ### Changes for Developers and Admins
 -   Added new environment variable ENTREZ_EMAIL, which will be attached to every request to NCBI. This previously used hard-code or used the db admin as the fallback.

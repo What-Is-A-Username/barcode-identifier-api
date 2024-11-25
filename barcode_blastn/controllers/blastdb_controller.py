@@ -709,7 +709,7 @@ def save_sequence(obj: NuccoreSequence, user: User, commit: bool = False, raise_
     If raise_errors is set to False, no errors will be raised. Default: True.
 
     Raises:
-        ValueError does not have accession_number and owner_database values.
+        ValueError does not have accession_number or owner_database values.
 
         AccessionsAlreadyExist: If change is False, and an existing accession with the same accession number already exists in the same database.
 

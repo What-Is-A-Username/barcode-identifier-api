@@ -1156,6 +1156,17 @@ class BlastDbSummary(generics.GenericAPIView):
                             }
                         )
                     ),
+                    'data_source': openapi.Schema(
+                        title='Summary by title of data source',
+                        type=openapi.TYPE_ARRAY,
+                        items=openapi.Items(
+                            type=openapi.TYPE_OBJECT,
+                            properties={
+                                f'data_source': openapi.Schema(title=f'Data source where sequence originated from (GenBank, or custom sequence import)', type=openapi.TYPE_STRING, enum=['GB', 'IM']),
+                                'count': openapi.Schema(title='Number of entries', type=openapi.TYPE_INTEGER),
+                            }
+                        )
+                    )
                 }
             )),
             '403': 'Insufficient permissions.',
@@ -1168,11 +1179,10 @@ class BlastDbSummary(generics.GenericAPIView):
         sequences : QuerySet[NuccoreSequence] = db.sequences.all()
         taxon_levels = ['taxon_superkingdom', 'taxon_kingdom', 'taxon_phylum', 'taxon_class', 'taxon_order', 'taxon_family', 'taxon_genus', 'taxon_species']
         fields = [f'{taxa}__scientific_name' for taxa in taxon_levels]
-        fields.extend([f'annotations__annotation_type', 'country', 'title'])
+        fields.extend([f'annotations__annotation_type', 'country', 'title', 'data_source'])
         data = {}
         for field in fields:
             verbose_name: str = field
-            # verbose_name = verbose_names.get(field, field)
             if field == 'country':
                 data[verbose_name] = sequences.annotate(
                     colon_ind=StrIndex(field, Value(':'), output_field=PositiveSmallIntegerField()), 
@@ -1201,8 +1211,17 @@ class BlastDbSummary(generics.GenericAPIView):
                 data[verbose_name] = sequences.values(field, field.replace('__scientific_name', '__id', 1)).annotate(count=Count(field))
             elif field == 'title':
                 data[verbose_name] = sequences.values('title', 'journal').annotate(count=Count('title'))
+            elif field == 'data_source':
+                raw_values = list(sequences.values('data_source').annotate(count=Count('data_source')))
+                enum_map = { k: v for k, v in NuccoreSequence.SequenceSource.choices }
+                for r in raw_values:
+                    enum_value = r.get('data_source') # e.g. 'GB'
+                    if enum_value is not None:
+                        r.update({'data_source': enum_map.get(enum_value, enum_value)}) # update to user-friendly text (e.g. 'GenBank')
+                data[verbose_name] = raw_values
             else:
                 data[verbose_name] = sequences.values(field).annotate(count=Count(field))
+
         return Response(data, status=status.HTTP_200_OK)
 
 class BlastRunList(mixins.CreateModelMixin, generics.ListAPIView):

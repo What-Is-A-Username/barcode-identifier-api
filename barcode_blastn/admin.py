@@ -25,6 +25,9 @@ from barcode_blastn.renderers import get_letter
 
 from barcode_blastn.serializers import LibraryEditSerializer, library_title, blast_db_title, run_title, nuccore_title, hit_title, custom_nuccore_title
 
+class AdminAuthenticatedHttpRequest(HttpRequest):
+    user: User
+
 class NuccoreSequenceInline(admin.TabularInline):
     model = NuccoreSequence     
     show_change_link = False    # Show link to page to edit the sequence
@@ -325,7 +328,7 @@ class BlastDbAdmin(SimpleHistoryAdmin):
         form.user = request.user
         return form
 
-    def get_fieldsets(self, request: HttpRequest, obj: Optional[BlastDb] = None) -> List[Tuple[str, Dict[str, Any]]]:
+    def get_fieldsets(self, request: AdminAuthenticatedHttpRequest, obj: Optional[BlastDb] = None) -> List[Tuple[str, Dict[str, Any]]]:
         f: List[Tuple[str, Dict[str, Any]]]
         f = [('Details', { 'fields': ['library', 'library_owner', 'custom_name', 'description', 'version_number']})]
         # Only allow filter options in creation mode, or in edit mode if database is not locked
@@ -344,7 +347,7 @@ class BlastDbAdmin(SimpleHistoryAdmin):
             ])
         return f
 
-    def save_formset(self, request: HttpRequest, form: Any, formset: BaseInlineFormSet, change: Any) -> None:
+    def save_formset(self, request: AdminAuthenticatedHttpRequest, form: Any, formset: BaseInlineFormSet, change: Any) -> None:
         super_results = formset.save()
 
         # Save right now, instead of in save_model()
@@ -366,7 +369,7 @@ class BlastDbAdmin(SimpleHistoryAdmin):
         
         return super_results
 
-    def save_model(self, request: HttpRequest, obj: BlastDb, form: Any, change: Any) -> None:
+    def save_model(self, request: AdminAuthenticatedHttpRequest, obj: BlastDb, form: Any, change: Any) -> None:
         # Since the model is saved first before any changes in sequence, don't lock the
         # database yet. The database will be locked if needed by save_formset
         obj.locked = False
