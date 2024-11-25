@@ -334,9 +334,10 @@ class BlastDbAdmin(SimpleHistoryAdmin):
         # Only allow filter options in creation mode, or in edit mode if database is not locked
         if obj is None or not obj.locked:
             f.append(('Filter', { 'fields': ['min_length', 'max_length', 'max_ambiguous_bases', 'blacklist', 'require_taxonomy']}))
+        if obj is not None and isinstance(request.user, User) and DatabaseSharePermissions.has_change_permission(request.user, obj=obj):
+            f.append(('Visibility', { 'fields': ['locked', 'library_is_public']}))
         if obj is None:
             f.extend([
-                ('Visibility', { 'fields': ['locked', 'library_is_public']}),
                 ('Download GenBank accessions', { 'fields': ('base_database', 'accession_list_upload', 'accession_list_text', 'search_term')}),
                 ('Import custom sequences', { 'fields': ('dna_fasta_upload',)})
             ])
