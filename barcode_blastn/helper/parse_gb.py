@@ -95,34 +95,45 @@ def parse_gb_handle(handle) -> List[Dict[Any, Any]]:
 
         # Parse feature data
         features : List[ SeqFeature ] = seq_record.features
-        qualifiers_to_extract = ['organism', 'organelle', 'isolate', 'country', 'specimen_voucher', 'type_material', 'lat_lon', 'db_xref', 'identified_by', 'collected_by', 'collection_date']
+        # We will retrieve these qualifiers. The values will be indexed with the first item in the list.
+        qualifiers_to_extract = [['organism'], ['organelle'], ['isolate'], ['country', 'geo_loc_name'], ['specimen_voucher'], ['type_material'], ['lat_lon'], ['db_xref'], ['identified_by'], ['collected_by'], ['collection_date']]
         try: 
             source_feature : SeqFeature = [feature for feature in features if feature.type == 'source'][0]
         except IndexError:
             # set fields to N/A if no source features found
             for qualifier_name in qualifiers_to_extract:
-                current_data[qualifier_name] = 'N/A'
+                current_data[qualifier_name[0]] = 'N/A'
         else:
-            for qualifier_name in qualifiers_to_extract:
-                if qualifier_name in source_feature.qualifiers:
-                    try:
-                        # take only the first line/element of the feature
-                        if qualifier_name == 'db_xref':
-                            # Standards for db_xref are here: https://www.insdc.org/submitting-standards/dbxref-qualifier-vocabulary/
-                            for qualifier_value in source_feature.qualifiers[qualifier_name]:
-                                (database, identifier) = qualifier_value.split(':')
-                                # We are only concerned with references to NCBI Taxonomy
-                                if database == 'taxon':
-                                    current_data['taxid'] = identifier
-                                    break
-                        else:
-                            current_data[qualifier_name] = source_feature.qualifiers[qualifier_name][0]
-                    except IndexError:
-                        # set it to 'error' if above code errored
-                        current_data[qualifier_name] = 'error'
-                else:
-                    # set it to empty string if qualifier was not found in the data
-                    current_data[qualifier_name] = ''
+            for potential_qualifiers in qualifiers_to_extract:
+                # If qualifier name is a list, then try each item until we get a valid value.
+                key = potential_qualifiers[0]
+                for qualifier_name in potential_qualifiers:
+                    if qualifier_name in source_feature.qualifiers:
+                        try:
+                            # take only the first line/element of the feature
+                            if qualifier_name == 'db_xref':
+                                # Standards for db_xref are here: https://www.insdc.org/submitting-standards/dbxref-qualifier-vocabulary/
+                                for qualifier_value in source_feature.qualifiers[qualifier_name]:
+                                    (database, identifier) = qualifier_value.split(':')
+                                    # We are only concerned with references to NCBI Taxonomy
+                                    if database == 'taxon':
+                                        current_data[key] = identifier
+                                        break
+                            else:
+                                current_data[key] = source_feature.qualifiers[qualifier_name][0]
+                        except IndexError:
+                            # set it to 'error' if above code errored
+                            current_data[key] = 'error'
+                    else:
+                        # set it to empty string if qualifier was not found in the data
+                        current_data[key] = ''
+                    # once we have retrieved some valid non-error value for qualifier, skip to next qualifier
+                    if current_data[key] not in ['', 'error']:
+                        break
+            
+            # Move value at db_xref to taxid
+            current_data['taxid'] = current_data['db_xref']
+            del current_data['db_xref']
 
             # use type material specified in 'note' if no type_material was found 
             if (current_data['type_material'] == '' and 'note' in source_feature.qualifiers):
