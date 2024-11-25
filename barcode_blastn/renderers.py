@@ -121,8 +121,7 @@ class BlastDbFastaRenderer(BaseBlastDbRenderer):
     charset = 'utf-8'
 
     def render_db(self, data, accepted_media_type=None, renderer_context: Optional[Dict[Any, Any]]=None):
-        fasta_format = renderer_context.get('fasta_format', '') if not renderer_context is None else ''
-        
+        fasta_format = renderer_context.get('export_format', '') if not renderer_context is None else ''
         sequence_file: List[str]
         if fasta_format == 'dada2tax':
             sequence_file = renderDada2Taxonomy(data)

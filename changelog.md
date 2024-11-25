@@ -60,6 +60,7 @@
 
 ### Bug Fixes
 -   Fixed links on Blast run page to correctly direct user to browse database and reference libraries when clicked.
+-   Fixed issue where db export could not return the requested fasta format 
 
 ### Changes for Developers and Admins
 -   Added new environment variable ENTREZ_EMAIL, which will be attached to every request to NCBI. This previously used hard-code or used the db admin as the fallback.
