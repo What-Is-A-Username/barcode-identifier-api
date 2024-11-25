@@ -10,6 +10,7 @@ from barcode_blastn.validators import QueryFileValidator
 library_title = 'Reference Library'
 blast_db_title = 'BLAST Database Version'
 nuccore_title = 'GenBank Accession'
+custom_nuccore_title = 'Custom Sequence'
 hit_title = 'BLASTN hit'
 query_title = 'Query Sequence'
 run_title = 'Run'

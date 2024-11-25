@@ -1,16 +1,19 @@
 from datetime import datetime
 from time import sleep
-from typing import Any, Dict, Generator, List, Optional
+from typing import Any, Dict, Generator, List, Optional, Tuple
 from urllib.error import HTTPError, URLError
 from django.contrib.auth.models import User
 from barcode_blastn.models import Annotation, TaxonomyNode
 from Bio import Entrez, SeqIO
+from Bio.Entrez.Parser import DictionaryElement
 from Bio.GenBank.Record import Reference
 from Bio.SeqFeature import SeqFeature
 from Bio.SeqIO import SeqRecord
 from ratelimit import limits
 from ratelimit.decorators import sleep_and_retry
 from Bio.Seq import UndefinedSequenceError
+
+from django.conf import settings
 
 # NCBI Rate limit without an API key is 3 requests per second
 PERIOD = 1 # Time between calls, in number of seconds
@@ -224,7 +227,7 @@ def retrieve_gb(accession_numbers: List[str], term: Optional[str] = None, raise_
 
     desired_numbers = list(set(accession_numbers))
 
-    Entrez.email = "william.huang1212@gmail.com"
+    Entrez.email = settings.ENTREZ_EMAIL
     Entrez.max_tries = 1
     Entrez.tool = "barrel"
 
@@ -275,7 +278,7 @@ def retrieve_gb(accession_numbers: List[str], term: Optional[str] = None, raise_
 
     return all_data
 
-def get_rank(ncbi_rank: str) -> str:
+def get_rank(ncbi_rank: str) -> Tuple[Optional[TaxonomyNode.TaxonomyRank], str]:
     '''
     Given the taxonomic rank given by Entrez efetch, return the corresponding TaxonomyRank value
     for the database.
@@ -283,29 +286,32 @@ def get_rank(ncbi_rank: str) -> str:
     If given rank does not match, return an empty string ('').
     '''
     if ncbi_rank == 'superkingdom':
-        return TaxonomyNode.TaxonomyRank.SUPERKINGDOM
+        return (TaxonomyNode.TaxonomyRank.SUPERKINGDOM, 'taxon_superkingdom')
     elif ncbi_rank == 'kingdom':
-        return TaxonomyNode.TaxonomyRank.KINGDOM
+        return (TaxonomyNode.TaxonomyRank.KINGDOM, 'taxon_kingdom')
     elif ncbi_rank == 'phylum':
-        return TaxonomyNode.TaxonomyRank.PHYLUM
+        return (TaxonomyNode.TaxonomyRank.PHYLUM, 'taxon_phylum')
     elif ncbi_rank == 'class':
-        return TaxonomyNode.TaxonomyRank.CLASS
+        return (TaxonomyNode.TaxonomyRank.CLASS, 'taxon_class')
     elif ncbi_rank == 'order':
-        return TaxonomyNode.TaxonomyRank.ORDER
+        return (TaxonomyNode.TaxonomyRank.ORDER, 'taxon_order')
     elif ncbi_rank == 'family':
-        return TaxonomyNode.TaxonomyRank.FAMILY
+        return (TaxonomyNode.TaxonomyRank.FAMILY, 'taxon_family')
     elif ncbi_rank == 'genus':
-        return TaxonomyNode.TaxonomyRank.GENUS
+        return (TaxonomyNode.TaxonomyRank.GENUS, 'taxon_genus')
     elif ncbi_rank == 'species':
-        return TaxonomyNode.TaxonomyRank.SPECIES
+        return (TaxonomyNode.TaxonomyRank.SPECIES, 'taxon_species')
     else:
-        return ''
+        return (None, '')
 
 @sleep_and_retry
 @limits(calls = 1, period = PERIOD)
 def save_taxonomy(taxonomy_info: List[Dict[str, Any]], user: Optional[User]) -> List[Dict[str, Any]]:
     """
         Retrieve taxonomic lineages from NCBI taxonomy and save taxonomic ranks into the database.
+
+        taxonomy_info: List of taxonomic IDs on NCBI Taxonomy, as given in the GenBank record
+        user: The user triggering this request.
     """
 
     # Extract list of taxonomic ids from genbank data
@@ -319,7 +325,7 @@ def save_taxonomy(taxonomy_info: List[Dict[str, Any]], user: Optional[User]) -> 
     else:
         print(f'{datetime.now()} | Fetching from NCBI Taxonomy for ids {query_string}')
         try:
-            Entrez.email = "william.huang1212@gmail.com"
+            Entrez.email = settings.ENTREZ_EMAIL
             Entrez.max_tries = 1
             Entrez.tool = "barcode_identifier"
             taxonomy_handle = Entrez.efetch(db='taxonomy', id=query_string, retmode='xml')
@@ -336,8 +342,6 @@ def save_taxonomy(taxonomy_info: List[Dict[str, Any]], user: Optional[User]) -> 
         taxa_data = dict(zip(taxids, taxa_data))
         taxonomy_handle.close()
 
-    taxids = {}
-
     for i in range(len(taxonomy_info)):
         entry = taxa_data.get(taxonomy_info[i]['taxid'], None)
         if entry is None:
@@ -348,35 +352,8 @@ def save_taxonomy(taxonomy_info: List[Dict[str, Any]], user: Optional[User]) -> 
         lineage = entry['LineageEx']
         for level in lineage:
             id = level['TaxId']
-            if id in taxids:
-                continue
-            rank = level['Rank']
-            key = 'taxon_species'
-            if rank == 'superkingdom':
-                rank = TaxonomyNode.TaxonomyRank.SUPERKINGDOM
-                key = 'taxon_superkingdom'
-            elif rank == 'kingdom':
-                rank = TaxonomyNode.TaxonomyRank.KINGDOM
-                key = 'taxon_kingdom'
-            elif rank == 'phylum':
-                rank = TaxonomyNode.TaxonomyRank.PHYLUM
-                key = 'taxon_phylum'
-            elif rank == 'class':
-                rank = TaxonomyNode.TaxonomyRank.CLASS
-                key = 'taxon_class'
-            elif rank == 'order':
-                rank = TaxonomyNode.TaxonomyRank.ORDER
-                key = 'taxon_order'
-            elif rank == 'family':
-                rank = TaxonomyNode.TaxonomyRank.FAMILY
-                key = 'taxon_family'
-            elif rank == 'genus':
-                rank=TaxonomyNode.TaxonomyRank.GENUS
-                key = 'taxon_genus'
-            elif rank == 'species':
-                rank=TaxonomyNode.TaxonomyRank.SPECIES
-                key = 'taxon_species'
-            else:
+            rank, key = get_rank(level['Rank'])
+            if rank is None:
                 continue
 
             object: TaxonomyNode
@@ -411,3 +388,110 @@ def save_taxonomy(taxonomy_info: List[Dict[str, Any]], user: Optional[User]) -> 
 
     return taxonomy_info
 
+
+class TaxonomySearchReturnedNoResults(BaseException):
+    """
+    Raised if the user tries to use a non-empty search term to search NCBI
+    taxonomy, and the search succeeded but with no tax ids found.
+    """
+    term = ''
+    def __init__(self, term='', *args: object) -> None:
+        super().__init__(*args)
+        self.term = term
+
+@sleep_and_retry
+def save_custom_taxonomy(definition: str, search_term: str, user: Optional[User]) -> Tuple[Dict[str, TaxonomyNode], List[Dict[str, Any]]]:
+    '''
+    Search NCBI Taxonomy with the list of search terms in taxonomy_info and
+    return a Dict of taxonomy nodes corresponding to the lineage of the first
+    search result.
+
+    definition: The definition of the custom sequence model
+    search_term: The search term used to assign taxonomy
+    user: User making this change
+
+    Raises:
+        TaxonomyConnectionError
+        TaxonomySearchReturnedNoResults
+    '''
+
+    # Use ESearch to find the first taxonomy node in NCBI Taxonomy matching
+    # the search term
+    if len(search_term) == 0:
+        return {}, []
+
+    Entrez.email = settings.ENTREZ_EMAIL
+    Entrez.max_tries = 1
+    Entrez.tool = "barcode_identifier"
+    
+    print(f'{datetime.now()} | Searching NCBI Taxonomy for term "{search_term}"')
+    try:
+        esearch_handle = Entrez.esearch(db='taxonomy', term=search_term, retmode='xml')
+        esearch_response = Entrez.read(esearch_handle)
+        esearch_handle.close()
+        assert isinstance(esearch_response, DictionaryElement)
+        id_list: List[str] = esearch_response['IdList']
+    except BaseException:
+        print(f'{datetime.now()} | Error received from search of NCBI Taxonomy for term "{search_term}"')
+        raise TaxonomyConnectionError([search_term])
+    else:
+        print(f'{datetime.now()} | Data successfully received from NCBI Taxonomy for term "{search_term}"')
+
+    # Don't bother with retrieving taxonomy data if there are no taxonomy cross-references
+    if len(id_list) == 0:
+        raise TaxonomySearchReturnedNoResults(search_term)
+
+    # Now fetch the data for the best matching Tax ID
+    best_result = id_list[0]
+
+    print(f'{datetime.now()} | Fetching from NCBI Taxonomy for ids {best_result}')
+    try:
+        taxonomy_handle = Entrez.efetch(db='taxonomy', id=best_result, retmode='xml')
+        response_data = Entrez.parse(taxonomy_handle)
+        response_data = [t for t in response_data]
+        taxa_data = [t for t in response_data]
+        taxids = [t['TaxId'] for t in response_data]
+        taxa_data = dict(zip(taxids, taxa_data))
+        taxonomy_handle.close()
+    except BaseException:
+        print(f'{datetime.now()} | Error received from NCBI Taxonomy for ids {best_result}')
+        raise TaxonomyConnectionError([best_result])
+    else:
+        print(f'{datetime.now()} | Data successfully received from NCBI Taxonomy for ids {best_result}')
+    
+    entry = taxa_data.get(best_result)
+    if entry is None:
+        raise TaxonomyConnectionError([best_result])
+
+    # Using the ids in lineage, populate taxonomy_info with
+    # key value pairs of taxon_LEVEL : data
+    taxonomy_info: Dict[str, TaxonomyNode] = {}   
+    lineage = entry['LineageEx']
+    for level in lineage:
+        id = level['TaxId']
+        rank, key = get_rank(level['Rank'])
+        if rank is None:
+            continue
+
+        object: TaxonomyNode
+        # search if already exists
+        object, created = TaxonomyNode.objects.get_or_create(id=id, defaults={
+            'rank': rank,
+            'scientific_name': level['ScientificName']
+        })               
+        taxonomy_info[key] = object
+
+    # Check for taxonomic uncertainty by checking if the lineage contains keywords
+    lineage = entry.get('Lineage', '') 
+    keywords = ['cf.', 'aff.', 'sp.', 'environment', 'undescribed', 'uncultured', \
+        'complex', 'unclassified', 'nom.', 'nud.', 'unidentif']
+
+    create_annotations = []
+    for keyword in keywords:
+        if keyword in lineage or keyword in definition:
+            create_annotations.append({
+                'annotation_type': Annotation.AnnotationType.UNRESOLVED_TAXONOMY,
+                'comment': f'(Auto-annotation by Barrel) Potential taxonomic uncertainty due to presence of "{keyword}" string within lineage or definition.'
+            })
+
+    return taxonomy_info, create_annotations

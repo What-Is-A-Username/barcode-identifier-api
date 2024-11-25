@@ -45,3 +45,16 @@
 -   Added additional docs for developers
 -   Blast is now longer installed in the main barrel container
 -   Docs now served as static files
+
+## Version 0.0.5
+
+### Feature Changes
+-   Admin console now allows the uploading of custom sequences
+    -   For this purpose, a new page is added for "Custom Sequences" which is separate from "GenBank Accessions". Custom Sequences refer to any reference library entries that were imported from file or manually added via the admin console
+    -   Most fields of custom sequences can be edited. However, no checks for history or locked databases yet are implemented, so changes are not tracked
+    -   The file used for uploading custom sequences must be a FASTA file.
+        - The header can include the accession number, version, and definition in the format of `<accession>.<version> <definition>` (ie. accession and version cannot contain spaces and are period-separated, and the definition is the rest).
+-   Sequences in the database now have a `data_source` attribute which indicate where the sequence originated (from GenBank or custom import/creation)
+
+### Changes for Developers and Admins
+-   Added new environment variable ENTREZ_EMAIL, which will be attached to every request to NCBI. This previously used hard-code or used the db admin as the fallback.

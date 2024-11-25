@@ -7,6 +7,7 @@ from django.db.models.query import QuerySet
 from django.db.models import Q
 from django.template.loader import render_to_string
 from simple_history.admin import SimpleHistoryAdmin
+from django.utils.safestring import mark_safe
 
 from django.http.request import HttpRequest
 from django.urls import reverse
@@ -14,20 +15,22 @@ from django.urls import reverse
 from django.utils.html import format_html
 from django.contrib.auth.models import User
 from barcode_blastn.admin_list_filters import BlastRunLibraryFilter, NuccoreSequencePublicationFilter
-from barcode_blastn.controllers.blastdb_controller import add_sequences_to_database, create_blastdb, delete_blastdb, delete_library, filter_sequences_in_database, log_deleted_sequences, save_blastdb, save_sequence, filter_sequences_in_database
+from barcode_blastn.controllers.blastdb_controller import add_sequences_to_database, create_blastdb, delete_blastdb, delete_library, filter_sequences_in_database, log_deleted_sequences, save_blastdb, save_custom_sequence, save_sequence, filter_sequences_in_database
+from barcode_blastn.controllers.custom_sequence_controller import parse_file_upload_to_custom_sequence
 from barcode_blastn.helper.parse_gb import GenBankConnectionError, InsufficientAccessionData, retrieve_gb
-from barcode_blastn.models import Annotation, BlastDb, BlastQuerySequence, DatabaseShare, Library, NuccoreSequence, BlastRun, Hit, TaxonomyNode
+from barcode_blastn.models import Annotation, BlastDb, BlastQuerySequence, CustomSequence, DatabaseShare, Library, NuccoreSequence, BlastRun, Hit, TaxonomyNode
 from django.forms import BaseInlineFormSet, Form, ModelForm, ValidationError
 from barcode_blastn.permissions import DatabaseSharePermissions, HitSharePermission, LibrarySharePermissions, NuccoreSharePermission, RunSharePermissions
+from barcode_blastn.renderers import get_letter
 
-from barcode_blastn.serializers import LibraryEditSerializer, library_title, blast_db_title, run_title, nuccore_title, hit_title
+from barcode_blastn.serializers import LibraryEditSerializer, library_title, blast_db_title, run_title, nuccore_title, hit_title, custom_nuccore_title
 
 class NuccoreSequenceInline(admin.TabularInline):
     model = NuccoreSequence     
-    show_change_link = True     # Show link to page to edit the sequence
+    show_change_link = False    # Show link to page to edit the sequence
     classes = ['collapse']      # Allow the entries to be collapsed
     extra = 0                   # Show one extra row by default
-    fields = ['accession_number', 'version', 'id', 'organism', 'specimen_voucher', 'seq_len', 'annot_count', 'updated']
+    fields = ['accession_number', 'version', 'id', 'organism', 'specimen_voucher', 'seq_len', 'annot_count', 'updated', 'link']
     ordering = ['version']
 
     @admin.display(description='Annotation count')
@@ -37,6 +40,19 @@ class NuccoreSequenceInline(admin.TabularInline):
     @admin.display(description='Length (bp)')
     def seq_len(self, obj):
         return obj.seq_len
+
+    @admin.display(description='Link')
+    def link(self, obj: Union[NuccoreSequence, CustomSequence]):
+        if obj.data_source == NuccoreSequence.SequenceSource.GENBANK:
+            link = 'admin:barcode_blastn_nuccoresequence_change'
+        elif obj.data_source == NuccoreSequence.SequenceSource.IMPORT:
+            link = 'admin:barcode_blastn_customsequence_change'
+        else:
+            raise NotImplementedError(f'Missing data page for {obj.data_source}')
+        
+        return mark_safe('<a href="%s">View</a>' % \
+                            reverse(link,
+                            args=(obj.id,)))
 
     def get_queryset(self, request: HttpRequest) -> QuerySet[NuccoreSequence]:
         # Get all sequences to display, and compute the length and
@@ -52,6 +68,7 @@ class NuccoreSequenceInline(admin.TabularInline):
         base.remove('accession_number')
         base.append('annot_count')
         base.append('seq_len')
+        base.append('link')
         return base
 
     def has_module_permission(self, request: HttpRequest) -> bool:
@@ -204,10 +221,17 @@ class BlastDbForm(ModelForm):
 
     # If True, filter if taxonomy missing
     require_taxonomy = forms.BooleanField(help_text='Filter out records without taxonomic information between the superkingdom to species levels (inclusive). Uncheck to ignore this option.', required=False, initial=False)
+   
+   
+    # Methods for adding assessions from GenBank
     accession_list_upload = forms.FileField(help_text='Add large numbers of sequences at once by uploading a .txt file, with each accession number on a separate line.', required=False)
     accession_list_text = forms.CharField(widget=forms.Textarea, help_text='Add multiple sequences by pasting in a list of accession numbers, one per line.', required=False)
     search_term = forms.CharField(widget=forms.Textarea, help_text='Add sequences by GenBank search terms.', required=False)
     base_database = forms.ModelChoiceField(queryset=BlastDb.objects.none(), help_text='Inherit all accession numbers from an existing BLAST database in order to populate the current.', required=False)
+
+    # Methods for importing sequences
+    dna_fasta_upload = forms.FileField(help_text='Import custom DNA sequences from FASTA file.', required=False)
+
 
     def __init__(self, *args, **kwargs) -> None:
         super(BlastDbForm, self).__init__(*args, **kwargs)
@@ -221,8 +245,6 @@ class BlastDbForm(ModelForm):
         cleaned_data = super().clean()
         existing = NuccoreSequence.objects.filter(owner_database=self.instance)
 
-        accessions_to_add = []
-
         # Check that the accession numbers or accession.versions in the list_text are not duplicates
         accession_file_upload = cleaned_data.get('accession_list_upload', None)
         if not accession_file_upload is None:
@@ -235,7 +257,7 @@ class BlastDbForm(ModelForm):
             exists_duplicate = existing.filter(Q(accession_number__in=file_numbers) | Q(version__in=file_numbers))
             if exists_duplicate.exists():
                 raise ValidationError({'accession_list_upload': 'The file given for "accession list upload" contains accession numbers or accession.versions already in the database.'})
-            accessions_to_add.extend(file_numbers)
+
         # Check that the accession numbers or accession.versions in the list_upload are not duplicates
         accession_list_text: str = cleaned_data.get('accession_list_text', '')
         if len(accession_list_text) > 0:
@@ -247,22 +269,7 @@ class BlastDbForm(ModelForm):
             exists_duplicate = existing.filter(Q(accession_number__in=list_text) | Q(version__in=list_text))
             if exists_duplicate.exists():
                 raise ValidationError({'accession_list_text': 'The raw text list given for "accession list text" contains accession numbers or accession.versions already in the database.'})
-            accessions_to_add.extend(list_text)
         
-        # Get search string
-        # search_term = cleaned_data.get('search_term', None)
-
-        # Check that accessions actually correspond with GenBank records
-        # try:
-        #     retrieve_gb(accession_numbers=accessions_to_add, raise_if_missing=True, term=search_term)
-        # except InsufficientAccessionData as exc:
-        #     raise ValidationError(f'Some number of following the accession numbers and search terms do not match any record. Accessions: {", ".join(exc.missing_accessions)}. Terms: {exc.term}.')
-        # except GenBankConnectionError:
-        #     raise ValidationError(f'Encountered error connecting to GenBank')
-        # except ValueError:
-        #     pass
-        # except BaseException as exc:
-        #     raise ValidationError('None of the accession numbers or accession.versions match a GenBank record.')
         return cleaned_data
 
 @admin.register(BlastDb)
@@ -326,10 +333,11 @@ class BlastDbAdmin(SimpleHistoryAdmin):
     def get_fieldsets(self, request: HttpRequest, obj: Optional[BlastDb] = None) -> List[Tuple[Optional[str], Dict[str, Any]]]:
         f = super().get_fieldsets(request, obj).copy()
         if obj is None:
-            f.append(('Accessions Included', { 'fields': ('base_database', 'accession_list_upload', 'accession_list_text', 'search_term')}))
-        else:
-            if not obj.locked and isinstance(request.user, User) and DatabaseSharePermissions.has_change_permission(request.user, obj=obj):
-                f.append(('Add additional accessions', { 'fields': ('accession_list_upload', 'accession_list_text', 'search_term')}))
+            f.append(('Download GenBank accessions', { 'fields': ('base_database', 'accession_list_upload', 'accession_list_text', 'search_term')}))
+            f.append(('Import custom sequences', { 'fields': ('dna_fasta_upload',)}))
+        elif not obj.locked and isinstance(request.user, User) and DatabaseSharePermissions.has_change_permission(request.user, obj=obj):
+            f.append(('Download additional GenBank accessions', { 'fields': ('accession_list_upload', 'accession_list_text', 'search_term')}))
+            f.append(('Import additional custom sequences', { 'fields': ('dna_fasta_upload',)}))
         return f
 
     def save_formset(self, request: HttpRequest, form: Any, formset: BaseInlineFormSet, change: Any) -> None:
@@ -400,7 +408,12 @@ class BlastDbAdmin(SimpleHistoryAdmin):
             if len(accessions) > 0 or (not search_term is None and len(search_term) > 0):
                 add_sequences_to_database(obj, user=request.user, desired_numbers=accessions, search_term=search_term, **filter_args)     
             else:
-                filter_sequences_in_database(obj, user=request.user, **filter_args)          
+                filter_sequences_in_database(obj, user=request.user, **filter_args)  
+
+        dna_fasta_upload = form.cleaned_data.get('dna_fasta_upload')
+        if dna_fasta_upload:
+            seqs = parse_file_upload_to_custom_sequence(dna_fasta_upload, obj)
+            save_custom_sequence(seqs, request.user, True)
 
     def get_readonly_fields(self, request, obj: Union[BlastDb, None] = None):
         if obj is None: # is adding
@@ -547,14 +560,13 @@ class AnnotationInline(admin.TabularInline):
     def has_add_permission(self, request, obj: Union[NuccoreSequence, None] = None) -> bool:
         return request.user.is_authenticated
 
-@admin.register(NuccoreSequence)
-class NuccoreAdmin(admin.ModelAdmin):
-    '''
-    Admin page for showing accession instances.
-    '''
-    list_display = ('version', 'organism', 'specimen_voucher', 'id', 'owner_database_link', 'seq_length')
-    fields_excluded = ['uuid']
-    form = NuccoreAdminModifyForm
+@admin.register(CustomSequence)
+class CustomSequenceAdmin(admin.ModelAdmin):
+    # Queryset will only include custom sequence
+    source: NuccoreSequence.SequenceSource = NuccoreSequence.SequenceSource.IMPORT
+
+    list_display = ('accession_number', 'version', 'organism', 'specimen_voucher', 'id', 'owner_database_link', 'seq_length')
+    fields_excluded = ['uuid', 'genbank_modification_date']
     inlines = [AnnotationInline]
     list_filter = ['owner_database', NuccoreSequencePublicationFilter]
 
@@ -572,16 +584,16 @@ class NuccoreAdmin(admin.ModelAdmin):
 
     def changelist_view(self, request, extra_context: Optional[Dict[str, str]] = None):
         # Customize the title at the top of the change list
-        extra_context = {'title': f'Select a {nuccore_title} to view or change'}
-        return super(NuccoreAdmin, self).changelist_view(request, extra_context=extra_context)
+        extra_context = {'title': f'Select a {custom_nuccore_title} to view or change'}
+        return super(CustomSequenceAdmin, self).changelist_view(request, extra_context=extra_context)
 
     def get_queryset(self, request: HttpRequest) -> QuerySet[Any]:
         qs: QuerySet[NuccoreSequence]
         # Restrict the sequences visible based on which databases they belong to, and which libraries the user can see
         if not isinstance(request.user, User) or not request.user.is_authenticated:
-            qs = NuccoreSequence.objects.none()
+            qs = CustomSequence.objects.none()
         else:
-            qs = NuccoreSequence.objects.viewable(request.user)
+            qs = CustomSequence.objects.viewable(request.user).filter(data_source=self.source)
         # Compute the lengths of all sequences
         qs = qs.annotate(dna_sequence__len=Length('dna_sequence'))
         return qs
@@ -595,12 +607,16 @@ class NuccoreAdmin(admin.ModelAdmin):
                     # Set the available choices of database the accession can belong to
                     # based on the user's permission
                     kwargs['queryset'] = BlastDb.objects.editable(request.user)
+        elif db_field.name in ['taxon_species', 
+            'taxon_genus', 'taxon_family', 'taxon_order', 'taxon_class', 
+            'taxon_phylum', 'taxon_kingdom', 'taxon_superkingdom']:
+            kwargs['queryset'] = TaxonomyNode.objects.filter(rank=get_letter(db_field.name))
         return super().formfield_for_foreignkey(db_field, request, **kwargs) 
 
     def get_fields(self, request, obj=None):
         fields = [
             'owner_database', 'organism', 'version', 'definition', 
-            'organelle', 'accession_number', 'specimen_voucher', 
+            'organelle', 'accession_number', 'specimen_voucher',
             'id', 'isolate', 'country', 'dna_sequence', 'collected_by', 
             'collection_date',  'identified_by', 'lat_lon', 'type_material',
             'created', 'updated', 'taxonomy', 'taxon_species', 
@@ -611,24 +627,18 @@ class NuccoreAdmin(admin.ModelAdmin):
         return fields
 
     def get_readonly_fields(self, request, obj: Optional[NuccoreSequence]=None):
-        fields = [
-            'organism', 'version', 'definition', 'organelle',
-            'specimen_voucher', 'id', 'isolate', 'country',
-            'dna_sequence', 'collected_by', 'collection_date', 
-            'identified_by', 'lat_lon', 'type_material',
-            'created', 'updated', 'taxonomy', 'taxon_species', 
-            'taxon_genus', 'taxon_family', 'taxon_order', 'taxon_class', 
-            'taxon_phylum', 'taxon_kingdom', 'taxon_superkingdom','title', 
-            'authors', 'journal', 
-        ]
+        fields = [ 'id', 'created', 'updated', 'data_source']
         if not obj is None:
             fields.extend(['owner_database', 'accession_number'])
-        fields.extend(['taxon'])
         return fields
 
     def get_fieldsets(self, request: HttpRequest, obj: Optional[NuccoreSequence] = None) -> List[Tuple[Optional[str], Dict[str, Any]]]:
+        summary_fields = ['id', 'accession_number', 'version', 'definition', 'taxonomy', 'owner_database']
+        # Omit data source from add form, but keep it readonly in change
+        if obj is not None:
+            summary_fields.append('data_source')
         return [
-            ('Summary', { 'fields': ['id', 'accession_number', 'version', 'definition', 'taxonomy', 'owner_database']}), 
+            ('Summary', { 'fields': summary_fields }), 
             ('Source Information', {'fields': ['specimen_voucher', 'type_material', 'organelle', 'isolate', 'country', 'collected_by', 'collection_date', 'lat_lon', 'identified_by']}),
             ('History', { 'fields': ['created', 'updated']}),
             ('Taxonomy', { 'fields': ['taxonomy', 'taxon_species', 'taxon_genus', 'taxon_family', 'taxon_order', 'taxon_class', 'taxon_phylum', 'taxon_kingdom', 'taxon_superkingdom']}),
@@ -656,11 +666,6 @@ class NuccoreAdmin(admin.ModelAdmin):
     def has_add_permission(self, request, obj: Union[NuccoreSequence, None]=None):
         return NuccoreSharePermission.has_add_permission(request.user, obj)
     
-    def save_model(self, request: Any, obj: Any, form: Any, change: bool) -> None:
-        if not change:
-            # Because the fields of sequences cannot be modified,
-            # only call save if this is a newly added sequence
-            save_sequence(obj, user=request.user, commit=True)
 
     def delete_model(self, request: HttpRequest, obj: NuccoreSequence) -> None:
         super().delete_model(request, obj)
@@ -677,6 +682,9 @@ class NuccoreAdmin(admin.ModelAdmin):
         formset.save_m2m()
         return super().save_formset(request, form, formset, change)
 
+    def save_model(self, request: Any, obj: Any, form: Any, change: bool) -> None:
+        save_custom_sequence([obj], user=request.user)
+
     def changeform_view(self, request: HttpRequest, object_id: Union[str, None], form_url: str, extra_context: Optional[Dict[str, bool]]) -> Any:
         extra_context = extra_context or {}
 
@@ -686,6 +694,61 @@ class NuccoreAdmin(admin.ModelAdmin):
         extra_context['show_delete'] = object_id is not None # show delete button
         return super().changeform_view(request, object_id, form_url, extra_context)
 
+@admin.register(NuccoreSequence)
+class NuccoreAdmin(CustomSequenceAdmin):
+    '''
+    Admin page for showing accession instances.
+    '''
+    source = NuccoreSequence.SequenceSource.GENBANK
+
+    form = NuccoreAdminModifyForm
+
+    fields_excluded = ['uuid']
+
+
+    def changelist_view(self, request, extra_context: Optional[Dict[str, str]] = None):
+        # Customize the title at the top of the change list
+        extra_context = {'title': f'Select a {nuccore_title} to view or change'}
+        return super(NuccoreAdmin, self).changelist_view(request, extra_context=extra_context)
+
+    def get_readonly_fields(self, request, obj: Optional[NuccoreSequence]=None):
+        fields = [
+            'organism', 'version', 'definition', 'organelle',
+            'specimen_voucher', 'data_source', 'id', 'isolate', 'country',
+            'dna_sequence', 'collected_by', 'collection_date', 
+            'identified_by', 'lat_lon', 'type_material',
+            'created', 'updated', 'taxonomy', 'taxon_species', 
+            'taxon_genus', 'taxon_family', 'taxon_order', 'taxon_class', 
+            'taxon_phylum', 'taxon_kingdom', 'taxon_superkingdom','title', 
+            'authors', 'journal', 
+        ]
+        if not obj is None:
+            fields.extend(['owner_database', 'accession_number'])
+        fields.extend(['taxon'])
+        return fields
+
+    def get_fieldsets(self, request: HttpRequest, obj: Optional[NuccoreSequence] = None) -> List[Tuple[Optional[str], Dict[str, Any]]]:
+        is_adding = obj is None
+        if is_adding:
+            return [
+                ('Summary', { 'fields': ['id', 'accession_number', 'owner_database']})
+            ]
+        else:
+            return [
+                ('Summary', { 'fields': ['id', 'accession_number', 'version', 'definition', 'taxonomy', 'owner_database', 'data_source']}), 
+                ('Source Information', {'fields': ['specimen_voucher', 'type_material', 'organelle', 'isolate', 'country', 'collected_by', 'collection_date', 'lat_lon', 'identified_by']}),
+                ('History', { 'fields': ['created', 'updated']}),
+                ('Taxonomy', { 'fields': ['taxonomy', 'taxon_species', 'taxon_genus', 'taxon_family', 'taxon_order', 'taxon_class', 'taxon_phylum', 'taxon_kingdom', 'taxon_superkingdom']}),
+                ('Reference', { 'fields': ['title', 'authors', 'journal']}),
+                ('Sequence', { 'fields': ['dna_sequence'] })
+            ]
+
+    def save_model(self, request: Any, obj: Any, form: Any, change: bool) -> None:
+        if not change:
+            # Because the fields of sequences cannot be modified,
+            # only call save if this is a newly added sequence
+            save_sequence(obj, user=request.user, commit=True)
+     
 class BlastQuerySequenceInline(admin.StackedInline):
     '''
     Row to show query sequences under a BLAST run.
