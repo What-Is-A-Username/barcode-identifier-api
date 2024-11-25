@@ -83,7 +83,7 @@ barcode_identifier_api.log
 data/
 
 # migrations
-barcode_blastn/migrations/
+# barcode_blastn/migrations/
 barcode_tree/migrations/
 
 # frontend
