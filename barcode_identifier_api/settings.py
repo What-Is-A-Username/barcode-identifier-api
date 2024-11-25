@@ -107,7 +107,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'barcode_identifier_api.wsgi.application'
 
-
 # Database
 # https://docs.djangoproject.com/en/4.1/ref/settings/#databases
 
@@ -216,3 +215,6 @@ GRAPH_MODELS = {
     'group_models': True,
     'app_labels': ["barcode_blastn"]
 }
+
+# EMAIL USED TO REQUEST DATA FROM NCBI RESOURCES (GENBANK, TAXONOMY, etc)
+ENTREZ_EMAIL = os.environ.get('ENTREZ_EMAIL')
