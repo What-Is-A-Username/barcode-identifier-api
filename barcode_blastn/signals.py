@@ -41,7 +41,7 @@ def save_annotations(sender, instance, created, **kwargs):
     Annotation.objects.bulk_create(new_annotations)
 
 @receiver(post_save, sender=CustomSequence)
-def save_annotations(sender, instance, created, **kwargs):
+def save_annotations_custom(sender, instance, created, **kwargs):
     '''
     Save annotations based on `create_annotations` on the instance.
     
@@ -49,6 +49,8 @@ def save_annotations(sender, instance, created, **kwargs):
     specified by `annotation_user` is used as the default.
     '''
     annotations = getattr(instance, 'create_annotations', [])
+    if annotations is None or len(annotations) == 0:
+        return
     default_user = getattr(instance, 'annotation_user')
     new_annotations: List[Annotation] = []
     annotation: dict[str, Any]

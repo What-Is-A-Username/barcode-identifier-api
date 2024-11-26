@@ -148,7 +148,7 @@ class BlastDbCompatibleRenderer(BaseBlastDbRenderer):
         return rank[6:]
 
     def render_db(self, data, accepted_media_type=None, renderer_context=None):
-        fasta_format = renderer_context.get('fasta_format', '') if not renderer_context is None else ''
+        fasta_format = renderer_context.get('export_format', '') if not renderer_context is None else ''
 
         zip_buffer = io.BytesIO()
         zip_files: List[Tuple[str,str]] = [] # a list of tuples, (filename, content)
