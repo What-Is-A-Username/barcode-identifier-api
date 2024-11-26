@@ -284,7 +284,7 @@ class BlastDbAdmin(SimpleHistoryAdmin):
     form = BlastDbForm
     list_display = ('custom_name', 'library', 'version_number', 'sequences_admin_count', 'id', 'locked')
     search_fields = ['custom_name', 'id', 'library__custom_name', 'library__owner__username', 'library__description', 'description']
-    list_filter = ['library__custom_name', 'genbank_version', 'locked']
+    list_filter = ['library__custom_name', 'genbank_version', 'major_version', 'minor_version', 'locked']
     history_list_display = ['added', 'filter_options', 'deleted', 'search_terms', 'locked', 'changed_fields']
 
     def added(self, obj: BlastDb):
@@ -454,7 +454,7 @@ class BlastDbAdmin(SimpleHistoryAdmin):
         else:
             qs = BlastDb.objects.viewable(request.user)
             # Introduce "seqences__count" by counting the number of related sequences
-        qs = qs.annotate(sequences__count=models.Count('sequences'))
+        qs = qs.annotate(sequences__count=models.Count('sequences')).order_by('library', 'major_version', 'minor_version', 'genbank_version')
         return qs
 
     @admin.display(ordering="sequences__count", description='Sequences')

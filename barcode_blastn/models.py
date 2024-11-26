@@ -236,9 +236,9 @@ class BlastDb(models.Model):
     library = models.ForeignKey(Library, on_delete=models.CASCADE, help_text='The reference library which this database is a version of.')
 
     # TODO: Reorganize version numbers, deciding whether to integrate GenBank version
-    genbank_version = models.SmallIntegerField(default=0, validators=[MaxValueValidator(32767), MaxValueValidator(0)], help_text='Version number reflective of changes in sequence data, accession.versions, and the set of accessions included.')
-    major_version = models.SmallIntegerField(default=0, validators=[MaxValueValidator(32767), MaxValueValidator(0)], help_text='Version number reflective of changes in important metadata such as source information, location, specimen identifiers.')
-    minor_version = models.SmallIntegerField(default=0, validators=[MaxValueValidator(32767), MaxValueValidator(0)], help_text='Version number reflective of minor changes such as database description, names, references.')
+    genbank_version = models.SmallIntegerField(default=0, validators=[MaxValueValidator(32767), MinValueValidator(0)], help_text='Version number reflective of changes in sequence data, accession.versions, and the set of accessions included.')
+    major_version = models.SmallIntegerField(default=0, validators=[MaxValueValidator(32767), MinValueValidator(0)], help_text='Version number reflective of changes in important metadata such as source information, location, specimen identifiers.')
+    minor_version = models.SmallIntegerField(default=0, validators=[MaxValueValidator(32767), MinValueValidator(0)], help_text='Version number reflective of minor changes such as database description, names, references.')
 
     def version_number(self) -> str:
         return f'{self.genbank_version}.{self.major_version}.{self.minor_version}'

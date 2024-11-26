@@ -215,35 +215,21 @@ def create_blastdb(additional_accessions: List[str], user: User, base: Optional[
         else:
             old_annotations = {}
 
-        # if not seqs is None:
-        #     # Carry over the annotations from the old database
-        #     annotations_to_save = []
-        #     sequence: NuccoreSequence
-        #     for sequence in new_sequences:
-        #         try:
-        #             existing: NuccoreSequence = seqs.get(version=sequence.version)
-        #         except NuccoreSequence.DoesNotExist:
-        #             # Skip annotations if the sequence was not from base database
-        #             pass
-        #         else:
-        #             # Get all annotations from the old sequence entry
-        #             old_annotations = existing.annotations.all()
-        #             old: Annotation
-        #             new_annotations = []
-        #             # Clone all old annotations
-        #             for old in old_annotations:
-        #                 new_annotations.append({
-        #                     'poster': old.poster,
-        #                     'annotation_type': old.annotation_type,
-        #                     'comment': old.comment
-        #                 })
-                        
-        #             setattr(sequence, 'create_annotations', new_annotations)
-        #             setattr(sequence, 'annotation_user', user)
-            # Bulk save all annotations
-            # Annotation.objects.bulk_create(annotations_to_save)
-
         new_sequences = add_sequences_to_database(database, user, annotations_to_transfer=old_annotations, desired_numbers=accessions_to_add, search_term=search_term, min_length=min_length, max_length=max_length, max_ambiguous_bases=max_ambiguous_bases, blacklist=blacklist, require_taxonomy=require_taxonomy)
+
+    # Clone custom sequences
+    clone_custom = CustomSequence.objects.filter(owner_database=base, data_source=NuccoreSequence.SequenceSource.IMPORT)
+    add_custom_sequences_to_database(database=database,
+        user=user,
+        custom_sequences=clone_custom,
+        annotations_to_transfer={},
+        min_length=min_length,
+        max_length=max_length,
+        max_ambiguous_bases=max_ambiguous_bases, 
+        blacklist=blacklist, 
+        require_taxonomy=require_taxonomy
+    )
+
 
     # If the database is to be locked, lock it. Else just return
     database = save_blastdb(database, user, perform_lock=locked)
@@ -506,7 +492,7 @@ def add_sequences_to_database(database: BlastDb,
         return []
     desired_numbers = list(set(desired_numbers))
     # Retrieve what accession numbers are already existing in the database
-    existing: Set[str] = set(NuccoreSequence.objects.distinct().filter(owner_database=database).values_list('accession_number', flat=True))
+    existing: Set[str] = set(NuccoreSequence.objects.distinct().filter(owner_database=database, data_source=NuccoreSequence.SequenceSource.GENBANK).values_list('accession_number', flat=True))
     # raise error if any the numbers to be added already exist
     conflicts = [e for e in desired_numbers if e in existing]
     if len(conflicts) > 0:
@@ -594,8 +580,11 @@ def add_custom_sequences_to_database(database: BlastDb,
                                 blacklist: List[str] = [], 
                                 require_taxonomy: bool = False) -> List[CustomSequence]:
     """
-    Clone custom sequences into the new database.
+    Clone custom sequences into the new database which meet the filter 
+    requirements. Also clone the annotations.
     """
+    if len(custom_sequences) == 0:
+        return []
 
     # Apply function to filter the existing custom_sequences
     to_clone: List[CustomSequence] = []
@@ -640,6 +629,7 @@ def add_custom_sequences_to_database(database: BlastDb,
     seq: CustomSequence
     for i, seq in enumerate(to_clone):
         seq.pk = None
+        seq.owner_database = database
         # Pass info to save signal for saving
         setattr(seq, 'create_annotations', annotations[i])
         setattr(seq, 'annotation_user', user)
