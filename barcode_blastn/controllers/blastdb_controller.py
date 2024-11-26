@@ -660,14 +660,17 @@ def save_custom_sequence(seqs: List[CustomSequence], user: User, raise_errors: b
         value_error: Optional[ValueError] = None
         if not obj.accession_number or len(obj.accession_number) == 0:
             value_error = ValueError('Missing accession numbers')
+            print("blastdb_controller.py Missing accession errors")
         elif not obj.owner_database:
             value_error = ValueError()
+            print("blastdb_controller.py Missing owner database")
         elif obj.owner_database.locked:
             value_error = ValueError('Database locked')
-        if raise_errors and not value_error is None:
+            print("blastdb_controller.py Database locked")
+        if not value_error is None:
             raise value_error
-        else:
-            print(f'WARN: Suppressed error {value_error}')
+        # else:
+        #     print(f'WARN: Suppressed error {value_error}')
 
         # Ensure that the obj source is marked as import
         obj.data_source = NuccoreSequence.SequenceSource.IMPORT
@@ -679,16 +682,24 @@ def save_custom_sequence(seqs: List[CustomSequence], user: User, raise_errors: b
             pass
         else:
             # raise error if duplicate accession already exists
+            print("blastdb_controller.py Duplicate exists in same database")
             error = AccessionsAlreadyExist([existing.accession_number])
-            if raise_errors:
-                raise error 
-            else:
-                print(f'WARN: Suppressed error {error}')
+            # if raise_errors:
+            raise error 
+            # else:
+            #     print(f'WARN: Suppressed error {error}')
                 
     # Save separately on another pass, to ensure that all seqs pass checks above
     # first
     for obj in seqs:
-        obj.save()
+        print("Saving", obj.version, "to", obj.owner_database.pk)
+        try:
+            obj.save()
+        except BaseException as exc:
+            print(type(exc))
+        print("Success.")
+    
+    print("Successfully saved all seqs")
 
 
 def save_sequence(obj: NuccoreSequence, user: User, commit: bool = False, raise_if_missing: bool = False, raise_errors: bool = True):
@@ -712,14 +723,18 @@ def save_sequence(obj: NuccoreSequence, user: User, commit: bool = False, raise_
     value_error: Optional[ValueError] = None
     if not obj.accession_number or len(obj.accession_number) == 0:
         value_error = ValueError('Missing accession numbers')
+        print("blastdb_controller.py 700 Missing numbers")
     elif not obj.owner_database:
         value_error = ValueError()
+        print("blastdb_controller.py 700 No owner database")
     elif obj.owner_database.locked:
         value_error = ValueError('Database locked')
-    if raise_errors and not value_error is None:
+        print("blastdb_controller.py 700 Locked")
+    # if raise_errors and not value_error is None:
+    if not value_error is None:
         raise value_error
-    else:
-        print(f'WARN: Suppressed error {value_error}')
+    # else:
+    #     print(f'WARN: Suppressed error {value_error}')
 
     # Ensure that the source is GenBank
     obj.data_source = NuccoreSequence.SequenceSource.GENBANK
@@ -734,10 +749,12 @@ def save_sequence(obj: NuccoreSequence, user: User, commit: bool = False, raise_
     else:
         # raise error if duplicate accession already exists
         error = AccessionsAlreadyExist([existing.accession_number])
-        if raise_errors:
+        print("blastdb_controller.py Duplicate numbers save_sequence")
+        # if raise_errors:
+        if not error is None:
             raise error 
-        else:
-            print(f'WARN: Suppressed error {error}')
+        # else:
+        #     print(f'WARN: Suppressed error {error}')
 
     # fetch GenBank data
     currentData: Dict[str, Any]
@@ -745,11 +762,12 @@ def save_sequence(obj: NuccoreSequence, user: User, commit: bool = False, raise_
         currentData = retrieve_gb(accession_numbers=[accession_number],
                                   raise_if_missing=raise_if_missing)[0]
     except (GenBankConnectionError, InsufficientAccessionData, BaseException) as exc:
-        if not raise_errors:
-            print(f'WARN: Suppressed error {exc}')
-            currentData = {}
-        else:
-            raise exc
+        raise exc
+        # if not raise_errors:
+            # print(f'WARN: Suppressed error {exc} {type(exc)}')
+        #     currentData = {}
+        # else:
+        #     raise exc
 
     # check that the GenBank data is valid
     try:
@@ -770,11 +788,12 @@ def save_sequence(obj: NuccoreSequence, user: User, commit: bool = False, raise_
         else:
             raise AssertionError(serializer.errors)
     except BaseException as exc:
-        if raise_errors:
-            raise exc
-        else:
-            print(f'WARN: Suppressed error {exc}')
-            return obj
+        raise exc
+        # if raise_errors:
+        #     raise exc
+        # else:
+        #     print(f'WARN: Suppressed error {exc} {type(exc)}')
+        #     return obj
     
 def append_change_reason(database: BlastDb, reason: str):
     '''

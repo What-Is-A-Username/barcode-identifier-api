@@ -31,4 +31,6 @@ def parse_file_upload_to_custom_sequence(upload: UploadedFile, database: BlastDb
                 data_source=NuccoreSequence.SequenceSource.IMPORT
             )
         )
+        print('Parsed', accession, version, str(record.seq))
+    print("Finished parsing file. Found", len(seqs), "sequences")
     return seqs
