@@ -236,9 +236,9 @@ class BlastDb(models.Model):
     library = models.ForeignKey(Library, on_delete=models.CASCADE, help_text='The reference library which this database is a version of.')
 
     # TODO: Reorganize version numbers, deciding whether to integrate GenBank version
-    genbank_version = models.SmallIntegerField(default=0, validators=[MaxValueValidator(32767), MaxValueValidator(0)], help_text='Version number reflective of changes in sequence data, accession.versions, and the set of accessions included.')
-    major_version = models.SmallIntegerField(default=0, validators=[MaxValueValidator(32767), MaxValueValidator(0)], help_text='Version number reflective of changes in important metadata such as source information, location, specimen identifiers.')
-    minor_version = models.SmallIntegerField(default=0, validators=[MaxValueValidator(32767), MaxValueValidator(0)], help_text='Version number reflective of minor changes such as database description, names, references.')
+    genbank_version = models.SmallIntegerField(default=0, validators=[MaxValueValidator(32767), MinValueValidator(0)], help_text='Version number reflective of changes in sequence data, accession.versions, and the set of accessions included.')
+    major_version = models.SmallIntegerField(default=0, validators=[MaxValueValidator(32767), MinValueValidator(0)], help_text='Version number reflective of changes in important metadata such as source information, location, specimen identifiers.')
+    minor_version = models.SmallIntegerField(default=0, validators=[MaxValueValidator(32767), MinValueValidator(0)], help_text='Version number reflective of minor changes such as database description, names, references.')
 
     def version_number(self) -> str:
         return f'{self.genbank_version}.{self.major_version}.{self.minor_version}'
@@ -320,14 +320,14 @@ class NuccoreSequence(models.Model):
 
     taxid = models.IntegerField(help_text='Taxonomic identifier of source organism.', blank=True, default=-2)
 
-    taxon_species = models.ForeignKey(TaxonomyNode, related_name='species_member', related_query_name='species_members', help_text='Species taxa of the source organism', on_delete=models.CASCADE, null=True) 
-    taxon_genus = models.ForeignKey(TaxonomyNode, related_name='genus_member', related_query_name='genus_members', help_text='Genus of the source organism', on_delete=models.CASCADE, null=True) 
-    taxon_family = models.ForeignKey(TaxonomyNode, related_name='family_member', related_query_name='family_members', help_text='Family of the source organism', on_delete=models.CASCADE, null=True) 
-    taxon_order = models.ForeignKey(TaxonomyNode, related_name='order_member', related_query_name='order_members', help_text='Order of the source organism', on_delete=models.CASCADE, null=True) 
-    taxon_class = models.ForeignKey(TaxonomyNode, related_name='class_member', related_query_name='class_members', help_text='Class of the source organism', on_delete=models.CASCADE, null=True) 
-    taxon_phylum = models.ForeignKey(TaxonomyNode, related_name='phylum_member', related_query_name='phylum_members', help_text='Phylum of the source organism', on_delete=models.CASCADE, null=True) 
-    taxon_kingdom = models.ForeignKey(TaxonomyNode, related_name='kingdom_member', related_query_name='kingdom_members', help_text='Kingdom of the source organism', on_delete=models.CASCADE, null=True) 
-    taxon_superkingdom = models.ForeignKey(TaxonomyNode, related_name='superkingdom_member', related_query_name='superkingdom_members', help_text='Superkingdom of the source organism', on_delete=models.CASCADE, null=True) 
+    taxon_species = models.ForeignKey(TaxonomyNode, related_name='species_member', related_query_name='species_members', help_text='Species taxa of the source organism', on_delete=models.CASCADE, null=True, blank=True) 
+    taxon_genus = models.ForeignKey(TaxonomyNode, related_name='genus_member', related_query_name='genus_members', help_text='Genus of the source organism', on_delete=models.CASCADE, null=True, blank=True) 
+    taxon_family = models.ForeignKey(TaxonomyNode, related_name='family_member', related_query_name='family_members', help_text='Family of the source organism', on_delete=models.CASCADE, null=True, blank=True) 
+    taxon_order = models.ForeignKey(TaxonomyNode, related_name='order_member', related_query_name='order_members', help_text='Order of the source organism', on_delete=models.CASCADE, null=True, blank=True) 
+    taxon_class = models.ForeignKey(TaxonomyNode, related_name='class_member', related_query_name='class_members', help_text='Class of the source organism', on_delete=models.CASCADE, null=True, blank=True) 
+    taxon_phylum = models.ForeignKey(TaxonomyNode, related_name='phylum_member', related_query_name='phylum_members', help_text='Phylum of the source organism', on_delete=models.CASCADE, null=True, blank=True) 
+    taxon_kingdom = models.ForeignKey(TaxonomyNode, related_name='kingdom_member', related_query_name='kingdom_members', help_text='Kingdom of the source organism', on_delete=models.CASCADE, null=True, blank=True) 
+    taxon_superkingdom = models.ForeignKey(TaxonomyNode, related_name='superkingdom_member', related_query_name='superkingdom_members', help_text='Superkingdom of the source organism', on_delete=models.CASCADE, null=True, blank=True) 
     
     keywords = models.CharField(max_length=256, help_text='Comma-separated list of keywords on the sequence record.', blank=True, default='')
     title = models.CharField(max_length=512, help_text='Title of a publication by the authors of the sequence record.', blank=True, default='')
@@ -335,7 +335,7 @@ class NuccoreSequence(models.Model):
     authors = models.CharField(max_length=512, help_text='Author list from the publication.', blank=True, default='')
     taxonomy = models.CharField(max_length=512, help_text='Comma-separated list of taxonomic lineage from GenBank', blank=True, default='')
     
-    genbank_modification_date = models.DateField(help_text='Modification date of the GenBank entry, shown in the locus field of the flat file.')
+    genbank_modification_date = models.DateField(help_text='Modification date of the GenBank entry, shown in the locus field of the flat file.', null=True, blank=True, default=None)
 
     collection_date = models.CharField(max_length=128, help_text='The date/time of or date/time range in which the specimen was collected.', blank=True, default='')
     collected_by = models.CharField(max_length=128, help_text='Persons or institute that collected the specimen.', blank=True, default='')
@@ -345,6 +345,14 @@ class NuccoreSequence(models.Model):
     created = models.DateTimeField(auto_now_add=True, help_text='Date and time at which record was first created')
     # Date and time when data was last updated by this app
     updated = models.DateTimeField(auto_now=True, help_text='Date and time when sequence data was last updated from GenBank')
+
+    # Only keep if CustomSequence queryset doesn't work
+    class SequenceSource(models.TextChoices):
+        GENBANK = 'GB', _('GenBank')
+        IMPORT = 'IM', _('Import')
+
+    # Source of this sequence
+    data_source = models.CharField(max_length=2, choices=SequenceSource.choices, help_text='The source of this sequence.', blank=False, null=False, default=SequenceSource.GENBANK)
 
     def __str__(self) -> str:
         return f'{self.accession_number}, {str(self.organism)} ({str(self.id)})'
@@ -395,6 +403,15 @@ class NuccoreSequence(models.Model):
         ordering = ['accession_number']
         verbose_name = 'GenBank Accession'
         verbose_name_plural = 'GenBank Accessions'
+
+class CustomSequence(NuccoreSequence):
+    '''
+    Used to represent a custom sequence that was added manually, instead of
+    GenBank. Proxy model inheriting from NuccoreSequence
+    '''
+    class Meta:
+        proxy = True
+        ordering = ['accession_number']
 
 class BlastRunManager(models.Manager):
     def listable(self, user: User):
@@ -622,5 +639,10 @@ class Annotation(models.Model):
     annotation_type = models.CharField(max_length=32, choices=AnnotationType.choices, help_text='Categorization of content within the annotation.')
     comment = models.CharField(max_length=512, help_text='User-added comment text for annotation', blank=True, default='')
 
+    def __str__(self) -> str:
+        user_poster_display = '<deleted user>' \
+                            if self.poster is None else self.poster.first_name
+        return f'{Annotation.AnnotationType(self.annotation_type).label}, \
+            {user_poster_display} ({self.timestamp})'
         
 

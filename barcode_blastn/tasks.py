@@ -203,7 +203,7 @@ def update_database() -> None:
     all_dbs : QuerySet = BlastDb.objects.all() 
     db : BlastDb
     for db in all_dbs:
-        all_seqs: QuerySet = NuccoreSequence.objects.filter(owner_database=db.id)
+        all_seqs: QuerySet = NuccoreSequence.objects.filter(owner_database=db.id, data_source=NuccoreSequence.SequenceSource.GENBANK)
         all_numbers: List[str] = [seq.accession_number for seq in all_seqs]
         print("Updating database " + str(db.id) + " ...")
 

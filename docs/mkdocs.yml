@@ -8,6 +8,7 @@ nav:
   - Installation:
     - Setup: setup.md
   - Usage:
+    - Database Curation: database_curation.md
     - Configure User Permissions: permissions.md
     - Submitting jobs: run.md
     - Reading results: results.md

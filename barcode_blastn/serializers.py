@@ -10,6 +10,7 @@ from barcode_blastn.validators import QueryFileValidator
 library_title = 'Reference Library'
 blast_db_title = 'BLAST Database Version'
 nuccore_title = 'GenBank Accession'
+custom_nuccore_title = 'Custom Sequence'
 hit_title = 'BLASTN hit'
 query_title = 'Query Sequence'
 run_title = 'Run'
@@ -254,26 +255,61 @@ class BlastDbSequenceEntrySerializer(serializers.ModelSerializer):
         ref_name = nuccore_title
         fields = ['id', 'accession_number', 'version', 'organism', 'organelle', 'isolate', 'country', 'specimen_voucher', 'dna_sequence', 
         'collected_by', 'collection_date', 'identified_by', 
-        'lat_lon', 'type_material', 'created', 'updated', 'genbank_modification_date', 'taxonomy', 'taxon_superkingdom', 'taxon_kingdom', 'taxon_phylum', 'taxon_class', 'taxon_order', 'taxon_family', 'taxon_genus', 'taxon_species', 'annotations'] 
+        'lat_lon', 'type_material', 'created', 'updated', 'genbank_modification_date', 'taxonomy', 'taxon_superkingdom', 'taxon_kingdom', 'taxon_phylum', 
+        'taxon_class', 'taxon_order', 'taxon_family', 'taxon_genus', 'taxon_species', 'annotations', 'data_source']  
         example = {
-            "id": "5100cbd8-2fda-4b42-8aa1-10ede078448b",
+            "id": "f0bc30ba-c94c-4142-b6f7-d495893c817a",
             "accession_number": "ON303341",
             "version": "ON303341.1",
-            "definition": "Brachyhypopomus arrayae isolate 12586 cytochrome c oxidase subunit I (COX1) gene, partial cds; mitochondrial",
             "organism": "Brachyhypopomus arrayae",
             "organelle": "mitochondrion",
-            "isolate": "12586", 
+            "isolate": "12586",
             "country": "Bolivia",
             "specimen_voucher": "ANSP:197574",
-            "lat_lon": "11.03 S 66.09 W",
             "dna_sequence": "ATAGTATTTGGTGCATGAGCTGGGATAGTAGGCACAGCCTTAAGCCTCTTAATCCGAGCAGAACTAAGCCAGCCAGGAGCTCTTATGGGCGACGACCAAATTTACAATGTGATTGTTACTGCGCACGCTTTCGTAATAATTTTCTTCATGGTTATGCCCATTATAATCGGCGGGTTCGGCAACTGATTAATTCCCCTAATACTCGGTGCCCCTGACATGGCATTCCCACGAATAAACAACATAAGCTTCTGACTTCTGCCCCCATCATTCCTTCTACTCCTTGCATCCTCTGGGGTCGAAGCGGGAGCCGGAACCGGCTGAACTGTTTACCCCCCTCTCGCTAGCAACCTCGCCCACGCAGGGGCCTCCGTTGATCTAACTATCTTCTCCCTTCACCTTGCTGGGGTTTCTTCCATCCTTGGCTCTATCAACTTCATTACTACCATTATTAACATGAAACCCCCAGCCATATCTCAGTATCAAACCCCTCTATTTATTTGAGCGCTCCTAATTACCACAGTTCTCCTACTGTTATCCCTTCCCGTACTGGCCGCTGGTATCACCATGCTGCTAACAGACCGAAACCTAAATACAACCTTCTTCGACCCCGCAGGAGGAGGGGACCCCGTCCTTTATCAGCACTTA",
             "collection_date": "2015-10-11T17:53:03Z",
             "collected_by": "John Doe",
             "identified_by": "Jane Doe",
-            "translation": "",
+            "lat_lon": "11.03 S 66.09 W",
             "type_material": "paratype of Brachyhypopomus arrayae",
-            "created": "2023-02-20T01:00:31.240961Z",
-            "updated": "2023-02-20T01:00:31.240961Z"
+            "created": "2024-11-25T18:35:05.028644Z",
+            "updated": "2024-11-25T18:35:05.028653Z",
+            "genbank_modification_date": "2022-07-04",
+            "taxonomy": "Eukaryota,Metazoa,Chordata,Craniata,Vertebrata,Euteleostomi,Actinopterygii,Neopterygii,Teleostei,Ostariophysi,Gymnotiformes,Sternopygoidei,Hypopomidae,Brachyhypopomus",
+            "taxon_superkingdom": {
+                "id": 2759,
+                "scientific_name": "Eukaryota"
+            },
+            "taxon_kingdom": {
+                "id": 33208,
+                "scientific_name": "Metazoa"
+            },
+            "taxon_phylum": {
+                "id": 7711,
+                "scientific_name": "Chordata"
+            },
+            "taxon_class": {
+                "id": 186623,
+                "scientific_name": "Actinopteri"
+            },
+            "taxon_order": {
+                "id": 8002,
+                "scientific_name": "Gymnotiformes"
+            },
+            "taxon_family": {
+                "id": 30767,
+                "scientific_name": "Hypopomidae"
+            },
+            "taxon_genus": {
+                "id": 38295,
+                "scientific_name": "Brachyhypopomus"
+            },
+            "taxon_species": {
+                "id": 2936473,
+                "scientific_name": "Brachyhypopomus arrayae"
+            },
+            "annotations": [],
+            "data_source": "GB"
         }
 
 class BlastDbCreateSerializer(serializers.ModelSerializer):
@@ -515,7 +551,7 @@ class NuccoreSequenceHitSerializer(serializers.ModelSerializer):
     class Meta:
         model = NuccoreSequence
         ref_name = nuccore_title + ' summary'
-        fields = ['id', 'accession_number', 'version', 'definition', 'organism', 'country', 'specimen_voucher', 'type_material', 'lat_lon', 'annotations']
+        fields = ['id', 'accession_number', 'version', 'definition', 'organism', 'country', 'specimen_voucher', 'type_material', 'lat_lon', 'annotations', 'data_source']
         example = {
             "db_entry": {
                 "accession_number": "ON303423",
@@ -525,7 +561,8 @@ class NuccoreSequenceHitSerializer(serializers.ModelSerializer):
                 "country": "Brazil",
                 "specimen_voucher": "MCP 37359",
                 "type_material": "paratype of Porotergus duende",
-                "lat_lon": "3.22 S 54.38 W"
+                "lat_lon": "3.22 S 54.38 W",
+                "data_source": "GB"
             }
         }
 

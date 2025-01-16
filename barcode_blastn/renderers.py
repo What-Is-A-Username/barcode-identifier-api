@@ -6,7 +6,7 @@ import xmltodict
 from typing import Any, Dict, List, Optional, Set, Tuple
 from rest_framework.renderers import BaseRenderer
 from barcode_blastn.file_paths import get_data_run_path
-from barcode_blastn.models import BlastRun
+from barcode_blastn.models import BlastRun, TaxonomyNode
 
 from barcode_blastn.serializers import BlastDbSequenceExportSerializer,  BlastRunSerializer, HitSerializer
 
@@ -30,10 +30,24 @@ def get_letter(rank: str) -> str:
     E.g. `rank = "taxon_family" => "f"`
     '''
     assert rank.startswith('taxon_')
-    if rank == 'taxon_superkingdom':
-        return 'sk'
+    if rank == 'taxon_species':
+        return TaxonomyNode.TaxonomyRank.SPECIES
+    elif rank == 'taxon_genus':
+        return TaxonomyNode.TaxonomyRank.GENUS
+    elif rank == 'taxon_family':
+        return TaxonomyNode.TaxonomyRank.FAMILY
+    elif rank == 'taxon_order':
+        return TaxonomyNode.TaxonomyRank.ORDER
+    elif rank == 'taxon_class':
+        return TaxonomyNode.TaxonomyRank.CLASS
+    elif rank == 'taxon_phylum':
+        return TaxonomyNode.TaxonomyRank.PHYLUM
+    elif rank == 'taxon_kingdom':
+        return TaxonomyNode.TaxonomyRank.KINGDOM
+    elif rank == 'taxon_superkingdom':
+        return TaxonomyNode.TaxonomyRank.SUPERKINGDOM
     else:
-        return rank[6]
+        raise ValueError('Unknown ' + rank)
 
 def renderDada2Taxonomy(data) -> List[str]:
     taxa_ranks = ['taxon_kingdom', 'taxon_phylum', 'taxon_class', 'taxon_order', 'taxon_family', 'taxon_genus']   
@@ -107,8 +121,7 @@ class BlastDbFastaRenderer(BaseBlastDbRenderer):
     charset = 'utf-8'
 
     def render_db(self, data, accepted_media_type=None, renderer_context: Optional[Dict[Any, Any]]=None):
-        fasta_format = renderer_context.get('fasta_format', '') if not renderer_context is None else ''
-        
+        fasta_format = renderer_context.get('export_format', '') if not renderer_context is None else ''
         sequence_file: List[str]
         if fasta_format == 'dada2tax':
             sequence_file = renderDada2Taxonomy(data)
@@ -135,7 +148,7 @@ class BlastDbCompatibleRenderer(BaseBlastDbRenderer):
         return rank[6:]
 
     def render_db(self, data, accepted_media_type=None, renderer_context=None):
-        fasta_format = renderer_context.get('fasta_format', '') if not renderer_context is None else ''
+        fasta_format = renderer_context.get('export_format', '') if not renderer_context is None else ''
 
         zip_buffer = io.BytesIO()
         zip_files: List[Tuple[str,str]] = [] # a list of tuples, (filename, content)

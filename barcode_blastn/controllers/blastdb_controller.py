@@ -1,12 +1,12 @@
 from datetime import datetime, timezone
 import os
 import shutil
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 from barcode_blastn.file_paths import get_data_fishdb_path, get_data_library_path, get_ncbi_folder
 from barcode_blastn.helper.parse_gb import GenBankConnectionError, InsufficientAccessionData, retrieve_gb, save_taxonomy
 from django.contrib.auth.models import User
 from django.db import transaction
-from barcode_blastn.models import Annotation, BlastDb, Hit, Library, NuccoreSequence
+from barcode_blastn.models import Annotation, BlastDb, CustomSequence, Hit, Library, NuccoreSequence
 from barcode_blastn.serializers import NuccoreSequenceSerializer 
 from django.db.models import QuerySet, Value, Q
 from django.db.models.functions import Length, Replace, Upper
@@ -94,6 +94,8 @@ def save_blastdb(obj: BlastDb, user: User, perform_lock: bool = False) -> BlastD
         elif os.path.isfile(library_path):
             os.remove(library_path)
             os.mkdir(library_path)
+        os.chmod(library_path, 0o765)
+        
         fishdb_path = get_data_fishdb_path(obj)
         # make a directory for the database if it doesn't exist
         if not os.path.exists(fishdb_path):
@@ -106,6 +108,7 @@ def save_blastdb(obj: BlastDb, user: User, perform_lock: bool = False) -> BlastD
             except BaseException:
                 raise OSError('Encountered error while setting up database files.')
             os.mkdir(fishdb_path)
+        os.chmod(fishdb_path, 0o765)
         
         fasta_file = fishdb_path + f'/database.fasta'
         sequences: QuerySet[NuccoreSequence] = NuccoreSequence.objects.filter(owner_database=obj)
@@ -116,6 +119,7 @@ def save_blastdb(obj: BlastDb, user: User, perform_lock: bool = False) -> BlastD
                 my_file.write('>' + sequence_identifier + '\n' + dna_sequence + '\n')
         
         my_file.close()
+        os.chmod(fasta_file, 0o765)
 
         ncbi_blast_version = 'ncbi-blast-2.12.0+'
         blast_root = get_ncbi_folder(ncbi_blast_version=ncbi_blast_version)
@@ -174,8 +178,11 @@ def create_blastdb(additional_accessions: List[str], user: User, base: Optional[
     
     accessions_to_add = additional_accessions
     seqs: Optional[QuerySet[NuccoreSequence]]
+
+    # Clone the accessions from the base database to the new db
     if base is not None:
-        seqs = NuccoreSequence.objects.filter(owner_database=base)
+        seqs = NuccoreSequence.objects.filter(owner_database=base, 
+            data_source=NuccoreSequence.SequenceSource.GENBANK)
         # Add the base database's accessions to the list of accessions to retrieve
         accessions_to_add.extend([s.version for s in seqs])
     else:
@@ -208,35 +215,21 @@ def create_blastdb(additional_accessions: List[str], user: User, base: Optional[
         else:
             old_annotations = {}
 
-        # if not seqs is None:
-        #     # Carry over the annotations from the old database
-        #     annotations_to_save = []
-        #     sequence: NuccoreSequence
-        #     for sequence in new_sequences:
-        #         try:
-        #             existing: NuccoreSequence = seqs.get(version=sequence.version)
-        #         except NuccoreSequence.DoesNotExist:
-        #             # Skip annotations if the sequence was not from base database
-        #             pass
-        #         else:
-        #             # Get all annotations from the old sequence entry
-        #             old_annotations = existing.annotations.all()
-        #             old: Annotation
-        #             new_annotations = []
-        #             # Clone all old annotations
-        #             for old in old_annotations:
-        #                 new_annotations.append({
-        #                     'poster': old.poster,
-        #                     'annotation_type': old.annotation_type,
-        #                     'comment': old.comment
-        #                 })
-                        
-        #             setattr(sequence, 'create_annotations', new_annotations)
-        #             setattr(sequence, 'annotation_user', user)
-            # Bulk save all annotations
-            # Annotation.objects.bulk_create(annotations_to_save)
-
         new_sequences = add_sequences_to_database(database, user, annotations_to_transfer=old_annotations, desired_numbers=accessions_to_add, search_term=search_term, min_length=min_length, max_length=max_length, max_ambiguous_bases=max_ambiguous_bases, blacklist=blacklist, require_taxonomy=require_taxonomy)
+
+    # Clone custom sequences
+    clone_custom = CustomSequence.objects.filter(owner_database=base, data_source=NuccoreSequence.SequenceSource.IMPORT)
+    add_custom_sequences_to_database(database=database,
+        user=user,
+        custom_sequences=clone_custom,
+        annotations_to_transfer={},
+        min_length=min_length,
+        max_length=max_length,
+        max_ambiguous_bases=max_ambiguous_bases, 
+        blacklist=blacklist, 
+        require_taxonomy=require_taxonomy
+    )
+
 
     # If the database is to be locked, lock it. Else just return
     database = save_blastdb(database, user, perform_lock=locked)
@@ -465,7 +458,16 @@ def filter_sequences_in_database(database: BlastDb, user: User, min_length: int 
     save_blastdb(database, user=user, perform_lock=False)
     return deleted_objects
 
-def add_sequences_to_database(database: BlastDb, user: User, desired_numbers: List[str] = [], annotations_to_transfer: Dict[str, Any] = {}, search_term: Optional[str] = None, min_length: int = -1, max_length: int = -1, max_ambiguous_bases = -1, blacklist: List[str] = [], require_taxonomy: bool = False) -> List[NuccoreSequence]:
+def add_sequences_to_database(database: BlastDb, 
+                                user: User, 
+                                desired_numbers: List[str] = [], 
+                                annotations_to_transfer: Dict[str, Any] = {}, 
+                                search_term: Optional[str] = None, 
+                                min_length: int = -1, 
+                                max_length: int = -1, 
+                                max_ambiguous_bases = -1, 
+                                blacklist: List[str] = [], 
+                                require_taxonomy: bool = False) -> List[NuccoreSequence]:
     '''
     Add a list of accession numbers to an existing database by bulk creating and return the resulting list of NuccoreSequences, and return the saved objects.
     
@@ -490,7 +492,7 @@ def add_sequences_to_database(database: BlastDb, user: User, desired_numbers: Li
         return []
     desired_numbers = list(set(desired_numbers))
     # Retrieve what accession numbers are already existing in the database
-    existing: Set[str] = set(NuccoreSequence.objects.distinct().filter(owner_database=database).values_list('accession_number', flat=True))
+    existing: Set[str] = set(NuccoreSequence.objects.distinct().filter(owner_database=database, data_source=NuccoreSequence.SequenceSource.GENBANK).values_list('accession_number', flat=True))
     # raise error if any the numbers to be added already exist
     conflicts = [e for e in desired_numbers if e in existing]
     if len(conflicts) > 0:
@@ -568,6 +570,138 @@ def add_sequences_to_database(database: BlastDb, user: User, desired_numbers: Li
     save_blastdb(database, user=user, perform_lock=False)
     return to_create
 
+def add_custom_sequences_to_database(database: BlastDb,
+                                user: User, 
+                                custom_sequences: QuerySet[CustomSequence],
+                                annotations_to_transfer: Dict[str, Any] = {},
+                                min_length: int = -1, 
+                                max_length: int = -1, 
+                                max_ambiguous_bases = -1, 
+                                blacklist: List[str] = [], 
+                                require_taxonomy: bool = False) -> List[CustomSequence]:
+    """
+    Clone custom sequences into the new database which meet the filter 
+    requirements. Also clone the annotations.
+    """
+    if len(custom_sequences) == 0:
+        return []
+
+    # Apply function to filter the existing custom_sequences
+    to_clone: List[CustomSequence] = []
+    for seq in custom_sequences:
+        seq_len = seq.sequence_length()
+        if min_length > -1 and seq_len < min_length:
+            continue
+        if max_length > -1 and seq_len > max_length:
+            continue
+        
+        # filter by ambiguous bases
+        n = len([base for base in seq.dna_sequence if base == 'N'])
+        if max_ambiguous_bases > -1 and n > max_ambiguous_bases:
+            continue
+
+        # require taxonomy
+        if require_taxonomy:
+            taxa = ['superkingdom', 'kingdom', 'phylum', 'class', 'order', 'family', 'genus', 'species']
+            if any([(getattr(seq, f'taxon_{t}', None) is None) for t in taxa]):
+                continue
+        
+        # check if in blacklist
+        if seq.accession_number in blacklist or seq.version in blacklist:
+            continue
+
+        to_clone.append(seq)
+
+    # Copy over annotations
+    annotations: List[List[Dict[str, Any]]] = []
+    for seq in to_clone:
+        annot: List[Annotation]
+        annot = list(seq.annotations.all()) # type: ignore
+        annot_data: List[Dict[str, Any]] = [{
+            'annotation_type': getattr(a, 'annotation_type', Annotation.AnnotationType.OTHER),
+            'comment': getattr(a, 'comment', '')
+        } for a in annot]
+        annot_data.extend(annotations_to_transfer.get(seq.version, []))
+        annotations.append(annot_data)
+            
+    # Set primary key to None to force duplicate, then
+    # save manually
+    seq: CustomSequence
+    for i, seq in enumerate(to_clone):
+        seq.pk = None
+        seq.owner_database = database
+        # Pass info to save signal for saving
+        setattr(seq, 'create_annotations', annotations[i])
+        setattr(seq, 'annotation_user', user)
+
+        # Manually call save on each instance, instead of using .bulk_create,
+        # to ensure post_save signal is sent.
+        seq.save()
+
+    # Add the initial accessions and search terms to be stored in the 
+    # historical log of the database
+    log_added_sequences(instances=to_clone, search_term='', database=database)
+    log_filter_options(database, min_length=min_length, max_length=max_length, max_ambiguous_bases=max_ambiguous_bases, \
+        blacklist=blacklist, require_taxonomy=require_taxonomy)
+    save_blastdb(database, user=user, perform_lock=False)
+        
+    return to_clone
+
+def save_custom_sequence(seqs: List[CustomSequence], user: User, raise_errors: bool = True):
+    '''
+    Save a custom sequence, where the user specifies the value of every value
+    in the model.
+
+    Raises:
+        
+    '''
+    for obj in seqs:
+
+        value_error: Optional[ValueError] = None
+        if not obj.accession_number or len(obj.accession_number) == 0:
+            value_error = ValueError('Missing accession numbers')
+            print("blastdb_controller.py Missing accession errors")
+        elif not obj.owner_database:
+            value_error = ValueError()
+            print("blastdb_controller.py Missing owner database")
+        elif obj.owner_database.locked:
+            value_error = ValueError('Database locked')
+            print("blastdb_controller.py Database locked")
+        if not value_error is None:
+            raise value_error
+        # else:
+        #     print(f'WARN: Suppressed error {value_error}')
+
+        # Ensure that the obj source is marked as import
+        obj.data_source = NuccoreSequence.SequenceSource.IMPORT
+        
+        # Check that the accession does not yet exist in the database.
+        try:
+            existing = NuccoreSequence.objects.filter(owner_database=obj.owner_database).exclude(id=obj.id).get(accession_number=obj.accession_number)
+        except NuccoreSequence.DoesNotExist:
+            pass
+        else:
+            # raise error if duplicate accession already exists
+            print("blastdb_controller.py Duplicate exists in same database")
+            error = AccessionsAlreadyExist([existing.accession_number])
+            # if raise_errors:
+            raise error 
+            # else:
+            #     print(f'WARN: Suppressed error {error}')
+                
+    # Save separately on another pass, to ensure that all seqs pass checks above
+    # first
+    for obj in seqs:
+        print("Saving", obj.version, "to", obj.owner_database.pk)
+        try:
+            obj.save()
+        except BaseException as exc:
+            print(type(exc))
+        print("Success.")
+    
+    print("Successfully saved all seqs")
+
+
 def save_sequence(obj: NuccoreSequence, user: User, commit: bool = False, raise_if_missing: bool = False, raise_errors: bool = True):
     '''
     Save an accession by fetching data from GenBank again and populating the instance. Used for both saving and updating an accession.
@@ -576,7 +710,7 @@ def save_sequence(obj: NuccoreSequence, user: User, commit: bool = False, raise_
     If raise_errors is set to False, no errors will be raised. Default: True.
 
     Raises:
-        ValueError does not have accession_number and owner_database values.
+        ValueError does not have accession_number or owner_database values.
 
         AccessionsAlreadyExist: If change is False, and an existing accession with the same accession number already exists in the same database.
 
@@ -589,14 +723,21 @@ def save_sequence(obj: NuccoreSequence, user: User, commit: bool = False, raise_
     value_error: Optional[ValueError] = None
     if not obj.accession_number or len(obj.accession_number) == 0:
         value_error = ValueError('Missing accession numbers')
+        print("blastdb_controller.py 700 Missing numbers")
     elif not obj.owner_database:
         value_error = ValueError()
+        print("blastdb_controller.py 700 No owner database")
     elif obj.owner_database.locked:
         value_error = ValueError('Database locked')
-    if raise_errors and not value_error is None:
+        print("blastdb_controller.py 700 Locked")
+    # if raise_errors and not value_error is None:
+    if not value_error is None:
         raise value_error
-    else:
-        print(f'WARN: Suppressed error {value_error}')
+    # else:
+    #     print(f'WARN: Suppressed error {value_error}')
+
+    # Ensure that the source is GenBank
+    obj.data_source = NuccoreSequence.SequenceSource.GENBANK
 
     accession_number = obj.accession_number
 
@@ -608,10 +749,12 @@ def save_sequence(obj: NuccoreSequence, user: User, commit: bool = False, raise_
     else:
         # raise error if duplicate accession already exists
         error = AccessionsAlreadyExist([existing.accession_number])
-        if raise_errors:
+        print("blastdb_controller.py Duplicate numbers save_sequence")
+        # if raise_errors:
+        if not error is None:
             raise error 
-        else:
-            print(f'WARN: Suppressed error {error}')
+        # else:
+        #     print(f'WARN: Suppressed error {error}')
 
     # fetch GenBank data
     currentData: Dict[str, Any]
@@ -619,11 +762,12 @@ def save_sequence(obj: NuccoreSequence, user: User, commit: bool = False, raise_
         currentData = retrieve_gb(accession_numbers=[accession_number],
                                   raise_if_missing=raise_if_missing)[0]
     except (GenBankConnectionError, InsufficientAccessionData, BaseException) as exc:
-        if not raise_errors:
-            print(f'WARN: Suppressed error {exc}')
-            currentData = {}
-        else:
-            raise exc
+        raise exc
+        # if not raise_errors:
+            # print(f'WARN: Suppressed error {exc} {type(exc)}')
+        #     currentData = {}
+        # else:
+        #     raise exc
 
     # check that the GenBank data is valid
     try:
@@ -644,11 +788,12 @@ def save_sequence(obj: NuccoreSequence, user: User, commit: bool = False, raise_
         else:
             raise AssertionError(serializer.errors)
     except BaseException as exc:
-        if raise_errors:
-            raise exc
-        else:
-            print(f'WARN: Suppressed error {exc}')
-            return obj
+        raise exc
+        # if raise_errors:
+        #     raise exc
+        # else:
+        #     print(f'WARN: Suppressed error {exc} {type(exc)}')
+        #     return obj
     
 def append_change_reason(database: BlastDb, reason: str):
     '''
@@ -716,7 +861,7 @@ def log_filter_options(database: BlastDb, min_length: int = -1, max_length: int 
     print(database.id, min_length)
     setattr(database, 'filter_options', '\n'.join(options))
 
-def log_added_sequences(instances: List[NuccoreSequence], search_term: Optional[str], database: BlastDb) -> None:
+def log_added_sequences(instances: Union[List[NuccoreSequence], List[CustomSequence]], search_term: Optional[str], database: BlastDb) -> None:
     '''
     Modify the `._change_reason`, `.added`, and `.search_terms` of database to reflect the addition of 
     sequences in instances. If the object database already has non-zero-length `._change_reason`,

@@ -5,7 +5,7 @@
 
 env_barcode/
 compose/proxy/
-barcode_blastn/migrations/*.py
+# barcode_blastn/migrations/*.py
 
 ncbi-blast-2.12.0+/
 !ncbi-blast-2.12.0+/bin/blastn

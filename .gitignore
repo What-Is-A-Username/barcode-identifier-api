@@ -83,7 +83,7 @@ barcode_identifier_api.log
 data/
 
 # migrations
-barcode_blastn/migrations/
+# barcode_blastn/migrations/
 barcode_tree/migrations/
 
 # frontend
@@ -97,9 +97,8 @@ release/frontend
 release/docs
 
 # server config
-compose/proxy/*.crt
-compose/proxy/*.key
-release/proxy/*.crt
-release/proxy/*.key
+**.crt
+**.key
+**.pem
 release/*.env
 !release/example.env
