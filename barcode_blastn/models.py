@@ -639,5 +639,10 @@ class Annotation(models.Model):
     annotation_type = models.CharField(max_length=32, choices=AnnotationType.choices, help_text='Categorization of content within the annotation.')
     comment = models.CharField(max_length=512, help_text='User-added comment text for annotation', blank=True, default='')
 
+    def __str__(self) -> str:
+        user_poster_display = '<deleted user>' \
+                            if self.poster is None else self.poster.first_name
+        return f'{Annotation.AnnotationType(self.annotation_type).label}, \
+            {user_poster_display} ({self.timestamp})'
         
 

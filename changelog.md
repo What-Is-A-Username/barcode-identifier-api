@@ -57,10 +57,16 @@
         - The header can include the accession number, version, and definition in the format of `<accession>.<version> <definition>` (ie. accession and version cannot contain spaces and are period-separated, and the definition is the rest).
 -   Sequences in the database now have a `data_source` attribute which indicate where the sequence originated (from GenBank or custom import/creation)
 -   When viewing a blast database summary in the web app, number of sequences is now also tabulated by origin of sequence (in addition to previously available options such as journal title, taxa and country)
+-   A introductory guide to importing and curating databases in Barrel was added to the Barrel documentation.
+-   When viewing a blast database in the administrator console, the "Delete" button has been removed. This was to prevent users unintentionally deleting the entire database when trying to only remove certain sequences.
 
 ### Bug Fixes
 -   Fixed links on Blast run page to correctly direct user to browse database and reference libraries when clicked.
 -   Fixed issue where db export could not return the requested fasta format 
+-   Fixed issue where a locked database could not be unlocked
 
 ### Changes for Developers and Admins
--   Added new environment variable ENTREZ_EMAIL, which will be attached to every request to NCBI. This previously used hard-code or used the db admin as the fallback.
+-   Added new environment variable ENTREZ_EMAIL, which will be attached to every request to NCBI. This previously used hard-code or used the database admin user email as the fallback.
+-   On the Blast database version page in the admin console, the Delete button and some of the save buttons have been removed for simplicity. Databases can still be deleted from the database list.
+-   The string representation of annotation objects has been added; shows the `<flag>, <poster first name> (<date>)`
+-   Altered .gitignore to more comprehensively exclude any certificate files (**.crt, **.key, **.pem)

@@ -160,9 +160,15 @@ class LibraryAdmin(SimpleHistoryAdmin):
     search_fields = ['description', 'id', 'custom_name', 'marker_gene']
     list_filter = ['public', 'owner__username', 'marker_gene']
 
-    def changelist_view(self, request, extra_context: Optional[Dict[str, str]] = None):
+    def changelist_view(self, request, extra_context: Optional[Dict[str, Any]] = None):
         # Customize the title at the top of the change list
-        extra_context = {'title': f'Select a {library_title} to view or change'}
+        extra_context = extra_context or {}
+        extra_context.update({ 
+            'title': f'Select a {library_title} to view or change',
+            'show_save_and_continue': True,
+            'show_save_and_add_another': False,
+            'show_save': False
+        })
         return super(LibraryAdmin, self).changelist_view(request, extra_context=extra_context)
 
     def get_fields(self, request: HttpRequest, obj: Optional[Library] = None):
@@ -400,10 +406,21 @@ class BlastDbAdmin(SimpleHistoryAdmin):
             'custom_name': form.cleaned_data.get('custom_name'),
             'description': form.cleaned_data.get('description'),
         }
-        filter_fields = ['min_length', 'max_length', 'max_ambiguous_bases', 'blacklist', 'require_taxonomy']
+        filter_fields = [
+            ('min_length', -1),
+            ('max_length', -1), 
+            ('max_ambiguous_bases', -1), 
+            ('blacklist', ''),
+            ('require_taxonomy', False)
+        ]
+        def get_filter_from_form(form, field):
+            field_name, field_default = field 
+            val = form.cleaned_data.get(field_name, field_default)
+            return val if val is not None else field_default
         filter_args: dict[str, Any] = {
-            field: form.cleaned_data.get(field) for field in filter_fields if field in form.cleaned_data
+            field[0]: get_filter_from_form(form, field) for field in filter_fields
         }
+        print("Filter args", filter_args)
         raw_blacklist = filter_args.get('blacklist', '').strip()
         filter_args['blacklist'] = raw_blacklist.split('\n') if len(raw_blacklist) > 0 else []
         
@@ -480,9 +497,9 @@ class BlastDbAdmin(SimpleHistoryAdmin):
     def changeform_view(self, request: HttpRequest, object_id: Union[str, None], form_url: str, extra_context: Optional[Dict[str, bool]]) -> Any:
         extra_context = extra_context or {}
         extra_context['show_save_and_continue'] = True # show Save and Continue button
-        extra_context['show_save_and_add_another'] = True # hide Save and Add Another button
-        extra_context['show_save'] = True # hide save button
-        extra_context['show_delete'] = True # show delete button
+        extra_context['show_save_and_add_another'] = False # hide Save and Add Another button
+        extra_context['show_save'] = False # hide save button
+        extra_context['show_delete'] = False # hide delete button
         return super().changeform_view(request, object_id, form_url, extra_context)
 
 class NuccoreAdminModifyForm(ModelForm):
